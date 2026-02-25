@@ -1,35 +1,21 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Vite: Debug in Chrome",
-      "type": "pwa-chrome",
-      "request": "launch",
-      "preLaunchTask": "vite:dev",
-      "url": "http://localhost:5173/",
-      "webRoot": "${workspaceFolder}",
-      "sourceMaps": true,
-      "sourceMapPathOverrides": {
-        "vite:///*": "${workspaceFolder}/*",
-        "vite:///src/*": "${workspaceFolder}/src/*",
-        "http://localhost:5173/*": "${workspaceFolder}/*",
-        "http://localhost:5173/src/*": "${workspaceFolder}/src/*",
-        "http://127.0.0.1:5173/*": "${workspaceFolder}/*",
-        "http://127.0.0.1:5173/src/*": "${workspaceFolder}/src/*",
-        "*/src/*": "${workspaceFolder}/src/*",
-        "/src/*": "${workspaceFolder}/src/*",
-        "/@fs/*": "/*",
-        "file:///*": "/*",
-        "webpack:///*": "${workspaceFolder}/*",
-        "*": "${workspaceFolder}/src/*"
-      },
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/**",
-        "!**/node_modules/**"
-      ],
-      "skipFiles": [
-        "<node_internals>/**"
-      ]
-    }
-  ]
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Vite: Debug in Chrome",
+            "type": "chrome",
+            "request": "launch",
+            "preLaunchTask": "vite:dev",
+            "url": "http://localhost:5173/",
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": true,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
+            ],
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        }
+    ]
 }
