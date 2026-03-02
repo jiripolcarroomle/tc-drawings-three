@@ -1,6 +1,9 @@
 import './style.css'
-
+import * as flatted from 'flatted'
 import * as THREE from 'three'
+import { createScene } from './createThreeScene'
+
+import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 
 // ---- Minimal Three.js app structure (Vite + TypeScript) ----
 //
@@ -11,13 +14,16 @@ import * as THREE from 'three'
 // 4) Create objects (Geometry + Material -> Mesh) and add them to the scene
 // 5) Handle resizing so the canvas + camera projection stay correct
 // 6) Run an animation loop: update state each frame, then render(scene, camera)
-
 // Grab the root element Vite creates in index.html and use it as our
 // “viewport” container.
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) {
   throw new Error('Missing #app element')
 }
+
+const orderJson = flatted.parse(orderJsonRaw)
+
+void createScene(orderJson.o, orderJson.ol)
 
 // From here on, treat #app as definitely present.
 // TypeScript doesn't reliably keep the non-null narrowing inside nested
@@ -110,4 +116,7 @@ function animate() {
 }
 
 // Kick off the loop.
-animate()
+//animate()
+
+
+ renderer.render(scene, camera)
