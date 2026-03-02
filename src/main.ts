@@ -50,10 +50,10 @@ const scene = sceneToThreeJsScene(orderScene);
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //
 // Note: we set aspect=1 initially; we’ll compute the real value in resize().
-const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100)
+const camera = new THREE.PerspectiveCamera(90, 1, 0.1, 10000)
 
 // Move the camera back a bit so the origin is visible.
-camera.position.set(0, 0, 3)
+camera.position.set(1000, 5000, 1000)
 
 // Adding the camera to the scene is optional for rendering (render() takes
 // a direct camera reference), but becomes useful if you want to parent the
@@ -62,7 +62,7 @@ scene.add(camera)
 
 // ---- A minimal visible object: a rotating cube ----
 // A Mesh is Geometry (shape) + Material (how it looks).
-const geometry = new THREE.BoxGeometry(1, 1, 1)
+const geometry = new THREE.BoxGeometry(100, 100, 100)
 
 // MeshNormalMaterial colors each fragment by its normal direction.
 // It’s great for demos because it doesn't require any lights.
@@ -95,6 +95,53 @@ function resize() {
 window.addEventListener('resize', resize)
 resize()
 
+// ---- Mouse-look controls (pointer lock) ----
+// Click the canvas to lock the pointer; move mouse to look around; press ESC to unlock.
+// Intentionally minimal: only camera yaw/pitch, no keyboard movement.
+{
+  const canvas = renderer.domElement
+
+  // Make sure right-click doesn't steal focus with a context menu while trying to look.
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+
+  let yaw = 0
+  let pitch = 0
+  const sensitivity = 0.002
+  const maxPitch = Math.PI / 2 - 0.001
+
+  camera.rotation.order = 'YXZ'
+
+  function applyRotation() {
+    camera.rotation.y = yaw
+    camera.rotation.x = pitch
+  }
+
+  function onMouseMove(e: MouseEvent) {
+    if (document.pointerLockElement !== canvas) return
+
+    yaw -= e.movementX * sensitivity
+    pitch -= e.movementY * sensitivity
+
+    if (pitch > maxPitch) pitch = maxPitch
+    if (pitch < -maxPitch) pitch = -maxPitch
+
+    applyRotation()
+  }
+
+  window.addEventListener('mousemove', onMouseMove)
+
+  canvas.addEventListener('pointerdown', (e) => {
+    // Only left button initiates pointer lock.
+    if (e.button !== 0) return
+    canvas.requestPointerLock()
+  })
+
+  // Initialize from whatever the camera was set to.
+  yaw = camera.rotation.y
+  pitch = camera.rotation.x
+  applyRotation()
+}
+
 // A clock is a convenient way to get consistent frame deltas.
 // Using delta time (dt) makes animation speed independent of frame rate.
 const clock = new THREE.Clock()
@@ -115,7 +162,4 @@ function animate() {
 }
 
 // Kick off the loop.
-//animate()
-
-
-renderer.render(scene, camera)
+animate()

@@ -1,7 +1,7 @@
 
 import * as THREE from "three";
 import { Matrix4, Vector3 } from "./tc/base";
-import { createWallsGroupFromOrderData, type IWallSegment, type WallSegment } from "./wall";
+import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
 
 interface IDrawingRenderSettings {
 }
@@ -111,7 +111,7 @@ interface IObject3DNode {
 
 }
 
-interface IScene {
+export interface IScene {
     rootNode: IObject3DNode;
     getFilteredCopy(filter: (node: IObject3DNode) => boolean): IScene;
     render(
@@ -207,6 +207,7 @@ export class OrderSceneNode implements IObject3DNode {
 
     readonly _geometry: IGeometryData;
     geometry(drawingRenderSettings: IDrawingRenderSettings): IGeometryData {
+        void drawingRenderSettings;
         return this._geometry!;
     }
 
@@ -254,6 +255,7 @@ export class OrderSceneNode implements IObject3DNode {
             { command: 'L', args: [wallSegment.segmentEnd._x, wallSegment.segmentEnd._z] },
             { command: 'L', args: [wallSegment.segmentStart._x, wallSegment.segmentStart._z] },
         ];
+        node._geometry.svgDepth = wallSegment.wallHeight;
         return node;
     }
 
@@ -264,6 +266,7 @@ export function createScene(
     o: any, // IOrderData
     ol: any, // IFullOrderLineGroupData
 ): OrderSceneNode {
+    void ol;
     const scenceRoot = OrderSceneNode.createGroup();
 
     const wallsGroup = createWallsGroupFromOrderData(o.rooms);
@@ -294,25 +297,76 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
     threeObject.matrix.fromArray(node.transform.elements);
     threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
 
-    if (node.geometry({}).svgPath?.length) {
+    const geom = node.geometry({});
+    if (geom.svgPath?.length) {
         const shape = new THREE.Shape();
-        for (const pathNode of node.geometry({}).svgPath!) {
-            const [x, y] = pathNode.args;
-            if (pathNode.command === 'M') {
+
+        // The svgPath points in this project are authored in world X/Z (see wall creation).
+        // Make them local to the node transform (avoid double translation), and map them
+        // into Shape's 2D (x, y) such that after rotating the extrude mesh by -90° around X:
+        // - the shape lies in world XZ
+        // - the extrusion depth becomes world +Y
+        const te = node.transform.elements;
+        const originX = te[12] ?? 0;
+        const originZ = te[14] ?? 0;
+
+        let hasAnyZ = false;
+        let hasStarted = false;
+
+        for (const pathNode of geom.svgPath) {
+            if (pathNode.command === 'Z') {
+                shape.closePath();
+                hasAnyZ = true;
+                continue;
+            }
+
+            const args = pathNode.args;
+            if (!args || args.length < 2) continue;
+
+            const worldX = args[0];
+            const worldZ = args[1];
+
+            const localX = worldX - originX;
+            const localZ = worldZ - originZ;
+
+            // Shape is XY; we want final world Z to be +localZ after a -90° X rotation.
+            const x = localX;
+            const y = -localZ;
+
+            if (pathNode.command === 'M' || !hasStarted) {
                 shape.moveTo(x, y);
+                hasStarted = true;
             } else if (pathNode.command === 'L') {
                 shape.lineTo(x, y);
-            } else if (pathNode.command === 'Z') {
-                shape.closePath();
             }
         }
-        const extrudeSettings = {
+
+        if (!hasAnyZ) {
+            shape.closePath();
+        }
+
+        const extrudeSettings: THREE.ExtrudeGeometryOptions = {
             steps: 1,
-            depth: node.geometry({}).svgDepth ?? 1,
-            bevelEnabled: false,
+            depth: geom.svgDepth ?? 1,
         };
+
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+
+        // random color
+        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        const mesh = new THREE.Mesh(geometry, material);
+
+        // Rotate so extrusion is "up" in the scene (world +Y).
+        mesh.rotation.x = -Math.PI / 2;
+
+        threeObject.add(mesh);
+    }
+    else if (geom.meshUrl) {
+
+    }
+    else if (geom.size) {
+        const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
+        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
         const mesh = new THREE.Mesh(geometry, material);
         threeObject.add(mesh);
     }
