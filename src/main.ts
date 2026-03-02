@@ -1,7 +1,7 @@
 import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
-import { createScene } from './createThreeScene'
+import { createScene, sceneToThreeJsScene } from './createThreeScene'
 
 import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 
@@ -23,7 +23,7 @@ if (!app) {
 
 const orderJson = flatted.parse(orderJsonRaw)
 
-void createScene(orderJson.o, orderJson.ol)
+const orderScene = createScene(orderJson.o, orderJson.ol);
 
 // From here on, treat #app as definitely present.
 // TypeScript doesn't reliably keep the non-null narrowing inside nested
@@ -45,8 +45,7 @@ appEl.appendChild(renderer.domElement)
 
 // The scene is a container graph holding everything to be rendered:
 // meshes, lights, groups, helpers, etc.
-const scene = new THREE.Scene()
-
+const scene = sceneToThreeJsScene(orderScene);
 // A perspective camera approximates how the human eye sees the world.
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //
@@ -119,4 +118,4 @@ function animate() {
 //animate()
 
 
- renderer.render(scene, camera)
+renderer.render(scene, camera)

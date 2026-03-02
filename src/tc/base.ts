@@ -1,5 +1,5 @@
 export class Vector3 {
-    // See: https://github.com/mrdoob/three.js/blob/dev/src/math/Vector3.js
+    // See: https://github.com/mrdoob/three.js/blob/dev/src/math/Vector3.js   
     constructor(x = 0, y = 0, z = 0) {
         this._x = x;
         this._y = y;
@@ -46,6 +46,57 @@ export class Vector3 {
     length() {
         return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
     }
+
+
+
+    /**
+ * Epsilon value to compare coordinate or position equality.
+ * apparently, 0.000001 was too little
+ * TC provided near-zero position values: "x": 900.0, "y": -2.6679314139854693E-12, "z": -6.103515625E-05, "rotationY": 1.1920928955078125E-07
+ * where the previous value failed
+ * 0.01 mm is a suggestion for trying out
+ */
+    static EPS: number = 0.01;
+    add(v: Vector3) {
+        return new Vector3(this._x + v._x, this._y + v._y, this._z + v._z);
+    }
+    subtract(v: Vector3) {
+        return new Vector3(this._x - v._x, this._y - v._y, this._z - v._z);
+    }
+    scale(scalar: number) {
+        return new Vector3(this._x * scalar, this._y * scalar, this._z * scalar);
+    }
+    normalize() {
+        const magnitude = this.magnitude();
+        if (magnitude < Vector3.EPS) {
+            return new Vector3(0, 0, 0);
+        }
+        else {
+            return this.scale(1 / this.magnitude());
+        }
+    }
+    magnitude() {
+        return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
+    }
+    isCoincident(v: Vector3, tolerance: number = Vector3.EPS) {
+        return this.subtract(v).magnitude() < Vector3.EPS;
+    }
+    /** dot product */
+    dot(v: Vector3) {
+        return this._x * v._x + this._y * v._y + this._z * v._z;
+    }
+    /** cross product */
+    cross(v: Vector3) {
+        return new Vector3(this._y * v._z - this._z * v._y, this._z * v._x - this._x * v._z, this._x * v._y - this._y * v._x);
+    }
+    /** size of cross is size of area between two vectors - if that is 0, they are parallel */
+    isParallel(v: Vector3) {
+        return this.cross(v).magnitude() < Vector3.EPS;
+    }
+    distanceTo(v: Vector3) {
+        return this.subtract(v).magnitude();
+    }
+
 }
 
 export class Matrix4 {
@@ -256,3 +307,7 @@ export class Matrix4 {
         return this;
     }
 }
+
+
+
+

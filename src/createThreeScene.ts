@@ -1,20 +1,34 @@
 
+import * as THREE from "three";
 import { Matrix4, Vector3 } from "./tc/base";
+import { createWallsGroupFromOrderData, type IWallSegment, type WallSegment } from "./wall";
 
 interface IDrawingRenderSettings {
+}
+
+interface ISvgPathNode {
+    command: 'M' | 'L' | 'Z';
+    args: number[];
 }
 
 interface IGeometryData {
     ownerNode: IObject3DNode;
     origin: Matrix4;
     size?: Vector3;
-    svgPath?: string;
+    svgPath?: ISvgPathNode[];
     svgDepth?: number;
     meshUrl?: string;
 }
 
+/**
+ * The kind of node determines how it should be rendered and interacted with.
+ * - Group: no geometry, only transformation
+ * - Wall: created from room data, has an SVG extruded geometry
+ * - Part: created from part data, has a box, SVG extrusion or mesh geometry
+ * - Module: created from module data, has a bounding box (size, position and transform), but no geometry
+ */
 enum Object3DNodeKind {
-    Root = "root",
+    Group = "group",
     Wall = "wall",
     Part = "part",
     Module = "module",
@@ -88,6 +102,13 @@ interface IObject3DNode {
      * nodes for the drawing views.
      */
     clone(filter: (node: IObject3DNode) => boolean): IObject3DNode | null;
+
+    /**
+     * Data for the wall geometry. This is specific to kind wall.
+     * 
+     */
+    wallData: IWallSegment | undefined;
+
 }
 
 interface IScene {
@@ -128,17 +149,20 @@ class IdsMap {
     }
 
     static useIdOrGenerateUnique(id: string): string {
-        if (IdsMap.objects.has(id)) {
-            return IdsMap.getRandomId();
+        let tryId = id;
+        let counter = 1;
+        while (IdsMap.objects.has(tryId)) {
+            tryId = `${id}_${counter++}`;
+            if (counter > 1000) {
+                throw new Error(`IdsMap: Failed to generate a unique ID based on ${id} after 1000 attempts`);
+            }
         }
-        else {
-            return id;
-        }
+        return tryId;
     }
 }
 
 
-class OrderSceneNode implements IObject3DNode {
+export class OrderSceneNode implements IObject3DNode {
     readonly id: string;
     readonly kind: Object3DNodeKind;
     children: IObject3DNode[] = [];
@@ -202,6 +226,8 @@ class OrderSceneNode implements IObject3DNode {
         return clonedNode;
     }
 
+    wallData: IWallSegment | undefined;
+
     private constructor(id: string | undefined, kind: Object3DNodeKind) {
         this.kind = kind;
         this.id = id ? IdsMap.useIdOrGenerateUnique(id) : IdsMap.getRandomId();
@@ -212,12 +238,22 @@ class OrderSceneNode implements IObject3DNode {
         this._geometry = geometryData;
     }
 
-    static createRoot() {
-        return new OrderSceneNode(undefined, Object3DNodeKind.Root);
+    static createGroup(id?: string): OrderSceneNode {
+        return new OrderSceneNode(id, Object3DNodeKind.Group);
     }
 
-    static createFromWall(wallData: any): OrderSceneNode {
-        const node = new OrderSceneNode(wallData.id, Object3DNodeKind.Wall);
+    static createFromWall(id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
+        const node = new OrderSceneNode(id, Object3DNodeKind.Wall);
+        node.wallData = wallSegment;
+        const segmentCenter = wallSegment.segmentStart.add(wallSegment.segmentEnd).scale(0.5);
+        node.transform.setPosition(segmentCenter._x, segmentCenter._y, segmentCenter._z);
+        node._geometry.svgPath = [
+            { command: 'M', args: [wallSegment.segmentStart._x, wallSegment.segmentStart._z] },
+            { command: 'L', args: [wallSegment.segmentBackStart._x, wallSegment.segmentBackStart._z] },
+            { command: 'L', args: [wallSegment.segmentBackEnd._x, wallSegment.segmentBackEnd._z] },
+            { command: 'L', args: [wallSegment.segmentEnd._x, wallSegment.segmentEnd._z] },
+            { command: 'L', args: [wallSegment.segmentStart._x, wallSegment.segmentStart._z] },
+        ];
         return node;
     }
 
@@ -228,13 +264,62 @@ export function createScene(
     o: any, // IOrderData
     ol: any, // IFullOrderLineGroupData
 ): OrderSceneNode {
-    const scenceRoot = OrderSceneNode.createRoot();
+    const scenceRoot = OrderSceneNode.createGroup();
 
-
-
+    const wallsGroup = createWallsGroupFromOrderData(o.rooms);
+    if (wallsGroup) {
+        scenceRoot.addChild(wallsGroup, false);
+    }
 
     return scenceRoot;
 }
 
 
 
+
+
+
+export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scene {
+    const threeScene = new THREE.Scene();
+
+    const rootThreeObject = orderObjectNodeToThreeObject3D(rootObject3DNode);
+    threeScene.add(rootThreeObject);
+
+    return threeScene;
+}
+
+export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Object3D {
+    const threeObject = new THREE.Object3D();
+    // set transform
+    threeObject.matrix.fromArray(node.transform.elements);
+    threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
+
+    if (node.geometry({}).svgPath?.length) {
+        const shape = new THREE.Shape();
+        for (const pathNode of node.geometry({}).svgPath!) {
+            const [x, y] = pathNode.args;
+            if (pathNode.command === 'M') {
+                shape.moveTo(x, y);
+            } else if (pathNode.command === 'L') {
+                shape.lineTo(x, y);
+            } else if (pathNode.command === 'Z') {
+                shape.closePath();
+            }
+        }
+        const extrudeSettings = {
+            steps: 1,
+            depth: node.geometry({}).svgDepth ?? 1,
+            bevelEnabled: false,
+        };
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const mesh = new THREE.Mesh(geometry, material);
+        threeObject.add(mesh);
+    }
+
+    node.children.forEach(childNode => {
+        const childThreeObject = orderObjectNodeToThreeObject3D(childNode);
+        threeObject.add(childThreeObject);
+    });
+    return threeObject;
+}
