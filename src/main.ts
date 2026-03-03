@@ -53,7 +53,7 @@ const scene = sceneToThreeJsScene(orderScene);
 const camera = new THREE.PerspectiveCamera(90, 1, 0.1, 10000)
 
 // Move the camera back a bit so the origin is visible.
-camera.position.set(1000, 5000, 1000)
+camera.position.set(0, 300, 900)
 
 // Adding the camera to the scene is optional for rendering (render() takes
 // a direct camera reference), but becomes useful if you want to parent the

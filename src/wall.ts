@@ -64,7 +64,7 @@ export function createWallsGroupFromOrderData(roomContours: PosContour[]): Order
     if (!roomContours?.length) {
         return;
     }
-    const wallsGroup = OrderSceneNode.createGroup();
+    const wallsGroup = OrderSceneNode.createGroup('group_walls');
 
 
     for (const roomContour of roomContours) {
