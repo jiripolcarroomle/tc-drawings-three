@@ -271,15 +271,21 @@ export class OrderSceneNode implements IObject3DNode {
             node = OrderSceneNode.createModuleFromOrderLine(source);
         }
         else if (source._partId && (source._childParts?.length || (source._hidden ?? false))) {
-            console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
-            // this is a partgroup which we currently don't render,
+            // console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
+            // this is a partgroup which is abstract
+            // or is hidden
             return null;
         }
         else if (source._partId) {
             node = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
             node.orderLineEntry = source;
+            // dirty hack: apply the matrix, but it has probably world position ... but we get its rotation
+            node.transform.elements = (source._partMatrix ?? source._fullMatrix).elements;
+            // and then override by the local position
+            // const partPositionAbs = new Vector3(source._xAbs, source._yAbs, source._zAbs);
             const partPosition = new Vector3(source._x, source._y, source._z);
-            node.transform.setPosition(partPosition._x, partPosition._y, partPosition._z);
+            const resultPosition = partPosition;
+            node.transform.setPosition(resultPosition._x, resultPosition._y, resultPosition._z);
             node._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
         }
         else {
