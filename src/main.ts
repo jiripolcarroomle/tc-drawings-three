@@ -3,7 +3,10 @@ import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { createScene, sceneToThreeJsScene } from './createThreeScene'
 
-import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/10000141.flatted.json?raw'
+import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 // ---- Minimal Three.js app structure (Vite + TypeScript) ----
 //
@@ -53,7 +56,10 @@ const scene = sceneToThreeJsScene(orderScene);
 const camera = new THREE.PerspectiveCamera(90, 1, 0.1, 10000)
 
 // Move the camera back a bit so the origin is visible.
-camera.position.set(0, 300, 900)
+camera.position.set(4000, 800, -2500)
+camera.position.set(0, 3000, 0)
+camera.position.set(3500, 800, -3000)
+camera.position.set(3500, 800, -2000)
 
 // Adding the camera to the scene is optional for rendering (render() takes
 // a direct camera reference), but becomes useful if you want to parent the
@@ -63,6 +69,18 @@ scene.add(camera)
 // ---- A minimal visible object: a rotating cube ----
 // A Mesh is Geometry (shape) + Material (how it looks).
 const geometry = new THREE.BoxGeometry(100, 100, 100)
+
+// add a coordinate system grid
+const xAxis = new THREE.BoxGeometry(5000, 10, 10)
+xAxis.translate(2500, 0, 0)
+const yAxis = new THREE.BoxGeometry(10, 5000, 10)
+yAxis.translate(0, 2500, 0)
+const zAxis = new THREE.BoxGeometry(10, 10, 5000)
+zAxis.translate(0, 0, 2500)
+scene.add(new THREE.Mesh(xAxis, new THREE.MeshBasicMaterial({ color: 0xff0000 })))
+scene.add(new THREE.Mesh(yAxis, new THREE.MeshBasicMaterial({ color: 0x00ff00 })))
+scene.add(new THREE.Mesh(zAxis, new THREE.MeshBasicMaterial({ color: 0x0000ff })))
+
 
 // MeshNormalMaterial colors each fragment by its normal direction.
 // It’s great for demos because it doesn't require any lights.

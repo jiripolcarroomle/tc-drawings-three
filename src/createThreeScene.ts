@@ -45,16 +45,16 @@ interface IOrderLineEntry extends AnyObject { }
 
 interface IObject3DNode {
     /**
+     * The class is used to categorize nodes into types (e.g. wall, part, module).
+     */
+    readonly kind: Object3DNodeKind;
+    /**
      * The ID is used to identify nodes across different scenes 
      * (e.g. original order data, filtered scene, etc.). 
      * It should be stable and unique for each node. 
      * The exact format is not important, as long as it meets these criteria.
      */
     readonly id: string;
-    /**
-     * The class is used to categorize nodes into types (e.g. wall, part, module).
-     */
-    readonly kind: Object3DNodeKind;
     children: IObject3DNode[];
     /**
      * Get all children that are of kind "part". This is a convenience method to avoid having to filter the children array manually.
@@ -163,8 +163,8 @@ class IdsMap {
 
 
 export class OrderSceneNode implements IObject3DNode {
-    readonly id: string;
     readonly kind: Object3DNodeKind;
+    readonly id: string;
     children: IObject3DNode[] = [];
 
     getPartChildren(): IObject3DNode[] {
@@ -258,7 +258,7 @@ export class OrderSceneNode implements IObject3DNode {
         return node;
     }
 
-    static createFromOrderLine(source: any, parent: OrderSceneNode | null): OrderSceneNode {
+    static createFromOrderLine(source: any, parent: OrderSceneNode | null): OrderSceneNode | null {
         let node: OrderSceneNode | null = null;
         if (source.groupPos && source.items) {
             node = OrderSceneNode.createGroupOrderFromOrderLine(source);
@@ -269,6 +269,11 @@ export class OrderSceneNode implements IObject3DNode {
         }
         else if (source.modId) {
             node = OrderSceneNode.createModuleFromOrderLine(source);
+        }
+        else if (source._partId && (source._childParts?.length || (source._hidden ?? false))) {
+            console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
+            // this is a partgroup which we currently don't render,
+            return null;
         }
         else if (source._partId) {
             node = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
@@ -304,9 +309,14 @@ export class OrderSceneNode implements IObject3DNode {
     private static createModuleFromOrderLine(source: any): OrderSceneNode {
         const node = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
         node.orderLineEntry = source;
-        const modulePosition = new Vector3(source._articlePos.x, source._articlePos.y, source._articlePos.z);
-        const moduleRotationY = source._articleRotationY ?? source._articlePos?.rotationY ?? 0;
-        node.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
+        if (source._origin) {
+            node.transform.multiply(source._origin);
+        }
+        else {
+            const modulePosition = new Vector3(source._articlePos.x, source._articlePos.y, source._articlePos.z);
+            const moduleRotationY = source._articleRotationY ?? source._articlePos?.rotationY ?? 0;
+            node.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
+        }
         source.m?.forEach((subModule: any) => OrderSceneNode.createFromOrderLine(subModule, node));
         source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
         return node;
@@ -425,13 +435,31 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
         threeObject.add(mesh);
     }
     else if (geom.meshUrl) {
-
+        console.log("Mesh loading not implemented yet. URL:", geom.meshUrl);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
+        // transform so that the origin is at rear left bottom corner
+        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
         const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 300) {
+            // make transparent
+            material.transparent = true;
+            material.opacity = 0.3;
+        }
         const mesh = new THREE.Mesh(geometry, material);
         threeObject.add(mesh);
+        const big = 300;
+        if (
+            (
+                Math.min(geom.size._x / big, 1)
+                + Math.min(geom.size._y / big, 1)
+                + Math.min(geom.size._z / big, 1)
+            ) > 2.5) {
+            console.log(node.id, geom.size, node.orderLineEntry?._articlePos, node.orderLineEntry?._x, node.orderLineEntry?._y, node.orderLineEntry?._z, node.orderLineEntry?._xAbs, node.orderLineEntry?._yAbs, node.orderLineEntry?._zAbs);
+            material.transparent = true;
+            // material.opacity = 0.3;
+        }
     }
 
     node.children.forEach(childNode => {
