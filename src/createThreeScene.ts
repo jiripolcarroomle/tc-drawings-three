@@ -22,12 +22,14 @@ interface IGeometryData {
 
 /**
  * The kind of node determines how it should be rendered and interacted with.
+ * - PosGroup: order line pos group, this provides coordinate system for the parts
  * - Group: no geometry, only transformation
  * - Wall: created from room data, has an SVG extruded geometry
  * - Part: created from part data, has a box, SVG extrusion or mesh geometry
  * - Module: created from module data, has a bounding box (size, position and transform), but no geometry
  */
 enum Object3DNodeKind {
+    PosGroup = "posGroup",
     Group = "group",
     Wall = "wall",
     Part = "part",
@@ -242,6 +244,11 @@ export class OrderSceneNode implements IObject3DNode {
         return new OrderSceneNode(id, Object3DNodeKind.Group);
     }
 
+    
+    static createPosGroup(id?: string): OrderSceneNode {
+        return new OrderSceneNode(id, Object3DNodeKind.PosGroup);
+    }
+    
     static createFromWall(id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
         const node = new OrderSceneNode(id, Object3DNodeKind.Wall);
         node.wallData = wallSegment;
@@ -302,7 +309,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     private static createGroupOrderFromOrderLine(source: any): OrderSceneNode {
-        const node = OrderSceneNode.createGroup('group_order_' + (source.groupPos.calcGroup ?? ''));
+        const node = OrderSceneNode.createPosGroup('group_order_' + (source.groupPos.calcGroup ?? ''));
         node.orderLineEntry = source;
         const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
         const groupRotationY = source.groupPos.calcGroupRotationY ?? 0;
