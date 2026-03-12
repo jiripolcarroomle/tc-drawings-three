@@ -244,11 +244,11 @@ export class OrderSceneNode implements IObject3DNode {
         return new OrderSceneNode(id, Object3DNodeKind.Group);
     }
 
-    
+
     static createPosGroup(id?: string): OrderSceneNode {
         return new OrderSceneNode(id, Object3DNodeKind.PosGroup);
     }
-    
+
     static createFromWall(id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
         const node = new OrderSceneNode(id, Object3DNodeKind.Wall);
         node.wallData = wallSegment;
@@ -265,24 +265,31 @@ export class OrderSceneNode implements IObject3DNode {
         return node;
     }
 
-    static createFromOrderLine(source: any, parent: OrderSceneNode | null): OrderSceneNode | null {
+    static createFromOrderLine(
+        source: any, // IFullOrderLineGroupData | IFullOrderLineData | OD_Base | PartBase
+        parent: OrderSceneNode | null): OrderSceneNode | null {
         let node: OrderSceneNode | null = null;
+        // instanceof IFullOrderLineGroupData
         if (source.groupPos && source.items) {
             node = OrderSceneNode.createGroupOrderFromOrderLine(source);
         }
+        // instanceof IFullOrderLineData
         else if (source.orderData?.orderItem && source.orderInput) {
             const item = source.orderData.orderItem;
             node = OrderSceneNode.createModuleFromOrderLine(item);
         }
+        // instanceof OD_Base
         else if (source.modId) {
             node = OrderSceneNode.createModuleFromOrderLine(source);
         }
+        // instanceof PartBase
         else if (source._partId && (source._childParts?.length || (source._hidden ?? false))) {
             // console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
             // this is a partgroup which is abstract
             // or is hidden
             return null;
         }
+        // instanceof PartBase
         else if (source._partId) {
             node = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
             node.orderLineEntry = source;
