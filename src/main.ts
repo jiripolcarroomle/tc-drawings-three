@@ -1,6 +1,7 @@
 import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createScene, sceneToThreeJsScene } from './createThreeScene'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
@@ -66,6 +67,132 @@ camera.position.set(3500, 800, -2000)
 // camera under other objects, use helpers, or traverse the graph.
 scene.add(camera)
 
+// ---- Standard navigation (OrbitControls) + persistence ----
+// Mouse:
+// - LMB drag: orbit
+// - RMB drag: pan
+// - Wheel / MMB: zoom
+// Keyboard:
+// - Arrow keys: pan
+//
+// Persisted between reloads via localStorage.
+const NAV_STORAGE_KEY = 'tc-drawings-three:navigation:v1'
+type PersistedNavigationV1 = {
+  v: 1
+  camera: {
+    position: [number, number, number]
+    zoom: number
+  }
+  target: [number, number, number]
+}
+
+function isFiniteNumber(n: unknown): n is number {
+  return typeof n === 'number' && Number.isFinite(n)
+}
+
+function isVec3Tuple(v: unknown): v is [number, number, number] {
+  return (
+    Array.isArray(v) &&
+    v.length === 3 &&
+    isFiniteNumber(v[0]) &&
+    isFiniteNumber(v[1]) &&
+    isFiniteNumber(v[2])
+  )
+}
+
+function tryLoadNavigation(): PersistedNavigationV1 | null {
+  try {
+    const raw = localStorage.getItem(NAV_STORAGE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      (parsed as any).v !== 1 ||
+      !(parsed as any).camera ||
+      !isVec3Tuple((parsed as any).camera.position) ||
+      !isFiniteNumber((parsed as any).camera.zoom) ||
+      !isVec3Tuple((parsed as any).target)
+    ) {
+      return null
+    }
+    return parsed as PersistedNavigationV1
+  } catch {
+    return null
+  }
+}
+
+function saveNavigation(controls: OrbitControls) {
+  const state: PersistedNavigationV1 = {
+    v: 1,
+    camera: {
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      zoom: camera.zoom,
+    },
+    target: [controls.target.x, controls.target.y, controls.target.z],
+  }
+  try {
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore storage quota / privacy mode failures.
+  }
+}
+
+const controls = new OrbitControls(camera, renderer.domElement)
+// Disable damping/inertia so motion stops immediately (no acceleration-like feel).
+controls.enableDamping = false
+controls.screenSpacePanning = true
+controls.zoomSpeed = 0.9
+controls.panSpeed = 0.8
+controls.rotateSpeed = 0.6
+controls.listenToKeyEvents(window)
+// Use WASD for keyboard panning (OrbitControls uses these 4 directions).
+controls.keys = {
+  LEFT: 'KeyA',
+  UP: 'KeyW',
+  RIGHT: 'KeyD',
+  BOTTOM: 'KeyS',
+}
+
+// Ensure right-click doesn't open the context menu when panning.
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
+
+// Restore navigation if present; otherwise default to centering the scene.
+{
+  const persisted = tryLoadNavigation()
+  if (persisted) {
+    camera.position.set(...persisted.camera.position)
+    camera.zoom = persisted.camera.zoom
+    camera.updateProjectionMatrix()
+    controls.target.set(...persisted.target)
+    controls.update()
+  } else {
+    const box = new THREE.Box3().setFromObject(scene)
+    if (Number.isFinite(box.min.x) && Number.isFinite(box.max.x) && !box.isEmpty()) {
+      const center = box.getCenter(new THREE.Vector3())
+      controls.target.copy(center)
+      controls.update()
+    }
+  }
+}
+
+let saveTimer: number | undefined
+function scheduleSave() {
+  if (saveTimer !== undefined) window.clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => saveNavigation(controls), 200)
+}
+
+controls.addEventListener('end', scheduleSave)
+controls.addEventListener('change', scheduleSave)
+window.addEventListener('beforeunload', () => saveNavigation(controls))
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    controls.dispose()
+    if (saveTimer !== undefined) window.clearTimeout(saveTimer)
+  })
+}
+
 // ---- A minimal visible object: a rotating cube ----
 // A Mesh is Geometry (shape) + Material (how it looks).
 const geometry = new THREE.BoxGeometry(100, 100, 100)
@@ -114,51 +241,7 @@ window.addEventListener('resize', resize)
 resize()
 
 // ---- Mouse-look controls (pointer lock) ----
-// Click the canvas to lock the pointer; move mouse to look around; press ESC to unlock.
-// Intentionally minimal: only camera yaw/pitch, no keyboard movement.
-{
-  const canvas = renderer.domElement
-
-  // Make sure right-click doesn't steal focus with a context menu while trying to look.
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-
-  let yaw = 0
-  let pitch = 0
-  const sensitivity = 0.002
-  const maxPitch = Math.PI / 2 - 0.001
-
-  camera.rotation.order = 'YXZ'
-
-  function applyRotation() {
-    camera.rotation.y = yaw
-    camera.rotation.x = pitch
-  }
-
-  function onMouseMove(e: MouseEvent) {
-    if (document.pointerLockElement !== canvas) return
-
-    yaw -= e.movementX * sensitivity
-    pitch -= e.movementY * sensitivity
-
-    if (pitch > maxPitch) pitch = maxPitch
-    if (pitch < -maxPitch) pitch = -maxPitch
-
-    applyRotation()
-  }
-
-  window.addEventListener('mousemove', onMouseMove)
-
-  canvas.addEventListener('pointerdown', (e) => {
-    // Only left button initiates pointer lock.
-    if (e.button !== 0) return
-    canvas.requestPointerLock()
-  })
-
-  // Initialize from whatever the camera was set to.
-  yaw = camera.rotation.y
-  pitch = camera.rotation.x
-  applyRotation()
-}
+// (Pointer-lock mouse-look removed in favor of OrbitControls.)
 
 // A clock is a convenient way to get consistent frame deltas.
 // Using delta time (dt) makes animation speed independent of frame rate.
@@ -173,6 +256,8 @@ function animate() {
   // different refresh rates (60Hz, 144Hz, etc.).
   cube.rotation.x += dt * 0.7
   cube.rotation.y += dt * 1.1
+
+  controls.update()
 
   // Draw the current scene from the camera's point of view.
   renderer.render(scene, camera)
