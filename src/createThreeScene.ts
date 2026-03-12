@@ -265,13 +265,65 @@ export class OrderSceneNode implements IObject3DNode {
         return node;
     }
 
-    static createFromOrderLine(
+    static createSceneRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
+        const posGroupNode = OrderSceneNode.createPosGroup('pos-group-' + (source.groupPos.calcGroup ?? ''));
+        posGroupNode.orderLineEntry = source;
+        const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
+        const groupRotationY = source.groupPos.calcGroupRotationY ?? 0;
+        posGroupNode.transform.makeRotationY(groupRotationY).setPosition(groupPosition._x, groupPosition._y, groupPosition._z);
+        posGroupsRootNode.addChild(posGroupNode, false);
+
+        source.items.forEach((item: any /* IFullOrderLineData */) => {
+            const orderData: any /* IBomOrderLineData */ = item.orderData;
+            orderData.bomEntries?.forEach((bomEntry: any) => {
+                OrderSceneNode.createScenePartNodeFromPartBase(bomEntry, posGroupNode);
+            });
+            OrderSceneNode.createSceneModuleNodeFromOD_Base(orderData.orderItem, posGroupNode);
+        });
+        return posGroupNode;
+    }
+
+    static createScenePartNodeFromPartBase(source: any /* PartBase */, parentNode: OrderSceneNode): OrderSceneNode {
+        const partNode = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
+
+        partNode.orderLineEntry = source;
+        partNode.transform = source._fullMatrix;
+        //if (!source._hidden) {
+        parentNode.addChild(partNode, false);
+        //}
+        partNode._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
+        return partNode;
+    }
+
+    static createSceneModuleNodeFromOD_Base(source: any /* OD_Base */, parentNode: OrderSceneNode): OrderSceneNode {
+        const moduleNode = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
+        moduleNode.orderLineEntry = source;
+        if (source._origin) {
+            moduleNode.transform.multiply(source._origin);
+        }
+        else {
+            const modulePosition = new Vector3(source._articlePos.x, source._articlePos.y, source._articlePos.z);
+            const moduleRotationY = source._articleRotationY ?? source._articlePos?.rotationY ?? 0;
+            moduleNode.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
+        }
+        parentNode.addChild(moduleNode, false);
+        source.m?.forEach((subModule: any /* OD_Base */) => OrderSceneNode.createSceneModuleNodeFromOD_Base(subModule, moduleNode));
+        // source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
+        return moduleNode;
+    }
+
+
+
+
+
+    /* static createFromOrderLine(
         source: any, // IFullOrderLineGroupData | IFullOrderLineData | OD_Base | PartBase
-        parent: OrderSceneNode | null): OrderSceneNode | null {
+        parent: OrderSceneNode | null
+    ): OrderSceneNode | null {
         let node: OrderSceneNode | null = null;
         // instanceof IFullOrderLineGroupData
         if (source.groupPos && source.items) {
-            node = OrderSceneNode.createGroupOrderFromOrderLine(source);
+            node = OrderSceneNode.createPosGroupOrderFromOrderLine(source);
         }
         // instanceof IFullOrderLineData
         else if (source.orderData?.orderItem && source.orderInput) {
@@ -291,16 +343,7 @@ export class OrderSceneNode implements IObject3DNode {
         }
         // instanceof PartBase
         else if (source._partId) {
-            node = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
-            node.orderLineEntry = source;
-            // dirty hack: apply the matrix, but it has probably world position ... but we get its rotation
-            node.transform.elements = (source._partMatrix ?? source._fullMatrix).elements;
-            // and then override by the local position
-            // const partPositionAbs = new Vector3(source._xAbs, source._yAbs, source._zAbs);
-            const partPosition = new Vector3(source._x, source._y, source._z);
-            const resultPosition = partPosition;
-            node.transform.setPosition(resultPosition._x, resultPosition._y, resultPosition._z);
-            node._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
+
         }
         else {
             console.log(Object.keys(source));
@@ -313,34 +356,9 @@ export class OrderSceneNode implements IObject3DNode {
         }
 
         return node; // placeholder
-    }
+    } */
 
-    private static createGroupOrderFromOrderLine(source: any): OrderSceneNode {
-        const node = OrderSceneNode.createPosGroup('group_order_' + (source.groupPos.calcGroup ?? ''));
-        node.orderLineEntry = source;
-        const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
-        const groupRotationY = source.groupPos.calcGroupRotationY ?? 0;
-        node.transform.makeRotationY(groupRotationY).setPosition(groupPosition._x, groupPosition._y, groupPosition._z);
-        source.items.forEach((item: any) => {
-            OrderSceneNode.createFromOrderLine(item, node);
-        });
-        return node;
-    }
-    private static createModuleFromOrderLine(source: any): OrderSceneNode {
-        const node = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
-        node.orderLineEntry = source;
-        if (source._origin) {
-            node.transform.multiply(source._origin);
-        }
-        else {
-            const modulePosition = new Vector3(source._articlePos.x, source._articlePos.y, source._articlePos.z);
-            const moduleRotationY = source._articleRotationY ?? source._articlePos?.rotationY ?? 0;
-            node.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
-        }
-        source.m?.forEach((subModule: any) => OrderSceneNode.createFromOrderLine(subModule, node));
-        source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
-        return node;
-    }
+
 
 }
 
@@ -356,12 +374,15 @@ export function createScene(
         scenceRoot.addChild(wallsGroup, false);
     }
 
+    const posGroupsRootNode = OrderSceneNode.createGroup('pos-groups-root');
+    scenceRoot.addChild(posGroupsRootNode, false);
+
     ol?.forEach((orderLineEntry: any) => {
-        OrderSceneNode.createFromOrderLine(orderLineEntry, scenceRoot);
+        OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
     })
 
     // Ensure world transforms are computed for any code paths that rely on them.
-    scenceRoot.updateWorldTransform(new Matrix4());
+    //scenceRoot.updateWorldTransform(new Matrix4());
 
     return scenceRoot;
 }
@@ -447,6 +468,9 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
 
         // random color
         const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        material.transparent = true;
+        material.opacity = 0.3;
+
         const mesh = new THREE.Mesh(geometry, material);
 
         // Rotate so extrusion is "up" in the scene (world +Y).
