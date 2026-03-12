@@ -2,13 +2,7 @@
 import * as THREE from "three";
 import { Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
-
-function getPartId(part: any /* PartBase */): string {
-    const id = `part__${part._partId}__${part._id}`;
-    //console.log(id, part);
-    return id;
-}
-
+import { getPartId, reparentPartsFromPosGroupsToModulesRecursive } from "./helpers";
 
 export interface IDrawingRenderSettings {
 }
@@ -141,7 +135,7 @@ export interface IScene {
 
 
 
-class IdsMap {
+export class IdsMap {
     static objects = new Map<string, IObject3DNode>();
     /**
      * Generates a random ID and checks if it is already used in the IdsMap. If it is, it generates a new one until it finds a unique ID.
@@ -208,14 +202,15 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     addChild(child: IObject3DNode, keepWorldTransform?: boolean): void {
+        const parentWorld = computeWorldTransform(this);
         if (keepWorldTransform) {
             // localTransform = inverse(parentWorldTransform) * childWorldTransform
             // This is intended for re-parenting EXISTING nodes.
-            const parentWorld = computeWorldTransform(this);
             const childWorld = computeWorldTransform(child);
             child.transform = parentWorld.clone().invert().multiply(childWorld);
         }
         child.parent = this;
+        child.updateWorldTransform(parentWorld);
         this.children.push(child);
     }
 
@@ -224,10 +219,8 @@ export class OrderSceneNode implements IObject3DNode {
         if (index === -1) {
             return null;
         }
-        // localTransform = inverse(parentWorldTransform) * childWorldTransform
-        const parentWorld = computeWorldTransform(this);
         const childWorld = computeWorldTransform(child);
-        child.transform = parentWorld.clone().invert().multiply(childWorld);
+        child.transform = childWorld;
         child.parent = null;
         this.children.splice(index, 1);
         return child;
@@ -363,8 +356,11 @@ export function createScene(
     scenceRoot.addChild(posGroupsRootNode, false);
 
     ol?.forEach((orderLineEntry: any) => {
-        OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
+        const posGroupNode = OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
+        reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, posGroupNode);
     })
+
+
 
     // Ensure world transforms are computed for any code paths that rely on them.
     //scenceRoot.updateWorldTransform(new Matrix4());
