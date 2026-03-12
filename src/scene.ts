@@ -93,6 +93,12 @@ interface IObject3DNode {
      */
     addChild(child: IObject3DNode, keepWorldTransform?: boolean): void;
     /**
+     * Removes a child from the node and returns it for chaining or null if the child was not found among the children of the node.
+     * It recomputes the child's local transform to keep its world transform the same after detaching it from the parent.
+     * @param child 
+     */
+    removeChild(child: IObject3DNode): IObject3DNode | null;
+    /**
      * Extract geometry relevant data from this node for the renderer.
      * @param drawingRenderSettings 
      */
@@ -206,6 +212,20 @@ export class OrderSceneNode implements IObject3DNode {
         this.children.push(child);
     }
 
+    removeChild(child: IObject3DNode): IObject3DNode | null {
+        const index = this.children.indexOf(child);
+        if (index === -1) {
+            return null;
+        }
+        // localTransform = inverse(parentWorldTransform) * childWorldTransform
+        const parentWorld = computeWorldTransform(this);
+        const childWorld = computeWorldTransform(child);
+        child.transform = parentWorld.clone().invert().multiply(childWorld);
+        child.parent = null;
+        this.children.splice(index, 1);
+        return child;
+    }
+
     readonly _geometry: IGeometryData;
     geometry(drawingRenderSettings: IDrawingRenderSettings): IGeometryData {
         void drawingRenderSettings;
@@ -233,6 +253,7 @@ export class OrderSceneNode implements IObject3DNode {
     private constructor(id: string | undefined, kind: Object3DNodeKind) {
         this.kind = kind;
         this.id = id ? IdsMap.useIdOrGenerateUnique(id) : IdsMap.getRandomId();
+        IdsMap.objects.set(this.id, this);
         const geometryData: IGeometryData = {
             ownerNode: this,
             origin: new Matrix4(),
@@ -265,82 +286,57 @@ export class OrderSceneNode implements IObject3DNode {
         return node;
     }
 
-    static createFromOrderLine(
-        source: any, // IFullOrderLineGroupData | IFullOrderLineData | OD_Base | PartBase
-        parent: OrderSceneNode | null): OrderSceneNode | null {
-        let node: OrderSceneNode | null = null;
-        // instanceof IFullOrderLineGroupData
-        if (source.groupPos && source.items) {
-            node = OrderSceneNode.createGroupOrderFromOrderLine(source);
-        }
-        // instanceof IFullOrderLineData
-        else if (source.orderData?.orderItem && source.orderInput) {
-            const item = source.orderData.orderItem;
-            node = OrderSceneNode.createModuleFromOrderLine(item);
-        }
-        // instanceof OD_Base
-        else if (source.modId) {
-            node = OrderSceneNode.createModuleFromOrderLine(source);
-        }
-        // instanceof PartBase
-        else if (source._partId && (source._childParts?.length || (source._hidden ?? false))) {
-            // console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
-            // this is a partgroup which is abstract
-            // or is hidden
-            return null;
-        }
-        // instanceof PartBase
-        else if (source._partId) {
-            node = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
-            node.orderLineEntry = source;
-            // dirty hack: apply the matrix, but it has probably world position ... but we get its rotation
-            node.transform.elements = (source._partMatrix ?? source._fullMatrix).elements;
-            // and then override by the local position
-            // const partPositionAbs = new Vector3(source._xAbs, source._yAbs, source._zAbs);
-            const partPosition = new Vector3(source._x, source._y, source._z);
-            const resultPosition = partPosition;
-            node.transform.setPosition(resultPosition._x, resultPosition._y, resultPosition._z);
-            node._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
-        }
-        else {
-            console.log(Object.keys(source));
-            throw new Error("Unknown order line entry type: " + JSON.stringify(source));
-        }
-
-        if (parent && node) {
-            // These nodes are being created from data and should be treated as LOCAL to parent.
-            parent.addChild(node, false);
-        }
-
-        return node; // placeholder
-    }
-
-    private static createGroupOrderFromOrderLine(source: any): OrderSceneNode {
-        const node = OrderSceneNode.createPosGroup('group_order_' + (source.groupPos.calcGroup ?? ''));
-        node.orderLineEntry = source;
+    static createSceneRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
+        const posGroupNode = OrderSceneNode.createPosGroup('pos-group-' + (source.groupPos.calcGroup ?? ''));
+        posGroupNode.orderLineEntry = source;
         const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
         const groupRotationY = source.groupPos.calcGroupRotationY ?? 0;
-        node.transform.makeRotationY(groupRotationY).setPosition(groupPosition._x, groupPosition._y, groupPosition._z);
-        source.items.forEach((item: any) => {
-            OrderSceneNode.createFromOrderLine(item, node);
+        posGroupNode.transform.makeRotationY(groupRotationY).setPosition(groupPosition._x, groupPosition._y, groupPosition._z);
+        posGroupsRootNode.addChild(posGroupNode, false);
+
+        source.items.forEach((item: any /* IFullOrderLineData */) => {
+            const orderData: any /* IBomOrderLineData */ = item.orderData;
+            orderData.bomEntries?.forEach((bomEntry: any) => {
+                OrderSceneNode.createScenePartNodeFromPartBase(bomEntry, posGroupNode);
+            });
+            OrderSceneNode.createSceneModuleNodeFromOD_Base(orderData.orderItem, posGroupNode);
         });
-        return node;
+        return posGroupNode;
     }
-    private static createModuleFromOrderLine(source: any): OrderSceneNode {
-        const node = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
-        node.orderLineEntry = source;
+
+    static createScenePartNodeFromPartBase(source: any /* PartBase */, posGroupNode: OrderSceneNode): OrderSceneNode {
+        const partNode = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
+
+        partNode.orderLineEntry = source;
+        partNode.transform = source._fullMatrix;
+        if (!source._hidden) {
+            posGroupNode.addChild(partNode, false);
+        }
+        source._childParts.forEach((childPart: any /* PartBase */) => {
+            OrderSceneNode.createScenePartNodeFromPartBase(childPart, posGroupNode);
+        });
+        partNode._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
+        return partNode;
+    }
+
+    static createSceneModuleNodeFromOD_Base(source: any /* OD_Base */, parentNode: OrderSceneNode): OrderSceneNode {
+        const moduleNode = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
+        moduleNode.orderLineEntry = source;
         if (source._origin) {
-            node.transform.multiply(source._origin);
+            moduleNode.transform.multiply(source._origin);
         }
         else {
             const modulePosition = new Vector3(source._articlePos.x, source._articlePos.y, source._articlePos.z);
             const moduleRotationY = source._articleRotationY ?? source._articlePos?.rotationY ?? 0;
-            node.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
+            moduleNode.transform.makeRotationY(moduleRotationY).setPosition(modulePosition._x, modulePosition._y, modulePosition._z);
         }
-        source.m?.forEach((subModule: any) => OrderSceneNode.createFromOrderLine(subModule, node));
-        source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
-        return node;
+        parentNode.addChild(moduleNode, false);
+        source.m?.forEach((subModule: any /* OD_Base */) => OrderSceneNode.createSceneModuleNodeFromOD_Base(subModule, moduleNode));
+        // source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
+        return moduleNode;
     }
+
+
 
 }
 
@@ -356,12 +352,15 @@ export function createScene(
         scenceRoot.addChild(wallsGroup, false);
     }
 
+    const posGroupsRootNode = OrderSceneNode.createGroup('pos-groups-root');
+    scenceRoot.addChild(posGroupsRootNode, false);
+
     ol?.forEach((orderLineEntry: any) => {
-        OrderSceneNode.createFromOrderLine(orderLineEntry, scenceRoot);
+        OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
     })
 
     // Ensure world transforms are computed for any code paths that rely on them.
-    scenceRoot.updateWorldTransform(new Matrix4());
+    //scenceRoot.updateWorldTransform(new Matrix4());
 
     return scenceRoot;
 }
@@ -374,10 +373,6 @@ export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scen
 
     const rootThreeObject = orderObjectNodeToThreeObject3D(rootObject3DNode);
     threeScene.add(rootThreeObject);
-
-    if (import.meta.env.DEV) {
-        auditOrderScene(rootObject3DNode, rootThreeObject);
-    }
 
     return threeScene;
 }
@@ -447,6 +442,9 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
 
         // random color
         const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        material.transparent = true;
+        material.opacity = 0.3;
+
         const mesh = new THREE.Mesh(geometry, material);
 
         // Rotate so extrusion is "up" in the scene (world +Y).
@@ -460,26 +458,23 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
         // transform so that the origin is at rear left bottom corner
-        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
+        //        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
         const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
-        if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 300) {
+        if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 650) {
             // make transparent
             material.transparent = true;
             material.opacity = 0.3;
         }
         const mesh = new THREE.Mesh(geometry, material);
+
+
+        mesh.position.copy(new THREE.Vector3(
+            node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
+            node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
+            node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
+        ));
+
         threeObject.add(mesh);
-        const big = 300;
-        if (
-            (
-                Math.min(geom.size._x / big, 1)
-                + Math.min(geom.size._y / big, 1)
-                + Math.min(geom.size._z / big, 1)
-            ) > 2.5) {
-            console.log(node.id, geom.size, node.orderLineEntry?._articlePos, node.orderLineEntry?._x, node.orderLineEntry?._y, node.orderLineEntry?._z, node.orderLineEntry?._xAbs, node.orderLineEntry?._yAbs, node.orderLineEntry?._zAbs);
-            material.transparent = true;
-            // material.opacity = 0.3;
-        }
     }
 
     node.children.forEach(childNode => {
@@ -502,67 +497,4 @@ function computeWorldTransform(node: IObject3DNode): Matrix4 {
         world.multiply(chain[i].transform);
     }
     return world;
-}
-
-function auditOrderScene(rootNode: IObject3DNode, rootThreeObject: THREE.Object3D): void {
-    // Compare: order data position fields -> node transforms -> THREE world transforms.
-    // Output goes to DevTools console.
-
-    rootNode.updateWorldTransform(new Matrix4());
-    rootThreeObject.updateMatrixWorld(true);
-
-    const threeById = new Map<string, THREE.Object3D>();
-    rootThreeObject.traverse((obj) => {
-        if (obj.name) threeById.set(obj.name, obj);
-    });
-
-    const mismatches: any[] = [];
-    const maxRows = 50;
-    const posEps = 1e-3;
-
-    const traverseNode = (node: IObject3DNode) => {
-        const obj = threeById.get(node.id);
-        if (obj) {
-            const exp = node.worldTransform.elements;
-            const expPos = { x: exp[12] ?? 0, y: exp[13] ?? 0, z: exp[14] ?? 0 };
-
-            const te = obj.matrixWorld.elements;
-            const actPos = { x: te[12] ?? 0, y: te[13] ?? 0, z: te[14] ?? 0 };
-
-            const dx = expPos.x - actPos.x;
-            const dy = expPos.y - actPos.y;
-            const dz = expPos.z - actPos.z;
-            const err = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-            if (err > posEps && mismatches.length < maxRows) {
-                const entry: any = node.orderLineEntry;
-                const groupPos = entry?.groupPos?.calcGroupPos;
-                const groupRotY = entry?.groupPos?.calcGroupRotationY;
-                mismatches.push({
-                    id: node.id,
-                    kind: node.kind,
-                    expected: expPos,
-                    actual: actPos,
-                    err,
-                    orderPos:
-                        (Array.isArray(groupPos) ? { x: groupPos[0], y: groupPos[1], z: groupPos[2] } : undefined) ??
-                        entry?._articlePos ??
-                        (entry && ('_x' in entry) ? { x: entry._x, y: entry._y, z: entry._z } : undefined),
-                    orderRotY: groupRotY ?? entry?._articleRotationY ?? entry?._articlePos?.rotationY,
-                });
-            }
-        }
-
-        for (const child of node.children) traverseNode(child);
-    };
-
-    traverseNode(rootNode);
-
-    // Log a small sample even if OK, so we know the audit ran.
-    // eslint-disable-next-line no-console
-    console.log('[audit] nodes:', threeById.size, 'mismatches:', mismatches.length);
-    if (mismatches.length) {
-        // eslint-disable-next-line no-console
-        console.table(mismatches);
-    }
 }

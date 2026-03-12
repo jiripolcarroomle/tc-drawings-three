@@ -1,4 +1,4 @@
-import { OrderSceneNode } from "./createThreeScene";
+import { OrderSceneNode } from "./scene";
 import { Vector3 } from "./tc/base";
 export interface IWallSegment {
     readonly segmentStart: Vector3;
