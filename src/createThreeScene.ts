@@ -93,6 +93,12 @@ interface IObject3DNode {
      */
     addChild(child: IObject3DNode, keepWorldTransform?: boolean): void;
     /**
+     * Removes a child from the node and returns it for chaining or null if the child was not found among the children of the node.
+     * It recomputes the child's local transform to keep its world transform the same after detaching it from the parent.
+     * @param child 
+     */
+    removeChild(child: IObject3DNode): IObject3DNode | null;
+    /**
      * Extract geometry relevant data from this node for the renderer.
      * @param drawingRenderSettings 
      */
@@ -206,6 +212,20 @@ export class OrderSceneNode implements IObject3DNode {
         this.children.push(child);
     }
 
+    removeChild(child: IObject3DNode): IObject3DNode | null {
+        const index = this.children.indexOf(child);
+        if (index === -1) {
+            return null;
+        }
+        // localTransform = inverse(parentWorldTransform) * childWorldTransform
+        const parentWorld = computeWorldTransform(this);
+        const childWorld = computeWorldTransform(child);
+        child.transform = parentWorld.clone().invert().multiply(childWorld);
+        child.parent = null;
+        this.children.splice(index, 1);
+        return child;
+    }
+
     readonly _geometry: IGeometryData;
     geometry(drawingRenderSettings: IDrawingRenderSettings): IGeometryData {
         void drawingRenderSettings;
@@ -233,6 +253,7 @@ export class OrderSceneNode implements IObject3DNode {
     private constructor(id: string | undefined, kind: Object3DNodeKind) {
         this.kind = kind;
         this.id = id ? IdsMap.useIdOrGenerateUnique(id) : IdsMap.getRandomId();
+        IdsMap.objects.set(this.id, this);
         const geometryData: IGeometryData = {
             ownerNode: this,
             origin: new Matrix4(),
@@ -283,14 +304,17 @@ export class OrderSceneNode implements IObject3DNode {
         return posGroupNode;
     }
 
-    static createScenePartNodeFromPartBase(source: any /* PartBase */, parentNode: OrderSceneNode): OrderSceneNode {
+    static createScenePartNodeFromPartBase(source: any /* PartBase */, posGroupNode: OrderSceneNode): OrderSceneNode {
         const partNode = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
 
         partNode.orderLineEntry = source;
         partNode.transform = source._fullMatrix;
-        //if (!source._hidden) {
-        parentNode.addChild(partNode, false);
-        //}
+        if (!source._hidden) {
+            posGroupNode.addChild(partNode, false);
+        }
+        source._childParts.forEach((childPart: any /* PartBase */) => {
+            OrderSceneNode.createScenePartNodeFromPartBase(childPart, posGroupNode);
+        });
         partNode._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
         return partNode;
     }
@@ -484,26 +508,23 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
         // transform so that the origin is at rear left bottom corner
-        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
+        //        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
         const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
-        if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 300) {
+        if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 650) {
             // make transparent
             material.transparent = true;
             material.opacity = 0.3;
         }
         const mesh = new THREE.Mesh(geometry, material);
+
+
+        mesh.position.copy(new THREE.Vector3(
+            node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
+            node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
+            node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
+        ));
+
         threeObject.add(mesh);
-        const big = 300;
-        if (
-            (
-                Math.min(geom.size._x / big, 1)
-                + Math.min(geom.size._y / big, 1)
-                + Math.min(geom.size._z / big, 1)
-            ) > 2.5) {
-            console.log(node.id, geom.size, node.orderLineEntry?._articlePos, node.orderLineEntry?._x, node.orderLineEntry?._y, node.orderLineEntry?._z, node.orderLineEntry?._xAbs, node.orderLineEntry?._yAbs, node.orderLineEntry?._zAbs);
-            material.transparent = true;
-            // material.opacity = 0.3;
-        }
     }
 
     node.children.forEach(childNode => {
