@@ -3,15 +3,22 @@ import * as THREE from "three";
 import { Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
 
-interface IDrawingRenderSettings {
+function getPartId(part: any /* PartBase */): string {
+    const id = `part__${part._partId}__${part._id}`;
+    //console.log(id, part);
+    return id;
 }
 
-interface ISvgPathNode {
+
+export interface IDrawingRenderSettings {
+}
+
+export interface ISvgPathNode {
     command: 'M' | 'L' | 'Z';
     args: number[];
 }
 
-interface IGeometryData {
+export interface IGeometryData {
     ownerNode: IObject3DNode;
     origin: Matrix4;
     size?: Vector3;
@@ -38,14 +45,14 @@ enum Object3DNodeKind {
 
 
 // extend any because we don't have the structure in this project
-interface AnyObject {
+export interface AnyObject {
     [key: string]: any;
 }
 
 // extend any because we don't have the structure in this project
-interface IOrderLineEntry extends AnyObject { }
+export interface IOrderLineEntry extends AnyObject { }
 
-interface IObject3DNode {
+export interface IObject3DNode {
     /**
      * The class is used to categorize nodes into types (e.g. wall, part, module).
      */
@@ -305,7 +312,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     static createScenePartNodeFromPartBase(source: any /* PartBase */, posGroupNode: OrderSceneNode): OrderSceneNode {
-        const partNode = new OrderSceneNode(source._partId, Object3DNodeKind.Part);
+        const partNode = new OrderSceneNode(getPartId(source), Object3DNodeKind.Part);
 
         partNode.orderLineEntry = source;
         partNode.transform = source._fullMatrix;
@@ -332,9 +339,9 @@ export class OrderSceneNode implements IObject3DNode {
         }
         parentNode.addChild(moduleNode, false);
         source.m?.forEach((subModule: any /* OD_Base */) => OrderSceneNode.createSceneModuleNodeFromOD_Base(subModule, moduleNode));
-        // source.p?.forEach((part: any) => OrderSceneNode.createFromOrderLine(part, node));
         return moduleNode;
     }
+
 
 
 

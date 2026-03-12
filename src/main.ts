@@ -29,6 +29,8 @@ const orderJson = flatted.parse(orderJsonRaw)
 
 const orderScene = createScene(orderJson.o, orderJson.ol);
 
+printSceneHierarchy(orderScene);
+
 // From here on, treat #app as definitely present.
 // TypeScript doesn't reliably keep the non-null narrowing inside nested
 // functions, so we capture the narrowed value in a new constant.
