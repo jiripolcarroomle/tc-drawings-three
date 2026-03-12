@@ -338,52 +338,6 @@ export class OrderSceneNode implements IObject3DNode {
 
 
 
-
-
-    /* static createFromOrderLine(
-        source: any, // IFullOrderLineGroupData | IFullOrderLineData | OD_Base | PartBase
-        parent: OrderSceneNode | null
-    ): OrderSceneNode | null {
-        let node: OrderSceneNode | null = null;
-        // instanceof IFullOrderLineGroupData
-        if (source.groupPos && source.items) {
-            node = OrderSceneNode.createPosGroupOrderFromOrderLine(source);
-        }
-        // instanceof IFullOrderLineData
-        else if (source.orderData?.orderItem && source.orderInput) {
-            const item = source.orderData.orderItem;
-            node = OrderSceneNode.createModuleFromOrderLine(item);
-        }
-        // instanceof OD_Base
-        else if (source.modId) {
-            node = OrderSceneNode.createModuleFromOrderLine(source);
-        }
-        // instanceof PartBase
-        else if (source._partId && (source._childParts?.length || (source._hidden ?? false))) {
-            // console.warn(source._partId, "is a partgroup with children, which is currently not supported. Skipping this node and its children.", source);
-            // this is a partgroup which is abstract
-            // or is hidden
-            return null;
-        }
-        // instanceof PartBase
-        else if (source._partId) {
-
-        }
-        else {
-            console.log(Object.keys(source));
-            throw new Error("Unknown order line entry type: " + JSON.stringify(source));
-        }
-
-        if (parent && node) {
-            // These nodes are being created from data and should be treated as LOCAL to parent.
-            parent.addChild(node, false);
-        }
-
-        return node; // placeholder
-    } */
-
-
-
 }
 
 
@@ -419,10 +373,6 @@ export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scen
 
     const rootThreeObject = orderObjectNodeToThreeObject3D(rootObject3DNode);
     threeScene.add(rootThreeObject);
-
-    if (import.meta.env.DEV) {
-        auditOrderScene(rootObject3DNode, rootThreeObject);
-    }
 
     return threeScene;
 }
@@ -547,67 +497,4 @@ function computeWorldTransform(node: IObject3DNode): Matrix4 {
         world.multiply(chain[i].transform);
     }
     return world;
-}
-
-function auditOrderScene(rootNode: IObject3DNode, rootThreeObject: THREE.Object3D): void {
-    // Compare: order data position fields -> node transforms -> THREE world transforms.
-    // Output goes to DevTools console.
-
-    rootNode.updateWorldTransform(new Matrix4());
-    rootThreeObject.updateMatrixWorld(true);
-
-    const threeById = new Map<string, THREE.Object3D>();
-    rootThreeObject.traverse((obj) => {
-        if (obj.name) threeById.set(obj.name, obj);
-    });
-
-    const mismatches: any[] = [];
-    const maxRows = 50;
-    const posEps = 1e-3;
-
-    const traverseNode = (node: IObject3DNode) => {
-        const obj = threeById.get(node.id);
-        if (obj) {
-            const exp = node.worldTransform.elements;
-            const expPos = { x: exp[12] ?? 0, y: exp[13] ?? 0, z: exp[14] ?? 0 };
-
-            const te = obj.matrixWorld.elements;
-            const actPos = { x: te[12] ?? 0, y: te[13] ?? 0, z: te[14] ?? 0 };
-
-            const dx = expPos.x - actPos.x;
-            const dy = expPos.y - actPos.y;
-            const dz = expPos.z - actPos.z;
-            const err = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-            if (err > posEps && mismatches.length < maxRows) {
-                const entry: any = node.orderLineEntry;
-                const groupPos = entry?.groupPos?.calcGroupPos;
-                const groupRotY = entry?.groupPos?.calcGroupRotationY;
-                mismatches.push({
-                    id: node.id,
-                    kind: node.kind,
-                    expected: expPos,
-                    actual: actPos,
-                    err,
-                    orderPos:
-                        (Array.isArray(groupPos) ? { x: groupPos[0], y: groupPos[1], z: groupPos[2] } : undefined) ??
-                        entry?._articlePos ??
-                        (entry && ('_x' in entry) ? { x: entry._x, y: entry._y, z: entry._z } : undefined),
-                    orderRotY: groupRotY ?? entry?._articleRotationY ?? entry?._articlePos?.rotationY,
-                });
-            }
-        }
-
-        for (const child of node.children) traverseNode(child);
-    };
-
-    traverseNode(rootNode);
-
-    // Log a small sample even if OK, so we know the audit ran.
-    // eslint-disable-next-line no-console
-    console.log('[audit] nodes:', threeById.size, 'mismatches:', mismatches.length);
-    if (mismatches.length) {
-        // eslint-disable-next-line no-console
-        console.table(mismatches);
-    }
 }

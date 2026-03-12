@@ -2,7 +2,7 @@ import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createScene, sceneToThreeJsScene } from './createThreeScene'
+import { createScene, sceneToThreeJsScene } from './scene'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
