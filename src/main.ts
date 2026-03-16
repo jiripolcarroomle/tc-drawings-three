@@ -7,9 +7,9 @@ import { printSceneHierarchy } from './helpers'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
-//import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //
-import orderJsonRaw from '../assets/10000187.flatted.json?raw'
+import orderJsonRaw from '../assets/10000141.flatted.json?raw'
+//import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 // ---- Minimal Three.js app structure (Vite + TypeScript) ----
 //

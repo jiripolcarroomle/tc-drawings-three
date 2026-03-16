@@ -1,12 +1,24 @@
 import { IdsMap, type IObject3DNode } from "./scene";
 
+/**
+ * Pretty prionting of a node hierarchy, for debugging purposes.
+ * @param node the node to print, which then recursively prints its children with indentation
+ * @param indent the current indentation level, used for recursive calls
+ */
 export function printSceneHierarchy(node: IObject3DNode, indent: number = 0) {
     const indentStr = '  '.repeat(indent)
     console.log(`${indentStr}- ${node.id} (${node.kind})`);
     node.children.forEach(child => printSceneHierarchy(child, indent + 1));
 }
 
-export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IObject3DNode, currentNode: IObject3DNode) {
+/**
+ * This function will collapse hierarchy of posGroups and will reparent parts to their owner modules.
+ * This is called with a module-representing node that is a child of a posGroup node, and it will look for all parts in the posGroup and reparent them to the module node, then it will do the same for all submodules recursively.
+ * The info is taken from the orderLineEntry of the module order line.
+ * @param posGroupNode the pos group node, which is the parent of the full order group
+ * @param currentNode a module node, which might own some parts
+ */
+export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IObject3DNode, currentNode: IObject3DNode): void {
     if (currentNode !== posGroupNode) {
         const currentNodePartChildren = currentNode.orderLineEntry?.p ?? [];
         currentNodePartChildren?.forEach((partChild: any) => {

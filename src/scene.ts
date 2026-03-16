@@ -1,8 +1,10 @@
 
 import * as THREE from "three";
+import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
 import { Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
 import { getPartId, reparentPartsFromPosGroupsToModulesRecursive } from "./helpers";
+import { MathUtils } from "three";
 
 export interface IDrawingRenderSettings {
 }
@@ -17,6 +19,8 @@ export interface IGeometryData {
     origin: Matrix4;
     size?: Vector3;
     svgPath?: ISvgPathNode[];
+    svgExtrusionDirection?: string;
+    svgString?: string;
     svgDepth?: number;
     meshUrl?: string;
 }
@@ -88,7 +92,7 @@ export interface IObject3DNode {
     updateWorldTransform(parentWorldTransform: Matrix4): void;
     get worldTransform(): Matrix4;
     /**
-     * adds a child to the node
+     * adds a child to the node, either using the node's transform as local (if !keepWorldTransform) or keeping the child's world position the same (if keepWorldTransform) by adjusting its local transform accordingly.
      * @param child the child to add
      * @param keepWorldTransform use false if you are just adding a new child you just created from the child data; use true if you are re-parenting an existing node
      */
@@ -202,6 +206,10 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     addChild(child: IObject3DNode, keepWorldTransform?: boolean): void {
+        // already containts
+        if (this.children.includes(child)) {
+            return;
+        }
         const parentWorld = computeWorldTransform(this);
         if (keepWorldTransform) {
             // localTransform = inverse(parentWorldTransform) * childWorldTransform
@@ -316,6 +324,15 @@ export class OrderSceneNode implements IObject3DNode {
             OrderSceneNode.createScenePartNodeFromPartBase(childPart, posGroupNode);
         });
         partNode._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
+        if (source._extrude) {
+            partNode._geometry.svgString = source._extrude.svg;
+            partNode._geometry.svgExtrusionDirection = source._extrude.direction;
+        }
+        if (source._threedModel) {
+            partNode._geometry.meshUrl = source._threedModel._3dUrl;
+        }
+
+        //console.log(partNode.id, partNode.orderLineEntry);
         return partNode;
     }
 
@@ -347,23 +364,21 @@ export function createScene(
 ): OrderSceneNode {
     const scenceRoot = OrderSceneNode.createGroup();
 
+    // creates walls nodes from the order room data and adds them to the scene
     const wallsGroup = createWallsGroupFromOrderData(o.rooms);
     if (wallsGroup) {
         scenceRoot.addChild(wallsGroup, false);
     }
 
+    // re-creates the order line hierarchy as a hierarchy of scene nodes
     const posGroupsRootNode = OrderSceneNode.createGroup('pos-groups-root');
     scenceRoot.addChild(posGroupsRootNode, false);
 
+    // attach the parts to their parent modules, from which the addPart was called
     ol?.forEach((orderLineEntry: any) => {
         const posGroupNode = OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
         reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, posGroupNode);
     })
-
-
-
-    // Ensure world transforms are computed for any code paths that rely on them.
-    //scenceRoot.updateWorldTransform(new Matrix4());
 
     return scenceRoot;
 }
@@ -379,6 +394,8 @@ export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scen
 
     return threeScene;
 }
+
+const svgLoader = new SVGLoader();
 
 export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Object3D {
     const threeObject = new THREE.Object3D();
@@ -451,18 +468,93 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
         const mesh = new THREE.Mesh(geometry, material);
 
         // Rotate so extrusion is "up" in the scene (world +Y).
-        mesh.rotation.x = -Math.PI / 2;
+        if (geom.svgExtrusionDirection === 'z' || !geom.svgExtrusionDirection) {
+            mesh.rotation.x = -Math.PI / 2;
+        }
+        else if (geom.svgExtrusionDirection === 'x') {
+            mesh.rotation.z = Math.PI / 2;
+        }
+        else if (geom.svgExtrusionDirection === 'y') {
+            // default, already extruding in +Y
+        }
 
         threeObject.add(mesh);
     }
+    else if (geom.svgString) {
+        let shapes: THREE.Shape[] = [];
+        try {
+            const svgData = svgLoader.parse(geom.svgString);
+            if (svgData.paths.length <= 0) {
+                console.error(`SVG data does not contain any paths! Part '${node.id}' will not be drawn! Is the SVG valid? (SVG: ${geom.svgString})`);
+            }
+            svgData.paths.forEach((path: SVGResultPaths) => {
+                const pathIsCCW =
+                    path.subPaths.length > 0 &&
+                    !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
+                shapes = shapes.concat(path.toShapes(pathIsCCW));
+            });
+        } catch (e) {
+            console.error(
+                'Failed to parse SVG for extrude part: ' + geom.svgString + ' exception: ' + e
+            );
+        }
+        const rot = new Matrix4();
+        let extrusionDepth;
+        if (geom.svgExtrusionDirection == 'x') {
+            extrusionDepth = node.orderLineEntry?._dimx ?? 1000;
+            rot.makeRotationAxis(0, 1, 0, 270);
+            extrusionDepth *= -1;
+        } else if (geom.svgExtrusionDirection == 'y') {
+            extrusionDepth = node.orderLineEntry?._dimy ?? 1000;
+            rot.makeRotationAxis(1, 0, 0, 90);
+            extrusionDepth *= -1;
+        }
+        else {
+            extrusionDepth = node.orderLineEntry?._dimz ?? 1000;
+            // rot.makeRotationAxis(1, 0, 0, MathUtils.degToRad(-90));
+        }
+
+        shapes.forEach((shape) => {
+
+            const newExtrudeGeometry = (
+                contour: THREE.Shape,
+                height: number,
+                transform?: Matrix4
+            ): THREE.ExtrudeGeometry => {
+                const extrudeSettings = {
+                    steps: 2,
+                    depth: height,
+                    bevelEnabled: true,
+                    bevelThickness: 0,
+                    bevelSize: 0,
+                    bevelOffset: 0,
+                    bevelSegments: 1,
+                };
+                const extrudeGeometry = new THREE.ExtrudeGeometry(contour, extrudeSettings);
+                if (transform) {
+                    const threeTransform = new THREE.Matrix4().fromArray(transform.elements);
+                    extrudeGeometry.applyMatrix4(threeTransform);
+                }
+                return extrudeGeometry;
+            };
+
+            let geometry2 = newExtrudeGeometry(shape, extrusionDepth, rot);
+            const position = new THREE.Vector3(geom.origin.elements[12], geom.origin.elements[13], geom.origin.elements[14]);
+
+            const mesh = new THREE.Mesh(geometry2, new THREE.MeshBasicMaterial({ color: 0x00ff00 * Math.random() }));
+            mesh.position.copy(position);
+            threeObject.add(mesh);
+
+        });
+    }
     else if (geom.meshUrl) {
-        console.log("Mesh loading not implemented yet. URL:", geom.meshUrl);
+        console.warn("Mesh loading not implemented yet. URL:", geom.meshUrl);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
         // transform so that the origin is at rear left bottom corner
         //        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
-        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
+        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xff00ff });
         if (new Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 650) {
             // make transparent
             material.transparent = true;
