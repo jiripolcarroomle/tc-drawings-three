@@ -158,8 +158,9 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
 
             let geometry2 = newExtrudeGeometry(shape, extrusionDepth, rot);
             const position = new THREE.Vector3(geom.origin.elements[12], geom.origin.elements[13], geom.origin.elements[14]);
-
-            const mesh = new THREE.Mesh(geometry2, new THREE.MeshBasicMaterial({ color: 0x00ff00 * Math.random() }));
+            const svgMaterial = new THREE.MeshBasicMaterial({ color: 0x00aaff });
+            svgMaterial.side = THREE.DoubleSide; // Show both sides of the extruded shape
+            const mesh = new THREE.Mesh(geometry2, svgMaterial);
             mesh.position.copy(position);
             threeObject.add(mesh);
 
