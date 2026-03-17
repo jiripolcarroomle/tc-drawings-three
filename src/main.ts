@@ -52,9 +52,20 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 // Mount the renderer's canvas into the page.
 appEl.appendChild(renderer.domElement)
 
+const scene = new THREE.Scene();
+
 // The scene is a container graph holding everything to be rendered:
 // meshes, lights, groups, helpers, etc.
-const scene = sceneToThreeJsScene(orderScene);
+async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
+  const scene = await sceneToThreeJsScene(orderScene);
+  scene.children.forEach(child => {
+    console.log('Scene child:', child.name, child.userData.kind);
+    targetObjectToAttachTheSceneWhenReady.add(child);
+  });
+}
+
+loadScene(scene);
+
 // A perspective camera approximates how the human eye sees the world.
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //

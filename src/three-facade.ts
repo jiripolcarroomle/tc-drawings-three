@@ -1,13 +1,85 @@
 import * as THREE from "three";
 import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
+import { OBJLoader } from "three/examples/jsm/Addons.js";
 import type { IObject3DNode } from "./scene";
 import * as TC from "./tc/base";
 
 
-export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scene {
+const _svgShapeCache = new Map<string, THREE.Shape[]>();
+function _loadSvgShapesFromCacheOrParse(
+    svg: string,
+    partIdForLogging?: string
+): THREE.Shape[] {
+    if (_svgShapeCache.has(svg)) {
+        return _svgShapeCache.get(svg)!;
+    }
+
+    let shapes: THREE.Shape[] = [];
+    try {
+        const svgData = svgLoader.parse(svg);
+        if (svgData.paths.length <= 0) {
+            console.error(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
+        }
+        svgData.paths.forEach((path: SVGResultPaths) => {
+            const pathIsCCW =
+                path.subPaths.length > 0 &&
+                !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
+            shapes = shapes.concat(path.toShapes(pathIsCCW));
+        });
+    } catch (e) {
+        console.error(
+            `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
+        );
+    }
+    _svgShapeCache.set(svg, shapes);
+    return shapes;
+}
+
+const _object3dCache = new Map<string, THREE.Object3D>();
+const objLoader = new OBJLoader();
+
+async function _loadObject3DFromCacheOrFetch(
+    url: string,
+    material: THREE.MeshBasicMaterial | undefined,
+    partIdForLogging?: string
+): Promise<THREE.Object3D> {
+    if (_object3dCache.has(url)) {
+        console.log(`CACHED ${url}`);
+        return _object3dCache.get(url)!.clone();
+    }
+
+    let obj: THREE.Object3D;
+    try {
+        console.log('loading', url);
+        const result = await fetch(url);
+        const md = await result!.text();
+        obj = objLoader.parse(md);
+        if (material) {
+            obj.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                    (child as THREE.Mesh).material = material.clone();
+                }
+            });
+        }
+    } catch (e) {
+        console.error(
+            `Failed to fetch 3d model for part: ${partIdForLogging ?? ''} exception: ${e}`
+        );
+        obj = new THREE.Group();
+        const errMaterial = material?.clone() ?? new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        errMaterial.transparent = true;
+        errMaterial.opacity = 0.5;
+        // add a box
+    }
+
+    _object3dCache.set(url, obj);
+    return obj.clone();
+}
+
+export async function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
-    const rootThreeObject = orderObjectNodeToThreeObject3D(rootObject3DNode);
+    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode);
     threeScene.add(rootThreeObject);
 
     return threeScene;
@@ -15,7 +87,7 @@ export function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): THREE.Scen
 
 const svgLoader = new SVGLoader();
 
-export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Object3D {
+export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promise<THREE.Object3D> {
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
     threeObject.userData.kind = node.kind;
@@ -99,23 +171,7 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
         threeObject.add(mesh);
     }
     else if (geom.svgString) {
-        let shapes: THREE.Shape[] = [];
-        try {
-            const svgData = svgLoader.parse(geom.svgString);
-            if (svgData.paths.length <= 0) {
-                console.error(`SVG data does not contain any paths! Part '${node.id}' will not be drawn! Is the SVG valid? (SVG: ${geom.svgString})`);
-            }
-            svgData.paths.forEach((path: SVGResultPaths) => {
-                const pathIsCCW =
-                    path.subPaths.length > 0 &&
-                    !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
-                shapes = shapes.concat(path.toShapes(pathIsCCW));
-            });
-        } catch (e) {
-            console.error(
-                'Failed to parse SVG for extrude part: ' + geom.svgString + ' exception: ' + e
-            );
-        }
+        let shapes: THREE.Shape[] = _loadSvgShapesFromCacheOrParse(geom.svgString);
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
@@ -167,7 +223,31 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
         });
     }
     else if (geom.meshUrl) {
-        console.warn("Mesh loading not implemented yet. URL:", geom.meshUrl);
+        const objGrp = await _loadObject3DFromCacheOrFetch(geom.meshUrl, undefined, node.id);
+
+        let bbox = new THREE.Box3().setFromObject(objGrp);
+        let bsize = new THREE.Vector3(0, 0, 0);
+        bbox.getSize(bsize);
+        let m4 = new THREE.Matrix4();
+        m4.scale(
+            new THREE.Vector3(
+                node.orderLineEntry!._dimx / bsize.x,
+                node.orderLineEntry!._dimy / bsize.y,
+                node.orderLineEntry!._dimz / bsize.z
+            )
+        );
+        objGrp.applyMatrix4(m4);
+
+        bbox = new THREE.Box3().setFromObject(objGrp);
+        m4 = new THREE.Matrix4();
+        m4.setPosition(
+            node.orderLineEntry!._x - bbox.min.x,
+            node.orderLineEntry!._y - bbox.min.y,
+            node.orderLineEntry!._z - bbox.min.z
+        );
+        objGrp.applyMatrix4(m4);
+
+        threeObject.add(objGrp);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
@@ -191,8 +271,12 @@ export function orderObjectNodeToThreeObject3D(node: IObject3DNode): THREE.Objec
         threeObject.add(mesh);
     }
 
-    node.children.forEach(childNode => {
-        const childThreeObject = orderObjectNodeToThreeObject3D(childNode);
+
+    
+    const childThreeObjects = await Promise.all(
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode))
+    );
+    childThreeObjects.forEach((childThreeObject) => {
         threeObject.add(childThreeObject);
     });
     return threeObject;
