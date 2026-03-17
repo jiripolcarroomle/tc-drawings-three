@@ -2,13 +2,14 @@ import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createScene, sceneToThreeJsScene } from './scene'
+import { createScene } from './scene'
 import { printSceneHierarchy } from './helpers'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-//import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //
-import orderJsonRaw from '../assets/10000141.flatted.json?raw'
+import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+import { sceneToThreeJsScene } from './three-facade'
+//import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 // ---- Minimal Three.js app structure (Vite + TypeScript) ----
