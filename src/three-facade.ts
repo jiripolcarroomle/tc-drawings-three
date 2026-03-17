@@ -5,7 +5,78 @@ import type { IObject3DNode } from "./scene";
 import * as TC from "./tc/base";
 
 
+type ThreeFacadeHmrData = {
+    object3dCache?: Map<string, THREE.Object3D>;
+};
+
+const _hmrData = (import.meta as any).hot?.data as ThreeFacadeHmrData | undefined;
+
+
+// Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
+// Only the Object3D cache is persisted across Vite HMR updates to avoid
+// re-downloading meshes while iterating.
 const _svgShapeCache = new Map<string, THREE.Shape[]>();
+const _object3dCache: Map<string, THREE.Object3D> = _hmrData?.object3dCache ?? new Map();
+
+if (_hmrData) {
+    _hmrData.object3dCache = _object3dCache;
+}
+
+if ((import.meta as any).hot) {
+    (import.meta as any).hot.dispose((data: ThreeFacadeHmrData) => {
+        data.object3dCache = _object3dCache;
+    });
+}
+
+const _OBJ_TEXT_CACHE_NAME = 'tc-drawings-three:obj-text:v1';
+const _USE_PERSISTENT_OBJ_TEXT_CACHE = Boolean((import.meta as any).env?.DEV);
+
+async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
+    // DEV-only: Persist downloads across HMR *and* full page reloads.
+    // This caches the raw OBJ response; we still parse it into Object3D per session.
+    // In production, prefer standard HTTP caching (Cache-Control/ETag) and/or
+    // versioned URLs instead of app-managed persistent caching.
+    if (!_USE_PERSISTENT_OBJ_TEXT_CACHE) {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
+        }
+        return await response.text();
+    }
+
+    try {
+        if (typeof caches !== 'undefined') {
+            const cache = await caches.open(_OBJ_TEXT_CACHE_NAME);
+            const cachedResponse = await cache.match(url);
+            if (cachedResponse) {
+                console.log(`OBJ CacheStorage HIT ${url}`);
+                return await cachedResponse.text();
+            }
+
+            console.log(`OBJ CacheStorage MISS ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
+            }
+            try {
+                await cache.put(url, response.clone());
+            } catch (e) {
+                // Cache put can fail for opaque/cors responses or storage limits.
+                console.warn(`OBJ CacheStorage put failed for ${url}: ${e}`);
+            }
+            return await response.text();
+        }
+    } catch (e) {
+        console.warn(`OBJ CacheStorage error for ${url}: ${e}`);
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
+    }
+    return await response.text();
+}
+
 function _loadSvgShapesFromCacheOrParse(
     svg: string,
     partIdForLogging?: string
@@ -35,7 +106,6 @@ function _loadSvgShapesFromCacheOrParse(
     return shapes;
 }
 
-const _object3dCache = new Map<string, THREE.Object3D>();
 const objLoader = new OBJLoader();
 
 async function _loadObject3DFromCacheOrFetch(
@@ -44,15 +114,13 @@ async function _loadObject3DFromCacheOrFetch(
     partIdForLogging?: string
 ): Promise<THREE.Object3D> {
     if (_object3dCache.has(url)) {
-        console.log(`CACHED ${url}`);
+        console.log(`Object3D in-memory cache HIT ${url}`);
         return _object3dCache.get(url)!.clone();
     }
 
     let obj: THREE.Object3D;
     try {
-        console.log('loading', url);
-        const result = await fetch(url);
-        const md = await result!.text();
+        const md = await _fetchTextFromCacheOrFetch(url);
         obj = objLoader.parse(md);
         if (material) {
             obj.traverse((child) => {
@@ -272,7 +340,7 @@ export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promi
     }
 
 
-    
+
     const childThreeObjects = await Promise.all(
         node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode))
     );
