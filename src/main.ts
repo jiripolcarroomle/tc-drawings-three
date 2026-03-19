@@ -43,7 +43,7 @@ const appEl = app
 // It owns a canvas element (renderer.domElement) where pixels are drawn.
 //
 // antialias: smoother edges; slightly more GPU work.
-const renderer = new THREE.WebGLRenderer({ antialias: true, precision: 'highp' })
+const renderer = new THREE.WebGLRenderer({ antialias: true, })
 
 // Ensure crisp rendering on high-DPI displays, but cap it to avoid excessive
 // GPU load on very dense screens.
@@ -59,8 +59,16 @@ const scene = new THREE.Scene();
 async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   console.log('will convert scene to three.js scene');
   const scene = await sceneToThreeJsScene(orderScene, {
-    material: { color: 0xcccccc, },
-    wireframeMaterial: { color: 0x000000 },
+    material: {
+      color: 0xcccccc,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    },
+    wireframeMaterial: {
+      color: 0x000000,
+    },
+    edgesGeometryThresholdAngle: 10,
   });
   console.log('converted scene to three.js scene');
   scene.children.forEach(child => {
@@ -74,7 +82,7 @@ loadScene(scene);
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //
 // Note: we set aspect=1 initially; we’ll compute the real value in resize().
-const camera = new THREE.PerspectiveCamera(90, 1, 0.1, 10000)
+const camera = new THREE.PerspectiveCamera(60, 1, 100, 8000)
 
 // Move the camera back a bit so the origin is visible.
 camera.position.set(4000, 800, -2500)

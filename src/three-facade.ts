@@ -4,6 +4,10 @@ import { OBJLoader } from "three/examples/jsm/Addons.js";
 import type { IObject3DNode, ISceneGeometryConversionSettings } from "./scene";
 import * as TC from "./tc/base";
 
+interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
+    edgesGeometryThresholdAngle?: number;
+}
+
 
 type ThreeFacadeHmrData = {
     object3dCache?: Map<string, THREE.Object3D>;
@@ -142,7 +146,7 @@ async function _loadObject3DFromCacheOrFetch(
 }
 
 function _createSurfaceMaterial(
-    drawingRenderSettings: ISceneGeometryConversionSettings,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
 ): THREE.MeshBasicMaterial | undefined {
     if (!drawingRenderSettings.material) {
         return undefined;
@@ -152,7 +156,7 @@ function _createSurfaceMaterial(
 }
 
 function _createWireframeMaterial(
-    drawingRenderSettings: ISceneGeometryConversionSettings,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
 ): THREE.LineBasicMaterial | undefined {
     if (!drawingRenderSettings.wireframeMaterial) {
         return undefined;
@@ -170,7 +174,7 @@ function _copyLocalTransform(source: THREE.Object3D, target: THREE.Object3D): vo
 function _addGeometryWithOptionalWireframe(
     parent: THREE.Object3D,
     geometry: THREE.BufferGeometry,
-    drawingRenderSettings: ISceneGeometryConversionSettings,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
     configureRenderable?: (object: THREE.Object3D) => void,
     configureSurfaceMaterial?: (material: THREE.MeshBasicMaterial) => void,
 ): void {
@@ -184,7 +188,7 @@ function _addGeometryWithOptionalWireframe(
 
     const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
     if (wireframeMaterial) {
-        const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), wireframeMaterial);
+        const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
         configureRenderable?.(wireframe);
         parent.add(wireframe);
     }
@@ -193,7 +197,7 @@ function _addGeometryWithOptionalWireframe(
 function _addObjectGroupWithOptionalWireframe(
     parent: THREE.Object3D,
     objectGroup: THREE.Object3D,
-    drawingRenderSettings: ISceneGeometryConversionSettings,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
 ): void {
     const meshChildren: THREE.Mesh[] = [];
     objectGroup.traverse((child) => {
@@ -213,7 +217,7 @@ function _addObjectGroupWithOptionalWireframe(
     const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
     if (wireframeMaterial) {
         for (const mesh of meshChildren) {
-            const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), wireframeMaterial);
+            const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
             _copyLocalTransform(mesh, wireframe);
             objectGroup.add(wireframe);
         }
@@ -233,7 +237,7 @@ function _addObjectGroupWithOptionalWireframe(
  */
 export async function sceneToThreeJsScene(
     rootObject3DNode: IObject3DNode,
-    drawingRenderSettings: ISceneGeometryConversionSettings = {},
+    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
 ): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
@@ -257,7 +261,7 @@ const svgLoader = new SVGLoader();
  */
 export async function orderObjectNodeToThreeObject3D(
     node: IObject3DNode,
-    drawingRenderSettings: ISceneGeometryConversionSettings = {},
+    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
 ): Promise<THREE.Object3D> {
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
