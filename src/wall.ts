@@ -1,5 +1,10 @@
-import { OrderSceneNode, type IdsMap } from "./scene";
+import { OrderSceneNode } from "./scene";
+import { IdsMap } from "./idsmap";
 import { Vector3 } from "./tc/base";
+
+/**
+ * Geometric description of a wall segment derived from a room contour.
+ */
 export interface IWallSegment {
     readonly segmentStart: Vector3;
     readonly segmentEnd: Vector3;
@@ -16,6 +21,9 @@ export interface IWallSegment {
 const DEFAULT_WALL_HEIGHT = 3000;
 const DEFAULT_WALL_THICKNESS = 200;
 
+/**
+ * Concrete wall segment implementation used during scene construction.
+ */
 export class WallSegment implements IWallSegment {
     private constructor(
         public segmentStart: Vector3,
@@ -30,6 +38,16 @@ export class WallSegment implements IWallSegment {
         public normalToWall: Vector3,
     ) { }
 
+    /**
+     * Creates a wall segment from two consecutive contour points.
+     *
+     * The source contour is expressed in plan coordinates, while the resulting
+     * wall geometry is converted into the scene's X/Z plane.
+     *
+     * @param from Starting contour point.
+     * @param to Ending contour point.
+     * @returns Wall segment with derived direction, thickness, height, and back edge.
+     */
     static fromSegmentStartAndEnd(
         from: PosContourSegment,
         to: PosContourSegment
@@ -60,6 +78,16 @@ export class WallSegment implements IWallSegment {
     }
 }
 
+/**
+ * Creates a wall group from room contour data.
+ *
+ * Each eligible contour edge produces one wall node. Adjacent wall back edges
+ * are adjusted to meet at a shared joint when the source segments are contiguous.
+ *
+ * @param roomContours Room contours from the order data.
+ * @param idsMap Scene ID registry used for created nodes.
+ * @returns Group containing all generated wall nodes, or `undefined` when no rooms are present.
+ */
 export function createWallsGroupFromOrderData(roomContours: PosContour[], idsMap: IdsMap): OrderSceneNode | undefined {
     if (!roomContours?.length) {
         return;
@@ -111,6 +139,9 @@ export function createWallsGroupFromOrderData(roomContours: PosContour[], idsMap
 
 }
 
+/**
+ * One contour point or drawing command in the room outline source data.
+ */
 export interface PosContourSegment {
     angle?: number | null;
     cmd: string;
@@ -121,6 +152,9 @@ export interface PosContourSegment {
     y: number;
 }
 
+/**
+ * Room contour source data used to derive wall geometry.
+ */
 export interface PosContour {
     level: number;
     segments: PosContourSegment[];

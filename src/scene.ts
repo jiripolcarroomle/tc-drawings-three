@@ -2,14 +2,21 @@
 import { Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
 import { computeWorldTransform, getPartId, reparentPartsFromPosGroupsToModulesRecursive } from "./helpers";
+import { IdsMap } from "./idsmap";
 
+/**
+ * Optional renderer-specific settings used while converting node geometry into the target technology.
+ */
 export interface ISceneGeometryConversionSettings {
-    /** Material to render the 3D objects. If not provided, the geometry is not created. */
+    /** Optional material hint for solid geometry generation. If missing, the object is not rendered. */
     material?: any;
-    /** Material to render the 3D objects in wireframe mode. If not provided, the wireframe is not created. */
+    /** Optional material hint for wireframe geometry generation. If missing, the wireframe is not rendered. */
     wireframeMaterial?: any;
 }
 
+/**
+ * Generic camera settings that renderer implementations may consume.
+ */
 export interface ISceneRenderSettings {
     /** The camera position to render the scene from. */
     cameraPosition?: Vector3;
@@ -17,10 +24,20 @@ export interface ISceneRenderSettings {
     cameraDirection?: Vector3;
     /** The size of the camera view. Can be a Vector3, a number, or any other type, based on the actually implemented technology or view type */
     cameraSize?: Vector3 | number | any;
+    /**
+     * Transformation function to convert world coordinates into 2D coordinates in the renderer's screen space. 
+     * @param worldPoint as Vector3
+     * @returns Vector3 where x and y represent the 2D screen coordinates and z can be used for depth sorting. If the point is outside the view, the function returns null.
+     */
+    get2DCoordinateFromWorldPoint?: (worldPoint: Vector3) => Vector3 | null;
 }
 
+/**
+ * Constructor contract for renderer adapters that consume the custom scene graph.
+ */
 export interface ISceneRenderer {
     new(rootNode: IObject3DNode, settings: ISceneGeometryConversionSettings): ISceneRenderer;
+    /** Root node passed into the renderer instance. */
     rootNode: IObject3DNode;
 
     // getFilteredCopy(filter: (node: IObject3DNode) => boolean): IScene;
@@ -35,11 +52,17 @@ export interface ISceneRenderer {
 }
 
 
+/**
+ * One SVG path command used to describe wall or part outlines.
+ */
 export interface ISvgPathNode {
     command: 'M' | 'L' | 'Z';
     args: number[];
 }
 
+/**
+ * Renderer-facing geometry metadata extracted from a scene node.
+ */
 export interface IGeometryData {
     /** The owner node is the node that this geometry data belongs to. This is useful for accessing any additional data that may be needed for rendering or interaction. */
     ownerNode: IObject3DNode;
@@ -91,14 +114,21 @@ enum Object3DNodeKind {
 }
 
 
-// extend any because we don't have the structure in this project
+/**
+ * Loose object shape used where the upstream order-data structure is not typed yet.
+ */
 export interface AnyObject {
     [key: string]: any;
 }
 
-// extend any because we don't have the structure in this project
+/**
+ * Untyped order-line payload attached to scene nodes.
+ */
 export interface IOrderLineEntry extends AnyObject { }
 
+/**
+ * Technology-agnostic scene-graph node used as the project's domain model.
+ */
 export interface IObject3DNode {
     /**
      * The class is used to categorize nodes into types (e.g. wall, part, module).
@@ -111,7 +141,9 @@ export interface IObject3DNode {
      * The exact format is not important, as long as it meets these criteria.
      */
     readonly id: string;
+    /** Shared node registry for the owning scene tree. */
     readonly idsMap: IdsMap;
+    /** Direct child nodes in local transform space. */
     children: IObject3DNode[];
     /**
      * Get all children that are of kind "part". This is a convenience method to avoid having to filter the children array manually.
@@ -122,8 +154,7 @@ export interface IObject3DNode {
      */
     getModuleChildren(): IObject3DNode[];
     /**
-     * The parent is null for the root node.
-     * Is this needed?
+     * Parent node, or `null` when this node is the root of its tree.
      */
     parent: IObject3DNode | null;
     /**
@@ -136,80 +167,53 @@ export interface IObject3DNode {
      */
     transform: Matrix4;
     /**
-     * The world transform represents the absolute transformation of this node in the scene. It is computed by combining the local transform with the world transform of the parent.
-     * @param parentWorldTransform 
+     * Recomputes the cached world transform using the provided parent transform,
+     * then propagates the update to all descendants.
+     * @param parentWorldTransform World transform of the parent node.
      */
     updateWorldTransform(parentWorldTransform: Matrix4): void;
+    /** Cached absolute transform derived from the current parent chain. */
     get worldTransform(): Matrix4;
     /**
-     * adds a child to the node, either using the node's transform as local (if !keepWorldTransform) or keeping the child's world position the same (if keepWorldTransform) by adjusting its local transform accordingly.
-     * @param child the child to add
-     * @param keepWorldTransform use false if you are just adding a new child you just created from the child data; use true if you are re-parenting an existing node
+     * Adds a child to the node and updates its local/world transform state.
+     *
+     * When `keepWorldTransform` is `true`, the child's local transform is recomputed
+     * so that its world transform stays unchanged after reparenting.
+     * 
+     * Use `keepWorldTransform = false` when adding a newly created node to the scene, so that its transform is used as a local transform relative to the parent. Use `keepWorldTransform = true` when reparenting an existing node that already has the correct world transform, so that it is not affected by the new parent's transform.
+     *
+     * @param child Child node to add.
+     * @param keepWorldTransform Use `true` when reparenting an existing node.
      */
     addChild(child: IObject3DNode, keepWorldTransform?: boolean): void;
     /**
-     * Removes a child from the node and returns it for chaining or null if the child was not found among the children of the node.
-     * It recomputes the child's local transform to keep its world transform the same after detaching it from the parent.
-     * @param child 
+     * Removes a child from the node while preserving the child's world transform.
+     *
+     * @param child Child node to remove.
+     * @returns Removed child, or `null` when it was not attached to this node.
      */
     removeChild(child: IObject3DNode): IObject3DNode | null;
     /**
-     * Extract geometry relevant data from this node for the renderer.
-     * @param drawingRenderSettings 
+     * Exposes renderer-facing geometry metadata for this node.
+     * @param drawingRenderSettings Optional renderer-specific conversion settings.
      */
     geometry(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData;
     /**
-     * Creates a deep copy of this node including all its children, but without copying the parent reference (the cloned node will have parent set to null). 
-     * The ID of the cloned node should be different from the original node to maintain uniqueness. The exact format of the new ID is not important, as long as it is unique and stable.
-     * A filter function is provided to allow selective cloning of the node and its children. This is useful for creating different scenes with different subsets of the original 
-     * nodes for the drawing views.
+     * Removes the node and all of its descendants from the tree and unregisters
+     * their IDs from the owning IdsMap.
      */
-    clone(filter: (node: IObject3DNode) => boolean): IObject3DNode | null;
+    destroy(): void;
 
     /**
      * Data for the wall geometry. This is specific to kind wall.
-     * 
      */
     wallData: IWallSegment | undefined;
 
 }
 
-export class IdsMap {
-    readonly objects = new Map<string, IObject3DNode>();
-    /**
-     * Generates a random ID and checks if it is already used in the IdsMap. If it is, it generates a new one until it finds a unique ID.
-     * The ID is in a pattern of a random string of 9 characters (letters and numbers) generated from Math.random().
-     * @returns 
-     */
-    getRandomId(): string {
-        let id = null;
-        let safetyCountert = 1000;
-        while (id === null) {
-            const tryId = Math.random().toString(36).substr(2, 9);
-            if (!this.objects.has(tryId)) {
-                id = tryId;
-            }
-            if (safetyCountert-- <= 0) {
-                throw new Error("IdsMap: Failed to generate a unique ID after 1000 attempts");
-            }
-        }
-        return id;
-    }
-
-    useIdOrGenerateUnique(id: string): string {
-        let tryId = id;
-        let counter = 1;
-        while (this.objects.has(tryId)) {
-            tryId = `${id}_${counter++}`;
-            if (counter > 1000) {
-                throw new Error(`IdsMap: Failed to generate a unique ID based on ${id} after 1000 attempts`);
-            }
-        }
-        return tryId;
-    }
-}
-
-
+/**
+ * Default implementation of the project's technology-agnostic scene node.
+ */
 export class OrderSceneNode implements IObject3DNode {
     readonly kind: Object3DNodeKind;
     readonly id: string;
@@ -276,20 +280,16 @@ export class OrderSceneNode implements IObject3DNode {
         return this._geometry!;
     }
 
-    clone(filter: (node: IObject3DNode) => boolean): IObject3DNode | null {
-        if (!filter(this)) {
-            return null;
+    destroy(): void {
+        if (this.parent) {
+            this.parent.removeChild(this);
         }
-        const clonedNode = new OrderSceneNode(this.idsMap, this.id, this.kind);
-        clonedNode.transform = this.transform.clone();
-        clonedNode.orderLineEntry = this.orderLineEntry;
-        for (const child of this.children) {
-            const clonedChild = child.clone(filter);
-            if (clonedChild) {
-                clonedNode.addChild(clonedChild, true);
-            }
+
+        while (this.children.length > 0) {
+            this.children[0].destroy();
         }
-        return clonedNode;
+
+        this.idsMap.unregister(this);
     }
 
     wallData: IWallSegment | undefined;
@@ -298,7 +298,7 @@ export class OrderSceneNode implements IObject3DNode {
         this.idsMap = idsMap;
         this.kind = kind;
         this.id = id ? this.idsMap.useIdOrGenerateUnique(id) : this.idsMap.getRandomId();
-        this.idsMap.objects.set(this.id, this);
+        this.idsMap.register(this);
         const geometryData: IGeometryData = {
             ownerNode: this,
             origin: new Matrix4(),
@@ -306,15 +306,37 @@ export class OrderSceneNode implements IObject3DNode {
         this._geometry = geometryData;
     }
 
+    /**
+     * Creates a group node with no geometry payload.
+     *
+     * @param idsMap Scene ID registry.
+     * @param id Optional preferred ID.
+     * @returns Group node.
+     */
     static createGroup(idsMap: IdsMap, id?: string): OrderSceneNode {
         return new OrderSceneNode(idsMap, id, Object3DNodeKind.Group);
     }
 
 
+    /**
+     * Creates a positional grouping node used as an intermediate order-data root.
+     *
+     * @param idsMap Scene ID registry.
+     * @param id Optional preferred ID.
+     * @returns Pos-group node.
+     */
     static createPosGroup(idsMap: IdsMap, id?: string): OrderSceneNode {
         return new OrderSceneNode(idsMap, id, Object3DNodeKind.PosGroup);
     }
 
+    /**
+     * Creates a wall node and seeds its geometry metadata from a wall segment.
+     *
+     * @param idsMap Scene ID registry.
+     * @param id Optional preferred ID.
+     * @param wallSegment Source wall segment.
+     * @returns Wall node positioned at the segment center.
+     */
     static createFromWall(idsMap: IdsMap, id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
         const node = new OrderSceneNode(idsMap, id, Object3DNodeKind.Wall);
         node.wallData = wallSegment;
@@ -331,6 +353,16 @@ export class OrderSceneNode implements IObject3DNode {
         return node;
     }
 
+    /**
+     * Creates a pos-group subtree from one full order-line group entry.
+     *
+     * Parts are created first under the pos-group, then module nodes are built.
+     * A later reparenting step attaches parts to their owning modules.
+     *
+     * @param source Order-line group source entry.
+     * @param posGroupsRootNode Parent node that owns all generated pos-groups.
+     * @returns Generated pos-group node.
+     */
     static createSceneRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
         const posGroupNode = OrderSceneNode.createPosGroup(posGroupsRootNode.idsMap, 'pos-group-' + (source.groupPos.calcGroup ?? ''));
         posGroupNode.orderLineEntry = source;
@@ -349,6 +381,17 @@ export class OrderSceneNode implements IObject3DNode {
         return posGroupNode;
     }
 
+    /**
+     * Creates a part node from a source part entry.
+     *
+     * Hidden parts are registered but not attached to the visible scene tree.
+     * Child parts are recursively added under the same pos-group so later module
+     * reparenting can resolve them by ID.
+     *
+     * @param source Source part entry.
+     * @param posGroupNode Pos-group that temporarily owns created part nodes.
+     * @returns Created part node.
+     */
     static createScenePartNodeFromPartBase(source: any /* PartBase */, posGroupNode: OrderSceneNode): OrderSceneNode {
         const partNode = new OrderSceneNode(posGroupNode.idsMap, getPartId(source), Object3DNodeKind.Part);
 
@@ -373,6 +416,16 @@ export class OrderSceneNode implements IObject3DNode {
         return partNode;
     }
 
+    /**
+     * Creates a module node from order data and recursively adds submodules.
+     *
+     * The module transform is taken from `_origin` when present, otherwise it is
+     * derived from article position and rotation fields.
+     *
+     * @param source Source module entry.
+     * @param parentNode Parent scene node.
+     * @returns Created module node.
+     */
     static createSceneModuleNodeFromOD_Base(source: any /* OD_Base */, parentNode: OrderSceneNode): OrderSceneNode {
         const moduleNode = new OrderSceneNode(parentNode.idsMap, source.modId + '_' + source._id, Object3DNodeKind.Module);
         moduleNode.orderLineEntry = source;
@@ -395,6 +448,17 @@ export class OrderSceneNode implements IObject3DNode {
 }
 
 
+/**
+ * Builds the project's technology-agnostic scene graph from raw order data.
+ *
+ * The resulting tree contains walls, pos-group placeholders, modules, and parts.
+ * Parts are initially created under pos-groups and then reparented to modules
+ * according to the ownership information in the order data.
+ *
+ * @param o Order-level source data.
+ * @param ol Order-line group source data.
+ * @returns Root scene node of the generated scene graph.
+ */
 export function createScene(
     o: any, // IOrderData
     ol: any, // IFullOrderLineGroupData

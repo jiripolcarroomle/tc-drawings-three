@@ -141,6 +141,12 @@ async function _loadObject3DFromCacheOrFetch(
     return obj.clone();
 }
 
+/**
+ * Converts the custom scene graph into a standalone Three.js scene.
+ *
+ * @param rootObject3DNode Root node of the custom scene graph.
+ * @returns Three.js scene containing the converted object hierarchy.
+ */
 export async function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
@@ -152,6 +158,15 @@ export async function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): Prom
 
 const svgLoader = new SVGLoader();
 
+/**
+ * Converts a custom scene node and its descendants into a Three.js object tree.
+ *
+ * The node transform is copied to the generated `THREE.Object3D`. Any node-local
+ * geometry metadata is translated into the matching Three.js mesh structure.
+ *
+ * @param node Source scene node to convert.
+ * @returns Three.js object representing the source subtree.
+ */
 export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promise<THREE.Object3D> {
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
