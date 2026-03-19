@@ -1,4 +1,4 @@
-import { IdsMap, type IObject3DNode } from "./scene";
+import { type IObject3DNode } from "./scene";
 import { Matrix4 } from "./tc/base";
 
 /**
@@ -28,7 +28,7 @@ export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IObje
                 return;
             }
             const partChildNodeId = getPartId(partChild);
-            const partChildNode = IdsMap.objects.get(partChildNodeId);
+            const partChildNode = currentNode.idsMap.objects.get(partChildNodeId);
             if (!partChildNode) {
                 console.warn(`Could not find node for part ${partChildNodeId}`);
                 return;

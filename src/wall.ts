@@ -1,4 +1,4 @@
-import { OrderSceneNode } from "./scene";
+import { OrderSceneNode, type IdsMap } from "./scene";
 import { Vector3 } from "./tc/base";
 export interface IWallSegment {
     readonly segmentStart: Vector3;
@@ -60,11 +60,11 @@ export class WallSegment implements IWallSegment {
     }
 }
 
-export function createWallsGroupFromOrderData(roomContours: PosContour[]): OrderSceneNode | undefined {
+export function createWallsGroupFromOrderData(roomContours: PosContour[], idsMap: IdsMap): OrderSceneNode | undefined {
     if (!roomContours?.length) {
         return;
     }
-    const wallsGroup = OrderSceneNode.createGroup('group_walls');
+    const wallsGroup = OrderSceneNode.createGroup(idsMap, 'group_walls');
 
 
     for (const roomContour of roomContours) {
@@ -100,7 +100,7 @@ export function createWallsGroupFromOrderData(roomContours: PosContour[]): Order
 
         for (const wallSegmentIndex in wallSegments) {
             const wallSegment = wallSegments[wallSegmentIndex];
-            const wallObject = OrderSceneNode.createFromWall(`wall-${wallSegmentIndex}`, wallSegment);
+            const wallObject = OrderSceneNode.createFromWall(idsMap, `wall-${wallSegmentIndex}`, wallSegment);
             wallsGroup.addChild(wallObject, true);
             // wallSegment.createGeometry(this._wallOptions);
             // wallGroup.add(wallSegment);

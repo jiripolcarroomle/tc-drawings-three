@@ -111,6 +111,7 @@ export interface IObject3DNode {
      * The exact format is not important, as long as it meets these criteria.
      */
     readonly id: string;
+    readonly idsMap: IdsMap;
     children: IObject3DNode[];
     /**
      * Get all children that are of kind "part". This is a convenience method to avoid having to filter the children array manually.
@@ -174,18 +175,18 @@ export interface IObject3DNode {
 }
 
 export class IdsMap {
-    static objects = new Map<string, IObject3DNode>();
+    readonly objects = new Map<string, IObject3DNode>();
     /**
      * Generates a random ID and checks if it is already used in the IdsMap. If it is, it generates a new one until it finds a unique ID.
      * The ID is in a pattern of a random string of 9 characters (letters and numbers) generated from Math.random().
      * @returns 
      */
-    static getRandomId(): string {
+    getRandomId(): string {
         let id = null;
         let safetyCountert = 1000;
         while (id === null) {
             const tryId = Math.random().toString(36).substr(2, 9);
-            if (!IdsMap.objects.has(tryId)) {
+            if (!this.objects.has(tryId)) {
                 id = tryId;
             }
             if (safetyCountert-- <= 0) {
@@ -195,10 +196,10 @@ export class IdsMap {
         return id;
     }
 
-    static useIdOrGenerateUnique(id: string): string {
+    useIdOrGenerateUnique(id: string): string {
         let tryId = id;
         let counter = 1;
-        while (IdsMap.objects.has(tryId)) {
+        while (this.objects.has(tryId)) {
             tryId = `${id}_${counter++}`;
             if (counter > 1000) {
                 throw new Error(`IdsMap: Failed to generate a unique ID based on ${id} after 1000 attempts`);
@@ -212,6 +213,7 @@ export class IdsMap {
 export class OrderSceneNode implements IObject3DNode {
     readonly kind: Object3DNodeKind;
     readonly id: string;
+    readonly idsMap: IdsMap;
     children: IObject3DNode[] = [];
 
     getPartChildren(): IObject3DNode[] {
@@ -278,7 +280,7 @@ export class OrderSceneNode implements IObject3DNode {
         if (!filter(this)) {
             return null;
         }
-        const clonedNode = new OrderSceneNode(this.id, this.kind);
+        const clonedNode = new OrderSceneNode(this.idsMap, this.id, this.kind);
         clonedNode.transform = this.transform.clone();
         clonedNode.orderLineEntry = this.orderLineEntry;
         for (const child of this.children) {
@@ -292,10 +294,11 @@ export class OrderSceneNode implements IObject3DNode {
 
     wallData: IWallSegment | undefined;
 
-    private constructor(id: string | undefined, kind: Object3DNodeKind) {
+    private constructor(idsMap: IdsMap, id: string | undefined, kind: Object3DNodeKind) {
+        this.idsMap = idsMap;
         this.kind = kind;
-        this.id = id ? IdsMap.useIdOrGenerateUnique(id) : IdsMap.getRandomId();
-        IdsMap.objects.set(this.id, this);
+        this.id = id ? this.idsMap.useIdOrGenerateUnique(id) : this.idsMap.getRandomId();
+        this.idsMap.objects.set(this.id, this);
         const geometryData: IGeometryData = {
             ownerNode: this,
             origin: new Matrix4(),
@@ -303,17 +306,17 @@ export class OrderSceneNode implements IObject3DNode {
         this._geometry = geometryData;
     }
 
-    static createGroup(id?: string): OrderSceneNode {
-        return new OrderSceneNode(id, Object3DNodeKind.Group);
+    static createGroup(idsMap: IdsMap, id?: string): OrderSceneNode {
+        return new OrderSceneNode(idsMap, id, Object3DNodeKind.Group);
     }
 
 
-    static createPosGroup(id?: string): OrderSceneNode {
-        return new OrderSceneNode(id, Object3DNodeKind.PosGroup);
+    static createPosGroup(idsMap: IdsMap, id?: string): OrderSceneNode {
+        return new OrderSceneNode(idsMap, id, Object3DNodeKind.PosGroup);
     }
 
-    static createFromWall(id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
-        const node = new OrderSceneNode(id, Object3DNodeKind.Wall);
+    static createFromWall(idsMap: IdsMap, id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
+        const node = new OrderSceneNode(idsMap, id, Object3DNodeKind.Wall);
         node.wallData = wallSegment;
         const segmentCenter = wallSegment.segmentStart.add(wallSegment.segmentEnd).scale(0.5);
         node.transform.setPosition(segmentCenter._x, segmentCenter._y, segmentCenter._z);
@@ -329,7 +332,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     static createSceneRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
-        const posGroupNode = OrderSceneNode.createPosGroup('pos-group-' + (source.groupPos.calcGroup ?? ''));
+        const posGroupNode = OrderSceneNode.createPosGroup(posGroupsRootNode.idsMap, 'pos-group-' + (source.groupPos.calcGroup ?? ''));
         posGroupNode.orderLineEntry = source;
         const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
         const groupRotationY = source.groupPos.calcGroupRotationY ?? 0;
@@ -347,7 +350,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     static createScenePartNodeFromPartBase(source: any /* PartBase */, posGroupNode: OrderSceneNode): OrderSceneNode {
-        const partNode = new OrderSceneNode(getPartId(source), Object3DNodeKind.Part);
+        const partNode = new OrderSceneNode(posGroupNode.idsMap, getPartId(source), Object3DNodeKind.Part);
 
         partNode.orderLineEntry = source;
         partNode.transform = source._fullMatrix;
@@ -371,7 +374,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     static createSceneModuleNodeFromOD_Base(source: any /* OD_Base */, parentNode: OrderSceneNode): OrderSceneNode {
-        const moduleNode = new OrderSceneNode(source.modId + '_' + source._id, Object3DNodeKind.Module);
+        const moduleNode = new OrderSceneNode(parentNode.idsMap, source.modId + '_' + source._id, Object3DNodeKind.Module);
         moduleNode.orderLineEntry = source;
         if (source._origin) {
             moduleNode.transform.multiply(source._origin);
@@ -396,16 +399,17 @@ export function createScene(
     o: any, // IOrderData
     ol: any, // IFullOrderLineGroupData
 ): OrderSceneNode {
-    const scenceRoot = OrderSceneNode.createGroup();
+    const idsMap = new IdsMap();
+    const scenceRoot = OrderSceneNode.createGroup(idsMap);
 
     // creates walls nodes from the order room data and adds them to the scene
-    const wallsGroup = createWallsGroupFromOrderData(o.rooms);
+    const wallsGroup = createWallsGroupFromOrderData(o.rooms, idsMap);
     if (wallsGroup) {
         scenceRoot.addChild(wallsGroup, false);
     }
 
     // re-creates the order line hierarchy as a hierarchy of scene nodes
-    const posGroupsRootNode = OrderSceneNode.createGroup('pos-groups-root');
+    const posGroupsRootNode = OrderSceneNode.createGroup(idsMap, 'pos-groups-root');
     scenceRoot.addChild(posGroupsRootNode, false);
 
     // attach the parts to their parent modules, from which the addPart was called
