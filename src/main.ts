@@ -43,7 +43,7 @@ const appEl = app
 // It owns a canvas element (renderer.domElement) where pixels are drawn.
 //
 // antialias: smoother edges; slightly more GPU work.
-const renderer = new THREE.WebGLRenderer({ antialias: true })
+const renderer = new THREE.WebGLRenderer({ antialias: true, precision: 'highp' })
 
 // Ensure crisp rendering on high-DPI displays, but cap it to avoid excessive
 // GPU load on very dense screens.
@@ -58,7 +58,10 @@ const scene = new THREE.Scene();
 // meshes, lights, groups, helpers, etc.
 async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   console.log('will convert scene to three.js scene');
-  const scene = await sceneToThreeJsScene(orderScene);
+  const scene = await sceneToThreeJsScene(orderScene, {
+    material: { color: 0xcccccc, },
+    wireframeMaterial: { color: 0x000000 },
+  });
   console.log('converted scene to three.js scene');
   scene.children.forEach(child => {
     targetObjectToAttachTheSceneWhenReady.add(child);

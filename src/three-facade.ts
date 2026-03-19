@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
 import { OBJLoader } from "three/examples/jsm/Addons.js";
-import type { IObject3DNode } from "./scene";
+import type { IObject3DNode, ISceneGeometryConversionSettings } from "./scene";
 import * as TC from "./tc/base";
 
 
@@ -141,16 +141,103 @@ async function _loadObject3DFromCacheOrFetch(
     return obj.clone();
 }
 
+function _createSurfaceMaterial(
+    drawingRenderSettings: ISceneGeometryConversionSettings,
+): THREE.MeshBasicMaterial | undefined {
+    if (!drawingRenderSettings.material) {
+        return undefined;
+    }
+
+    return new THREE.MeshBasicMaterial(drawingRenderSettings.material);
+}
+
+function _createWireframeMaterial(
+    drawingRenderSettings: ISceneGeometryConversionSettings,
+): THREE.LineBasicMaterial | undefined {
+    if (!drawingRenderSettings.wireframeMaterial) {
+        return undefined;
+    }
+
+    return new THREE.LineBasicMaterial(drawingRenderSettings.wireframeMaterial);
+}
+
+function _copyLocalTransform(source: THREE.Object3D, target: THREE.Object3D): void {
+    target.position.copy(source.position);
+    target.quaternion.copy(source.quaternion);
+    target.scale.copy(source.scale);
+}
+
+function _addGeometryWithOptionalWireframe(
+    parent: THREE.Object3D,
+    geometry: THREE.BufferGeometry,
+    drawingRenderSettings: ISceneGeometryConversionSettings,
+    configureRenderable?: (object: THREE.Object3D) => void,
+    configureSurfaceMaterial?: (material: THREE.MeshBasicMaterial) => void,
+): void {
+    const surfaceMaterial = _createSurfaceMaterial(drawingRenderSettings);
+    if (surfaceMaterial) {
+        configureSurfaceMaterial?.(surfaceMaterial);
+        const mesh = new THREE.Mesh(geometry, surfaceMaterial);
+        configureRenderable?.(mesh);
+        parent.add(mesh);
+    }
+
+    const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
+    if (wireframeMaterial) {
+        const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), wireframeMaterial);
+        configureRenderable?.(wireframe);
+        parent.add(wireframe);
+    }
+}
+
+function _addObjectGroupWithOptionalWireframe(
+    parent: THREE.Object3D,
+    objectGroup: THREE.Object3D,
+    drawingRenderSettings: ISceneGeometryConversionSettings,
+): void {
+    const meshChildren: THREE.Mesh[] = [];
+    objectGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+            meshChildren.push(child as THREE.Mesh);
+        }
+    });
+
+    const surfaceMaterial = _createSurfaceMaterial(drawingRenderSettings);
+    for (const mesh of meshChildren) {
+        mesh.visible = Boolean(surfaceMaterial);
+        if (surfaceMaterial) {
+            mesh.material = surfaceMaterial;
+        }
+    }
+
+    const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
+    if (wireframeMaterial) {
+        for (const mesh of meshChildren) {
+            const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), wireframeMaterial);
+            _copyLocalTransform(mesh, wireframe);
+            objectGroup.add(wireframe);
+        }
+    }
+
+    if (surfaceMaterial || wireframeMaterial) {
+        parent.add(objectGroup);
+    }
+}
+
 /**
  * Converts the custom scene graph into a standalone Three.js scene.
  *
  * @param rootObject3DNode Root node of the custom scene graph.
+ * @param drawingRenderSettings Optional renderer-specific geometry conversion settings.
  * @returns Three.js scene containing the converted object hierarchy.
  */
-export async function sceneToThreeJsScene(rootObject3DNode: IObject3DNode): Promise<THREE.Scene> {
+export async function sceneToThreeJsScene(
+    rootObject3DNode: IObject3DNode,
+    drawingRenderSettings: ISceneGeometryConversionSettings = {},
+): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
-    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode);
+    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode, drawingRenderSettings);
     threeScene.add(rootThreeObject);
 
     return threeScene;
@@ -165,9 +252,13 @@ const svgLoader = new SVGLoader();
  * geometry metadata is translated into the matching Three.js mesh structure.
  *
  * @param node Source scene node to convert.
+ * @param drawingRenderSettings Optional renderer-specific geometry conversion settings.
  * @returns Three.js object representing the source subtree.
  */
-export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promise<THREE.Object3D> {
+export async function orderObjectNodeToThreeObject3D(
+    node: IObject3DNode,
+    drawingRenderSettings: ISceneGeometryConversionSettings = {},
+): Promise<THREE.Object3D> {
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
     threeObject.userData.kind = node.kind;
@@ -175,7 +266,7 @@ export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promi
     threeObject.matrix.fromArray(node.transform.elements);
     threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
 
-    const geom = node.geometry({});
+    const geom = node.geometry(drawingRenderSettings);
     if (geom.svgPath?.length) {
         const shape = new THREE.Shape();
 
@@ -228,27 +319,22 @@ export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promi
             depth: geom.svgDepth ?? 1,
         };
 
-        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        const mainGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
 
-        // random color
-        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xffffff });
-        material.transparent = true;
-        material.opacity = 0.3;
-
-        const mesh = new THREE.Mesh(geometry, material);
-
-        // Rotate so extrusion is "up" in the scene (world +Y).
-        if (geom.svgExtrusionDirection === 'z' || !geom.svgExtrusionDirection) {
-            mesh.rotation.x = -Math.PI / 2;
-        }
-        else if (geom.svgExtrusionDirection === 'x') {
-            mesh.rotation.z = Math.PI / 2;
-        }
-        else if (geom.svgExtrusionDirection === 'y') {
-            // default, already extruding in +Y
-        }
-
-        threeObject.add(mesh);
+        _addGeometryWithOptionalWireframe(
+            threeObject,
+            mainGeometry,
+            drawingRenderSettings,
+            (object) => {
+                // Rotate so extrusion is "up" in the scene (world +Y).
+                if (geom.svgExtrusionDirection === 'z' || !geom.svgExtrusionDirection) {
+                    object.rotation.x = -Math.PI / 2;
+                }
+                else if (geom.svgExtrusionDirection === 'x') {
+                    object.rotation.z = Math.PI / 2;
+                }
+            },
+        );
     }
     else if (geom.svgString) {
         let shapes: THREE.Shape[] = _loadSvgShapesFromCacheOrParse(geom.svgString);
@@ -292,13 +378,19 @@ export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promi
                 return extrudeGeometry;
             };
 
-            let geometry2 = newExtrudeGeometry(shape, extrusionDepth, rot);
+            const geometry2 = newExtrudeGeometry(shape, extrusionDepth, rot);
             const position = new THREE.Vector3(geom.origin.elements[12], geom.origin.elements[13], geom.origin.elements[14]);
-            const svgMaterial = new THREE.MeshBasicMaterial({ color: 0x00aaff });
-            svgMaterial.side = THREE.DoubleSide; // Show both sides of the extruded shape
-            const mesh = new THREE.Mesh(geometry2, svgMaterial);
-            mesh.position.copy(position);
-            threeObject.add(mesh);
+            _addGeometryWithOptionalWireframe(
+                threeObject,
+                geometry2,
+                drawingRenderSettings,
+                (object) => {
+                    object.position.copy(position);
+                },
+                (material) => {
+                    material.side = THREE.DoubleSide;
+                },
+            );
 
         });
     }
@@ -327,34 +419,28 @@ export async function orderObjectNodeToThreeObject3D(node: IObject3DNode): Promi
         );
         objGrp.applyMatrix4(m4);
 
-        threeObject.add(objGrp);
+        _addObjectGroupWithOptionalWireframe(threeObject, objGrp, drawingRenderSettings);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
-        // transform so that the origin is at rear left bottom corner
-        //        geometry.translate(geom.size._x / 2, geom.size._y / 2, geom.size._z / 2);
-        const material = new THREE.MeshBasicMaterial({ color: Math.random() * 0xff00ff });
-        if (new TC.Vector3(geom.size._x, geom.size._y, geom.size._z).length() > 650) {
-            // make transparent
-            material.transparent = true;
-            material.opacity = 0.3;
-        }
-        const mesh = new THREE.Mesh(geometry, material);
-
-
-        mesh.position.copy(new THREE.Vector3(
-            node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
-            node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
-            node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
-        ));
-
-        threeObject.add(mesh);
+        _addGeometryWithOptionalWireframe(
+            threeObject,
+            geometry,
+            drawingRenderSettings,
+            (object) => {
+                object.position.copy(new THREE.Vector3(
+                    node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
+                    node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
+                    node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
+                ));
+            },
+        );
     }
 
 
 
     const childThreeObjects = await Promise.all(
-        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode))
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings))
     );
     childThreeObjects.forEach((childThreeObject) => {
         threeObject.add(childThreeObject);
