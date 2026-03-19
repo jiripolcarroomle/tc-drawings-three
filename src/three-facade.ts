@@ -30,7 +30,6 @@ if ((import.meta as any).hot) {
 
 const _OBJ_TEXT_CACHE_NAME = 'tc-drawings-three:obj-text:v1';
 const _USE_PERSISTENT_OBJ_TEXT_CACHE = Boolean((import.meta as any).env?.DEV);
-
 async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
     // DEV-only: Persist downloads across HMR *and* full page reloads.
     // This caches the raw OBJ response; we still parse it into Object3D per session.
@@ -49,11 +48,10 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
             const cache = await caches.open(_OBJ_TEXT_CACHE_NAME);
             const cachedResponse = await cache.match(url);
             if (cachedResponse) {
-                console.log(`OBJ CacheStorage HIT ${url}`);
                 return await cachedResponse.text();
             }
 
-            console.log(`OBJ CacheStorage MISS ${url}`);
+            console.log(`OBJ fetch ${url}`);
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
@@ -114,7 +112,6 @@ async function _loadObject3DFromCacheOrFetch(
     partIdForLogging?: string
 ): Promise<THREE.Object3D> {
     if (_object3dCache.has(url)) {
-        console.log(`Object3D in-memory cache HIT ${url}`);
         return _object3dCache.get(url)!.clone();
     }
 

@@ -3,7 +3,7 @@ import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createScene } from './scene'
-import { printSceneHierarchy } from './helpers'
+// import { printSceneHierarchy } from './helpers'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
@@ -32,7 +32,7 @@ const orderJson = flatted.parse(orderJsonRaw)
 
 const orderScene = createScene(orderJson.o, orderJson.ol);
 
-printSceneHierarchy(orderScene);
+// printSceneHierarchy(orderScene);
 
 // From here on, treat #app as definitely present.
 // TypeScript doesn't reliably keep the non-null narrowing inside nested
@@ -57,9 +57,10 @@ const scene = new THREE.Scene();
 // The scene is a container graph holding everything to be rendered:
 // meshes, lights, groups, helpers, etc.
 async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
+  console.log('will convert scene to three.js scene');
   const scene = await sceneToThreeJsScene(orderScene);
+  console.log('converted scene to three.js scene');
   scene.children.forEach(child => {
-    console.log('Scene child:', child.name, child.userData.kind);
     targetObjectToAttachTheSceneWhenReady.add(child);
   });
 }

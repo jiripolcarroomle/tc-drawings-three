@@ -3,8 +3,37 @@ import { Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
 import { computeWorldTransform, getPartId, reparentPartsFromPosGroupsToModulesRecursive } from "./helpers";
 
-export interface IDrawingRenderSettings {
+export interface ISceneGeometryConversionSettings {
+    /** Material to render the 3D objects. If not provided, the geometry is not created. */
+    material?: any;
+    /** Material to render the 3D objects in wireframe mode. If not provided, the wireframe is not created. */
+    wireframeMaterial?: any;
 }
+
+export interface ISceneRenderSettings {
+    /** The camera position to render the scene from. */
+    cameraPosition?: Vector3;
+    /** A direction vector indicating where the camera is pointing. */
+    cameraDirection?: Vector3;
+    /** The size of the camera view. Can be a Vector3, a number, or any other type, based on the actually implemented technology or view type */
+    cameraSize?: Vector3 | number | any;
+}
+
+export interface ISceneRenderer {
+    new(rootNode: IObject3DNode, settings: ISceneGeometryConversionSettings): ISceneRenderer;
+    rootNode: IObject3DNode;
+
+    // getFilteredCopy(filter: (node: IObject3DNode) => boolean): IScene;
+    // render(
+    //     nodeFilter: (node: IObject3DNode) => boolean,
+    //     cameraPosition: Vector3,
+    //     cameraDirection: Vector3,
+    //     cameraSize: Vector3,
+    //     drawingRenderSettings: any,
+    // ): any;
+    // getNodeById(id: string): IObject3DNode | null;
+}
+
 
 export interface ISvgPathNode {
     command: 'M' | 'L' | 'Z';
@@ -12,13 +41,36 @@ export interface ISvgPathNode {
 }
 
 export interface IGeometryData {
+    /** The owner node is the node that this geometry data belongs to. This is useful for accessing any additional data that may be needed for rendering or interaction. */
     ownerNode: IObject3DNode;
+    /**
+     * The origin represents the local coordinate system of the geometry inside the owner node.
+     */
     origin: Matrix4;
+    /**
+     * The size of the geometry, if it is a box. This is specific to kind part with box geometry. The size is in the local coordinate system of the owner node
+     * and is positioned at the origin.
+     */
     size?: Vector3;
+    /**
+     * SVG path nodes. The SVG can be sourced as ISvgPathNode array or as a raw SVG string. 
+     */
     svgPath?: ISvgPathNode[];
+    /**
+     * The axis along which the SVG should be extruded. 
+     */
     svgExtrusionDirection?: string;
+    /**
+     * The SVG as string for the extrustion.
+     */
     svgString?: string;
+    /**
+     * SVG extrusion depth. This is specific to kind part with SVG extrusion geometry. 
+     */
     svgDepth?: number;
+    /**
+     * The URL of the mesh to load for this geometry. OBJ format is supported.
+     */
     meshUrl?: string;
 }
 
@@ -104,7 +156,7 @@ export interface IObject3DNode {
      * Extract geometry relevant data from this node for the renderer.
      * @param drawingRenderSettings 
      */
-    geometry(drawingRenderSettings: IDrawingRenderSettings): IGeometryData;
+    geometry(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData;
     /**
      * Creates a deep copy of this node including all its children, but without copying the parent reference (the cloned node will have parent set to null). 
      * The ID of the cloned node should be different from the original node to maintain uniqueness. The exact format of the new ID is not important, as long as it is unique and stable.
@@ -120,21 +172,6 @@ export interface IObject3DNode {
     wallData: IWallSegment | undefined;
 
 }
-
-export interface IScene {
-    rootNode: IObject3DNode;
-    getFilteredCopy(filter: (node: IObject3DNode) => boolean): IScene;
-    render(
-        nodeFilter: (node: IObject3DNode) => boolean,
-        cameraPosition: Vector3,
-        cameraDirection: Vector3,
-        cameraSize: Vector3,
-        drawingRenderSettings: any,
-    ): any;
-    getNodeById(id: string): IObject3DNode | null;
-}
-
-
 
 export class IdsMap {
     static objects = new Map<string, IObject3DNode>();
@@ -232,7 +269,7 @@ export class OrderSceneNode implements IObject3DNode {
     }
 
     readonly _geometry: IGeometryData;
-    geometry(drawingRenderSettings: IDrawingRenderSettings): IGeometryData {
+    geometry(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {
         void drawingRenderSettings;
         return this._geometry!;
     }
