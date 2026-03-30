@@ -169,20 +169,53 @@ function _copyLocalTransform(source: THREE.Object3D, target: THREE.Object3D): vo
     target.scale.copy(source.scale);
 }
 
+function _addConfiguredRenderable(
+    parent: THREE.Object3D,
+    object: THREE.Object3D,
+    configureRenderable?: (object: THREE.Object3D) => void,
+): void {
+    configureRenderable?.(object);
+    parent.add(object);
+}
+
+function _createEdgesWireframe(
+    geometry: THREE.BufferGeometry,
+    material: THREE.LineBasicMaterial,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
+): THREE.LineSegments {
+    return new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry, drawingRenderSettings.edgesGeometryThresholdAngle),
+        material,
+    );
+}
+
+function _collectMeshChildren(objectGroup: THREE.Object3D): THREE.Mesh[] {
+    const meshChildren: THREE.Mesh[] = [];
+    objectGroup.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+            meshChildren.push(child as THREE.Mesh);
+        }
+    });
+    return meshChildren;
+}
+
 /**
- * Adds a geometry to a parent Object3D, with optional surface and wireframe materials.
- * This function is a helper to add a mesh with a surface material and an optional wireframe on top, based on the provided settings.
- * @param parent the THREE.Object3D to which the geometry (mesh and optional wireframe) will be added as a child
- * @param geometry the THREE.BufferGeometry to add
- * @param materialBase the base material properties for the surface mesh; if undefined, no surface mesh will be created
+ * Adds a renderable to a parent Object3D, with optional surface and wireframe
+ * materials.
+ * This helper supports both raw BufferGeometry and prebuilt Object3D groups so
+ * both geometry-based and imported-mesh rendering paths share the same material
+ * and wireframe setup.
+ * @param parent the THREE.Object3D to which the renderable will be added as a child
+ * @param renderable the geometry or object group to add
+ * @param materialBase the base material properties for the surface mesh; if undefined, no surface mesh will be created or shown
  * @param wireframeMaterialBase the base material properties for the wireframe; if undefined, no wireframe will be created
  * @param drawingRenderSettings the settings that may influence how the geometry is rendered, such as edge thresholds for wireframe generation
- * @param configureRenderable Optional callback to configure the renderable object before adding it to the parent
- * @param configureSurfaceMaterial Optional callback to configure the surface material before it's applied to the mesh
+ * @param configureRenderable Optional callback to configure newly created renderable objects before adding them to the parent
+ * @param configureSurfaceMaterial Optional callback to configure the surface material before it's applied to meshes
  */
-function _addGeometryWithOptionalWireframe(
+function _addRenderableWithOptionalWireframe(
     parent: THREE.Object3D,
-    geometry: THREE.BufferGeometry,
+    renderable: THREE.BufferGeometry | THREE.Object3D,
     materialBase: any | undefined,
     wireframeMaterialBase: any | undefined,
     drawingRenderSettings: IExtendedDrawingRenderSettings,
@@ -192,33 +225,26 @@ function _addGeometryWithOptionalWireframe(
     const surfaceMaterial = _createSurfaceMaterial(materialBase);
     if (surfaceMaterial) {
         configureSurfaceMaterial?.(surfaceMaterial);
-        const mesh = new THREE.Mesh(geometry, surfaceMaterial);
-        configureRenderable?.(mesh);
-        parent.add(mesh);
     }
-    if (wireframeMaterialBase) {
-        const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
-        const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
-        configureRenderable?.(wireframe);
-        parent.add(wireframe);
-    }
-}
 
-function _addObjectGroupWithOptionalWireframe(
-    parent: THREE.Object3D,
-    objectGroup: THREE.Object3D,
-    materialBase: any | undefined,
-    wireframeMaterialBase: any | undefined,
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
-): void {
-    const meshChildren: THREE.Mesh[] = [];
-    objectGroup.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-            meshChildren.push(child as THREE.Mesh);
+    const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
+
+    if (renderable instanceof THREE.BufferGeometry) {
+        if (surfaceMaterial) {
+            _addConfiguredRenderable(parent, new THREE.Mesh(renderable, surfaceMaterial), configureRenderable);
         }
-    });
+        if (wireframeMaterial) {
+            _addConfiguredRenderable(
+                parent,
+                _createEdgesWireframe(renderable, wireframeMaterial, drawingRenderSettings),
+                configureRenderable,
+            );
+        }
+        return;
+    }
 
-    const surfaceMaterial = _createSurfaceMaterial(materialBase);
+    const objectGroup = renderable;
+    const meshChildren = _collectMeshChildren(objectGroup);
     for (const mesh of meshChildren) {
         mesh.visible = Boolean(surfaceMaterial);
         if (surfaceMaterial) {
@@ -226,10 +252,9 @@ function _addObjectGroupWithOptionalWireframe(
         }
     }
 
-    const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
     if (wireframeMaterial) {
         for (const mesh of meshChildren) {
-            const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
+            const wireframe = _createEdgesWireframe(mesh.geometry, wireframeMaterial, drawingRenderSettings);
             _copyLocalTransform(mesh, wireframe);
             objectGroup.add(wireframe);
         }
@@ -344,7 +369,7 @@ export async function orderObjectNodeToThreeObject3D(
 
         const mainGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
 
-        _addGeometryWithOptionalWireframe(
+        _addRenderableWithOptionalWireframe(
             threeObject,
             mainGeometry,
             mainMaterial,
@@ -405,7 +430,7 @@ export async function orderObjectNodeToThreeObject3D(
 
             const geometry2 = newExtrudeGeometry(shape, extrusionDepth, rot);
             const position = new THREE.Vector3(geom.origin.elements[12], geom.origin.elements[13], geom.origin.elements[14]);
-            _addGeometryWithOptionalWireframe(
+            _addRenderableWithOptionalWireframe(
                 threeObject,
                 geometry2,
                 mainMaterial,
@@ -446,11 +471,11 @@ export async function orderObjectNodeToThreeObject3D(
         );
         objGrp.applyMatrix4(m4);
 
-        _addObjectGroupWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
+        _addRenderableWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
-        _addGeometryWithOptionalWireframe(
+        _addRenderableWithOptionalWireframe(
             threeObject,
             geometry,
             mainMaterial,
