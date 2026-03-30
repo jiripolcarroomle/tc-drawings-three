@@ -39,6 +39,21 @@ const orderScene = createScene(orderJson.o, orderJson.ol);
 // functions, so we capture the narrowed value in a new constant.
 const appEl = app
 
+type PersistedNavigationV1 = {
+  v: 1
+  camera: {
+    position: [number, number, number]
+    zoom: number
+  }
+  target: [number, number, number]
+}
+
+type MainHmrData = {
+  navigation?: PersistedNavigationV1
+}
+
+const hmrData = import.meta.hot?.data as MainHmrData | undefined
+
 // The renderer is the bridge between your Scene+Camera and the GPU.
 // It owns a canvas element (renderer.domElement) where pixels are drawn.
 //
@@ -76,19 +91,19 @@ async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   });
 }
 
-loadScene(scene);
-
 // A perspective camera approximates how the human eye sees the world.
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //
 // Note: we set aspect=1 initially; we’ll compute the real value in resize().
-const camera = new THREE.PerspectiveCamera(60, 1, 100, 8000)
+const camera = new THREE.PerspectiveCamera(90, 1, 100, 20000)
+
+const fallbackCameraPosition = new THREE.Vector3(3500, 800, -2000)
+const fallbackCameraTarget = new THREE.Vector3(0, 0, 0)
+const defaultViewDirection = new THREE.Vector3(1, 0.35, -0.7).normalize()
+const fitPadding = 1.35
 
 // Move the camera back a bit so the origin is visible.
-camera.position.set(4000, 800, -2500)
-camera.position.set(0, 3000, 0)
-camera.position.set(3500, 800, -3000)
-camera.position.set(3500, 800, -2000)
+camera.position.copy(fallbackCameraPosition)
 
 // Adding the camera to the scene is optional for rendering (render() takes
 // a direct camera reference), but becomes useful if you want to parent the
@@ -103,17 +118,6 @@ scene.add(camera)
 // Keyboard:
 // - Arrow keys: pan
 //
-// Persisted between reloads via localStorage.
-const NAV_STORAGE_KEY = 'tc-drawings-three:navigation:v1'
-type PersistedNavigationV1 = {
-  v: 1
-  camera: {
-    position: [number, number, number]
-    zoom: number
-  }
-  target: [number, number, number]
-}
-
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n)
 }
@@ -129,29 +133,22 @@ function isVec3Tuple(v: unknown): v is [number, number, number] {
 }
 
 function tryLoadNavigation(): PersistedNavigationV1 | null {
-  try {
-    const raw = localStorage.getItem(NAV_STORAGE_KEY)
-    if (!raw) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      (parsed as any).v !== 1 ||
-      !(parsed as any).camera ||
-      !isVec3Tuple((parsed as any).camera.position) ||
-      !isFiniteNumber((parsed as any).camera.zoom) ||
-      !isVec3Tuple((parsed as any).target)
-    ) {
-      return null
-    }
-    return parsed as PersistedNavigationV1
-  } catch {
+  const parsed = hmrData?.navigation
+  if (
+    !parsed ||
+    parsed.v !== 1 ||
+    !isVec3Tuple(parsed.camera.position) ||
+    !isFiniteNumber(parsed.camera.zoom) ||
+    !isVec3Tuple(parsed.target)
+  ) {
     return null
   }
+
+  return parsed
 }
 
-function saveNavigation(controls: OrbitControls) {
-  const state: PersistedNavigationV1 = {
+function captureNavigation(controls: OrbitControls): PersistedNavigationV1 {
+  return {
     v: 1,
     camera: {
       position: [camera.position.x, camera.position.y, camera.position.z],
@@ -159,11 +156,56 @@ function saveNavigation(controls: OrbitControls) {
     },
     target: [controls.target.x, controls.target.y, controls.target.z],
   }
-  try {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // Ignore storage quota / privacy mode failures.
+}
+
+function applyNavigation(state: PersistedNavigationV1) {
+  camera.position.set(...state.camera.position)
+  camera.zoom = state.camera.zoom
+  camera.updateProjectionMatrix()
+  controls.target.set(...state.target)
+  controls.update()
+}
+
+function getSceneBounds() {
+  const box = new THREE.Box3()
+  const childBox = new THREE.Box3()
+  let hasBounds = false
+
+  for (const child of scene.children) {
+    if (child === camera || !child.visible) continue
+    childBox.setFromObject(child)
+    if (childBox.isEmpty()) continue
+    box.union(childBox)
+    hasBounds = true
   }
+
+  return hasBounds ? box : null
+}
+
+function resetCameraToScene() {
+  const bounds = getSceneBounds()
+  if (!bounds) {
+    camera.position.copy(fallbackCameraPosition)
+    camera.zoom = 1
+    camera.updateProjectionMatrix()
+    controls.target.copy(fallbackCameraTarget)
+    controls.update()
+    return
+  }
+
+  const center = bounds.getCenter(new THREE.Vector3())
+  const size = bounds.getSize(new THREE.Vector3())
+  const radius = Math.max(size.length() * 0.5, 400)
+  const fovRadians = THREE.MathUtils.degToRad(camera.fov)
+  const fitHeightDistance = radius / Math.tan(fovRadians * 0.5)
+  const fitWidthDistance = fitHeightDistance / Math.max(camera.aspect, 0.1)
+  const distance = Math.max(fitHeightDistance, fitWidthDistance) * fitPadding
+
+  camera.position.copy(center).addScaledVector(defaultViewDirection, distance)
+  camera.zoom = 1
+  camera.updateProjectionMatrix()
+  controls.target.copy(center)
+  controls.update()
 }
 
 const controls = new OrbitControls(camera, renderer.domElement)
@@ -185,39 +227,37 @@ controls.keys = {
 // Ensure right-click doesn't open the context menu when panning.
 renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault())
 
+const resetCameraButton = document.createElement('button')
+resetCameraButton.type = 'button'
+resetCameraButton.className = 'camera-reset-button'
+resetCameraButton.textContent = 'Reset camera'
+appEl.appendChild(resetCameraButton)
+
+let hasUserNavigated = false
+
 // Restore navigation if present; otherwise default to centering the scene.
 {
   const persisted = tryLoadNavigation()
   if (persisted) {
-    camera.position.set(...persisted.camera.position)
-    camera.zoom = persisted.camera.zoom
-    camera.updateProjectionMatrix()
-    controls.target.set(...persisted.target)
-    controls.update()
+    applyNavigation(persisted)
   } else {
-    const box = new THREE.Box3().setFromObject(scene)
-    if (Number.isFinite(box.min.x) && Number.isFinite(box.max.x) && !box.isEmpty()) {
-      const center = box.getCenter(new THREE.Vector3())
-      controls.target.copy(center)
-      controls.update()
-    }
+    resetCameraToScene()
   }
 }
 
-let saveTimer: number | undefined
-function scheduleSave() {
-  if (saveTimer !== undefined) window.clearTimeout(saveTimer)
-  saveTimer = window.setTimeout(() => saveNavigation(controls), 200)
-}
+controls.addEventListener('start', () => {
+  hasUserNavigated = true
+})
 
-controls.addEventListener('end', scheduleSave)
-controls.addEventListener('change', scheduleSave)
-window.addEventListener('beforeunload', () => saveNavigation(controls))
+resetCameraButton.addEventListener('click', () => {
+  resetCameraToScene()
+})
 
 if (import.meta.hot) {
-  import.meta.hot.dispose(() => {
+  import.meta.hot.dispose((data: MainHmrData) => {
+    data.navigation = captureNavigation(controls)
     controls.dispose()
-    if (saveTimer !== undefined) window.clearTimeout(saveTimer)
+    resetCameraButton.remove()
   })
 }
 
@@ -244,6 +284,12 @@ const material = new THREE.MeshNormalMaterial()
 // Combine geometry + material into a renderable mesh.
 const cube = new THREE.Mesh(geometry, material)
 scene.add(cube)
+
+loadScene(scene).then(() => {
+  if (!tryLoadNavigation() && !hasUserNavigated) {
+    resetCameraToScene()
+  }
+})
 
 // Keep renderer output size and camera projection in sync with the DOM.
 //
