@@ -270,16 +270,20 @@ function _addRenderableWithOptionalWireframe(
  *
  * @param rootObject3DNode Root node of the custom scene graph.
  * @param drawingRenderSettings Optional renderer-specific geometry conversion settings.
+ * @param filter Optional filter function to determine which nodes to include.
  * @returns Three.js scene containing the converted object hierarchy.
  */
 export async function sceneToThreeJsScene(
     rootObject3DNode: IObject3DNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
+    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
 ): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
-    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode, drawingRenderSettings);
-    threeScene.add(rootThreeObject);
+    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode, drawingRenderSettings, filter);
+    if (rootThreeObject) {
+        threeScene.add(rootThreeObject);
+    }
 
     return threeScene;
 }
@@ -294,12 +298,19 @@ const svgLoader = new SVGLoader();
  *
  * @param node Source scene node to convert.
  * @param drawingRenderSettings Optional renderer-specific geometry conversion settings.
+ * @param filter Optional filter function to determine which nodes to include.
  * @returns Three.js object representing the source subtree.
  */
 export async function orderObjectNodeToThreeObject3D(
     node: IObject3DNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-): Promise<THREE.Object3D> {
+    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+): Promise<THREE.Object3D | null> {
+    const passesFilter = !filter || filter(node);
+    if (!passesFilter) {
+        return null;
+    }
+
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
     threeObject.userData.kind = node.kind;
@@ -313,7 +324,7 @@ export async function orderObjectNodeToThreeObject3D(
     const wireframeMaterial = drawingRenderSettings.wireframeMaterial;
 
     if (geom.hidden) {
-        // Don't add any geometry, but still create the Three.js object and process children.}        
+        return null;
     }
     else if (geom.svgPath?.length) {
         const shape = new THREE.Shape();
@@ -494,10 +505,12 @@ export async function orderObjectNodeToThreeObject3D(
 
 
     const childThreeObjects = await Promise.all(
-        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings))
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter))
     );
     childThreeObjects.forEach((childThreeObject) => {
-        threeObject.add(childThreeObject);
+        if (childThreeObject) {
+            threeObject.add(childThreeObject);
+        }
     });
     return threeObject;
 }

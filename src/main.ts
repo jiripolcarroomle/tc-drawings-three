@@ -2,8 +2,8 @@ import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createScene } from './scene'
 // import { printSceneHierarchy } from './helpers'
+import { createScene, Object3DNodeKind, type IObject3DNode } from './scene'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
@@ -73,7 +73,15 @@ const scene = new THREE.Scene();
 // meshes, lights, groups, helpers, etc.
 async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   console.log('will convert scene to three.js scene');
-  const scene = await sceneToThreeJsScene(orderScene, {
+
+  const filter = (node: IObject3DNode) => {
+    if (node.kind === Object3DNodeKind.Wall) {
+      // Include all walls.
+      return false;
+    }
+    return true;
+  };
+  const settings = {
     material: {
       color: 0xcccccc,
       polygonOffset: true,
@@ -91,7 +99,9 @@ async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
     },
     doNotFetchMeshes: true,
     edgesGeometryThresholdAngle: 10,
-  });
+  }
+
+  const scene = await sceneToThreeJsScene(orderScene, settings, filter);
   console.log('converted scene to three.js scene');
   scene.children.forEach(child => {
     targetObjectToAttachTheSceneWhenReady.add(child);
