@@ -1,8 +1,8 @@
 import * as THREE from "three";
-import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
 import { OBJLoader } from "three/examples/jsm/Addons.js";
 import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
 import * as TC from "./tc/base";
+import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
 
 export interface IReadySceneObjectUserData {
     orderSceneNode: IObject3DNode;
@@ -95,10 +95,7 @@ type ThreeFacadeHmrData = {
 const _hmrData = (import.meta as any).hot?.data as ThreeFacadeHmrData | undefined;
 
 
-// Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
-// Only the Object3D cache is persisted across Vite HMR updates to avoid
-// re-downloading meshes while iterating.
-const _svgShapeCache = new Map<string, THREE.Shape[]>();
+
 const _object3dCache: Map<string, THREE.Object3D> = _hmrData?.object3dCache ?? new Map();
 
 if (_hmrData) {
@@ -158,34 +155,7 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
     return await response.text();
 }
 
-function _loadSvgShapesFromCacheOrParse(
-    svg: string,
-    partIdForLogging?: string
-): THREE.Shape[] {
-    if (_svgShapeCache.has(svg)) {
-        return _svgShapeCache.get(svg)!;
-    }
 
-    let shapes: THREE.Shape[] = [];
-    try {
-        const svgData = svgLoader.parse(svg);
-        if (svgData.paths.length <= 0) {
-            console.error(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
-        }
-        svgData.paths.forEach((path: SVGResultPaths) => {
-            const pathIsCCW =
-                path.subPaths.length > 0 &&
-                !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
-            shapes = shapes.concat(path.toShapes(pathIsCCW));
-        });
-    } catch (e) {
-        console.error(
-            `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
-        );
-    }
-    _svgShapeCache.set(svg, shapes);
-    return shapes;
-}
 
 const objLoader = new OBJLoader();
 
@@ -387,7 +357,6 @@ export async function sceneToThreeJsScene(
     return (await sceneToReadyThreeScene(rootObject3DNode, drawingRenderSettings, filter)).scene;
 }
 
-const svgLoader = new SVGLoader();
 
 /**
  * Converts a custom scene node and its descendants into a Three.js object tree.
@@ -497,7 +466,7 @@ export async function orderObjectNodeToThreeObject3D(
         );
     }
     else if (geom.svgString) {
-        let shapes: THREE.Shape[] = _loadSvgShapesFromCacheOrParse(geom.svgString);
+        let shapes: THREE.Shape[] = loadSvgShapesFromCacheOrParse(geom.svgString);
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
