@@ -74,10 +74,16 @@ const scene = new THREE.Scene();
 async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   console.log('will convert scene to three.js scene');
 
+  const selectedWall = orderScene
+  .children
+  .find(child => child.kind === Object3DNodeKind.WallGroup)
+  ?.children
+  .find(child => child.kind === Object3DNodeKind.Wall && child.id.includes('wall-2'));
+  ;
   const filter = (node: IObject3DNode) => {
     if (node.kind === Object3DNodeKind.Wall) {
       // Include all walls.
-      return false;
+      return node === selectedWall;
     }
     return true;
   };

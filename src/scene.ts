@@ -112,16 +112,20 @@ export interface IGeometryData {
 
 /**
  * The kind of node determines how it should be rendered and interacted with.
+ * - SceneRoot: the root node of the scene
  * - PosGroup: order line pos group, this provides coordinate system for the parts
  * - Group: no geometry, only transformation
  * - Wall: created from room data, has an SVG extruded geometry
+ * - WallGroup: a group of walls
  * - Part: created from part data, has a box, SVG extrusion or mesh geometry
  * - Module: created from module data, has a bounding box (size, position and transform), but no geometry
  */
 export enum Object3DNodeKind {
+    SceneRoot = "sceneRoot",
     PosGroup = "posGroup",
     Group = "group",
     Wall = "wall",
+    WallGroup = "wallGroup",
     Part = "part",
     Module = "module",
 }
@@ -357,6 +361,16 @@ export class OrderSceneNode implements IObject3DNode {
         this._geometry = new GeometryData(this, new Matrix4());
     }
 
+
+    static createSceneRoot(idsMap: IdsMap): OrderSceneNode {
+        return new OrderSceneNode(idsMap, 'scene-root', Object3DNodeKind.SceneRoot);
+    }
+
+    static createWallsGroup(idsMap: IdsMap, _id?: string): OrderSceneNode {
+        const wallsGroupNode = new OrderSceneNode(idsMap, 'walls-group', Object3DNodeKind.WallGroup);
+        return wallsGroupNode;
+    }
+
     /**
      * Creates a group node with no geometry payload.
      *
@@ -414,7 +428,7 @@ export class OrderSceneNode implements IObject3DNode {
      * @param posGroupsRootNode Parent node that owns all generated pos-groups.
      * @returns Generated pos-group node.
      */
-    static createSceneRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
+    static createPosGroupRootFromIFullOrderLineGroupData(source: any /* IFullOrderLineGroupData */, posGroupsRootNode: OrderSceneNode): OrderSceneNode {
         const posGroupNode = OrderSceneNode.createPosGroup(posGroupsRootNode.idsMap, 'pos-group-' + (source.groupPos.calcGroup ?? ''));
         posGroupNode.orderLineEntry = source;
         const groupPosition = Vector3.fromArray(source.groupPos.calcGroupPos);
@@ -515,7 +529,7 @@ export function createScene(
     ol: any, // IFullOrderLineGroupData
 ): OrderSceneNode {
     const idsMap = new IdsMap();
-    const scenceRoot = OrderSceneNode.createGroup(idsMap);
+    const scenceRoot = OrderSceneNode.createSceneRoot(idsMap);
 
     // creates walls nodes from the order room data and adds them to the scene
     const wallsGroup = createWallsGroupFromOrderData(o.rooms, idsMap);
@@ -529,7 +543,7 @@ export function createScene(
 
     // attach the parts to their parent modules, from which the addPart was called
     ol?.forEach((orderLineEntry: any) => {
-        const posGroupNode = OrderSceneNode.createSceneRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
+        const posGroupNode = OrderSceneNode.createPosGroupRootFromIFullOrderLineGroupData(orderLineEntry, posGroupsRootNode);
         reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, posGroupNode);
     })
 
