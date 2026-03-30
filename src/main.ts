@@ -47,12 +47,21 @@ type PersistedNavigationV1 = {
   }
   target: [number, number, number]
 }
+const NAVIGATION_STORAGE_KEY = 'tc-drawings-three:navigation:v1'
 
-type MainHmrData = {
-  navigation?: PersistedNavigationV1
+function isMacPlatform() {
+  const uaPlatform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform
+  const platform = uaPlatform ?? navigator.platform
+  return /mac/i.test(platform)
 }
 
-const hmrData = import.meta.hot?.data as MainHmrData | undefined
+function getEffectivePixelRatio() {
+  if (isMacPlatform()) {
+    return 1
+  }
+
+  return Math.min(window.devicePixelRatio, 2)
+}
 
 // The renderer is the bridge between your Scene+Camera and the GPU.
 // It owns a canvas element (renderer.domElement) where pixels are drawn.
@@ -61,8 +70,9 @@ const hmrData = import.meta.hot?.data as MainHmrData | undefined
 const renderer = new THREE.WebGLRenderer({ antialias: true, })
 
 // Ensure crisp rendering on high-DPI displays, but cap it to avoid excessive
-// GPU load on very dense screens.
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+// GPU load on very dense screens. macOS Retina is forced to 1x because the
+// higher DPR path can produce incorrect interaction coordinates there.
+renderer.setPixelRatio(getEffectivePixelRatio())
 
 // Mount the renderer's canvas into the page.
 appEl.appendChild(renderer.domElement)
@@ -156,18 +166,28 @@ function isVec3Tuple(v: unknown): v is [number, number, number] {
 }
 
 function tryLoadNavigation(): PersistedNavigationV1 | null {
-  const parsed = hmrData?.navigation
-  if (
-    !parsed ||
-    parsed.v !== 1 ||
-    !isVec3Tuple(parsed.camera.position) ||
-    !isFiniteNumber(parsed.camera.zoom) ||
-    !isVec3Tuple(parsed.target)
-  ) {
+  try {
+    const raw = window.localStorage.getItem(NAVIGATION_STORAGE_KEY)
+    if (!raw) {
+      return null
+    }
+
+    const parsed: unknown = JSON.parse(raw)
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      (parsed as PersistedNavigationV1).v !== 1 ||
+      !isVec3Tuple((parsed as PersistedNavigationV1).camera?.position) ||
+      !isFiniteNumber((parsed as PersistedNavigationV1).camera?.zoom) ||
+      !isVec3Tuple((parsed as PersistedNavigationV1).target)
+    ) {
+      return null
+    }
+
+    return parsed as PersistedNavigationV1
+  } catch {
     return null
   }
-
-  return parsed
 }
 
 function captureNavigation(controls: OrbitControls): PersistedNavigationV1 {
@@ -178,6 +198,14 @@ function captureNavigation(controls: OrbitControls): PersistedNavigationV1 {
       zoom: camera.zoom,
     },
     target: [controls.target.x, controls.target.y, controls.target.z],
+  }
+}
+
+function persistNavigation(state: PersistedNavigationV1) {
+  try {
+    window.localStorage.setItem(NAVIGATION_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore storage failures.
   }
 }
 
@@ -205,14 +233,18 @@ function getSceneBounds() {
   return hasBounds ? box : null
 }
 
+function resetCameraToOrigin() {
+  camera.position.copy(fallbackCameraPosition)
+  camera.zoom = 1
+  camera.updateProjectionMatrix()
+  controls.target.copy(fallbackCameraTarget)
+  controls.update()
+}
+
 function resetCameraToScene() {
   const bounds = getSceneBounds()
   if (!bounds) {
-    camera.position.copy(fallbackCameraPosition)
-    camera.zoom = 1
-    camera.updateProjectionMatrix()
-    controls.target.copy(fallbackCameraTarget)
-    controls.update()
+    resetCameraToOrigin()
     return
   }
 
@@ -272,13 +304,17 @@ controls.addEventListener('start', () => {
   hasUserNavigated = true
 })
 
+controls.addEventListener('change', () => {
+  persistNavigation(captureNavigation(controls))
+})
+
 resetCameraButton.addEventListener('click', () => {
-  resetCameraToScene()
+  resetCameraToOrigin()
+  persistNavigation(captureNavigation(controls))
 })
 
 if (import.meta.hot) {
-  import.meta.hot.dispose((data: MainHmrData) => {
-    data.navigation = captureNavigation(controls)
+  import.meta.hot.dispose(() => {
     controls.dispose()
     resetCameraButton.remove()
   })
@@ -322,6 +358,8 @@ loadScene(scene).then(() => {
 function resize() {
   const width = appEl.clientWidth
   const height = appEl.clientHeight
+
+  renderer.setPixelRatio(getEffectivePixelRatio())
 
   // Resize the drawing buffer to match the container.
   // The third parameter (updateStyle=false) means: don't touch CSS size,
