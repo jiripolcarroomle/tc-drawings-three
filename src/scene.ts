@@ -507,11 +507,7 @@ export class OrderSceneNode implements IObject3DNode {
         return moduleNode;
     }
 
-
-
-
 }
-
 
 /**
  * Builds the project's technology-agnostic scene graph from raw order data.

@@ -4,6 +4,85 @@ import { OBJLoader } from "three/examples/jsm/Addons.js";
 import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
 import * as TC from "./tc/base";
 
+export interface IReadySceneObjectUserData {
+    orderSceneNode: IObject3DNode;
+    nodeId: string;
+    kind: Object3DNodeKind;
+}
+
+export type IReadySceneObject = THREE.Object3D & {
+    userData: THREE.Object3D['userData'] & IReadySceneObjectUserData;
+};
+
+export interface IReadyThreeScene {
+    scene: THREE.Scene;
+    rootObject: IReadySceneObject | null;
+    objectsByNodeId: Map<string, IReadySceneObject>;
+    objectBySceneNode: WeakMap<IObject3DNode, IReadySceneObject>;
+    sceneNodeByObject: WeakMap<THREE.Object3D, IObject3DNode>;
+}
+
+type ReadySceneRegistry = {
+    objectsByNodeId: Map<string, IReadySceneObject>;
+    objectBySceneNode: WeakMap<IObject3DNode, IReadySceneObject>;
+    sceneNodeByObject: WeakMap<THREE.Object3D, IObject3DNode>;
+};
+
+function _createReadySceneRegistry(): ReadySceneRegistry {
+    return {
+        objectsByNodeId: new Map<string, IReadySceneObject>(),
+        objectBySceneNode: new WeakMap<IObject3DNode, IReadySceneObject>(),
+        sceneNodeByObject: new WeakMap<THREE.Object3D, IObject3DNode>(),
+    };
+}
+
+function _attachSceneNodeReference(object: THREE.Object3D, node: IObject3DNode): IReadySceneObject {
+    const readyObject = object as IReadySceneObject;
+    readyObject.userData.orderSceneNode = node;
+    readyObject.userData.nodeId = node.id;
+    readyObject.userData.kind = node.kind;
+    return readyObject;
+}
+
+export function getOrderSceneNodeFromReadySceneObject(object: THREE.Object3D): IObject3DNode | undefined {
+    return (object.userData as Partial<IReadySceneObjectUserData>).orderSceneNode;
+}
+
+function _registerReadySceneObject(
+    object: THREE.Object3D,
+    node: IObject3DNode,
+    registry?: ReadySceneRegistry,
+): IReadySceneObject {
+    const readyObject = _attachSceneNodeReference(object, node);
+    if (registry) {
+        registry.objectsByNodeId.set(node.id, readyObject);
+        registry.objectBySceneNode.set(node, readyObject);
+        registry.sceneNodeByObject.set(readyObject, node);
+    }
+    return readyObject;
+}
+
+export function getReadySceneObjectForOrderSceneNode(
+    readyScene: IReadyThreeScene,
+    node: IObject3DNode,
+): IReadySceneObject | undefined {
+    return readyScene.objectBySceneNode.get(node);
+}
+
+export function getReadySceneObjectByNodeId(
+    readyScene: IReadyThreeScene,
+    nodeId: string,
+): IReadySceneObject | undefined {
+    return readyScene.objectsByNodeId.get(nodeId);
+}
+
+export function getOrderSceneNodeFromReadyThreeSceneObject(
+    readyScene: IReadyThreeScene,
+    object: THREE.Object3D,
+): IObject3DNode | undefined {
+    return readyScene.sceneNodeByObject.get(object) ?? getOrderSceneNodeFromReadySceneObject(object);
+}
+
 interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
     edgesGeometryThresholdAngle?: number;
 }
@@ -273,19 +352,39 @@ function _addRenderableWithOptionalWireframe(
  * @param filter Optional filter function to determine which nodes to include.
  * @returns Three.js scene containing the converted object hierarchy.
  */
+export async function sceneToReadyThreeScene(
+    rootObject3DNode: IObject3DNode,
+    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
+    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+): Promise<IReadyThreeScene> {
+    const registry = _createReadySceneRegistry();
+    const threeScene = new THREE.Scene();
+
+    const rootObject = await orderObjectNodeToThreeObject3D(
+        rootObject3DNode,
+        drawingRenderSettings,
+        filter,
+        registry,
+    );
+    if (rootObject) {
+        threeScene.add(rootObject);
+    }
+
+    return {
+        scene: threeScene,
+        rootObject,
+        objectsByNodeId: registry.objectsByNodeId,
+        objectBySceneNode: registry.objectBySceneNode,
+        sceneNodeByObject: registry.sceneNodeByObject,
+    };
+}
+
 export async function sceneToThreeJsScene(
     rootObject3DNode: IObject3DNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
 ): Promise<THREE.Scene> {
-    const threeScene = new THREE.Scene();
-
-    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode, drawingRenderSettings, filter);
-    if (rootThreeObject) {
-        threeScene.add(rootThreeObject);
-    }
-
-    return threeScene;
+    return (await sceneToReadyThreeScene(rootObject3DNode, drawingRenderSettings, filter)).scene;
 }
 
 const svgLoader = new SVGLoader();
@@ -305,15 +404,15 @@ export async function orderObjectNodeToThreeObject3D(
     node: IObject3DNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
-): Promise<THREE.Object3D | null> {
+    registry?: ReadySceneRegistry,
+): Promise<IReadySceneObject | null> {
     const passesFilter = !filter || filter(node);
     if (!passesFilter) {
         return null;
     }
 
-    const threeObject = new THREE.Object3D();
+    const threeObject = _registerReadySceneObject(new THREE.Object3D(), node, registry);
     threeObject.name = node.id;
-    threeObject.userData.kind = node.kind;
     // set transform
     threeObject.matrix.fromArray(node.transform.elements);
     threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
@@ -505,7 +604,7 @@ export async function orderObjectNodeToThreeObject3D(
 
 
     const childThreeObjects = await Promise.all(
-        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter))
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter, registry))
     );
     childThreeObjects.forEach((childThreeObject) => {
         if (childThreeObject) {
