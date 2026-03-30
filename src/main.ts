@@ -83,6 +83,13 @@ async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
     wireframeMaterial: {
       color: 0x000000,
     },
+    wallsMaterial: {
+      color: 0x555555,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    },
+    doNotFetchMeshes: true,
     edgesGeometryThresholdAngle: 10,
   });
   console.log('converted scene to three.js scene');

@@ -12,6 +12,10 @@ export interface ISceneGeometryConversionSettings {
     material?: any;
     /** Optional material hint for wireframe geometry generation. If missing, the wireframe is not rendered. */
     wireframeMaterial?: any;
+    /** Optional material hint for walls geometry generation. If missing, the walls are not rendered. */
+    wallsMaterial?: any;
+    /** Whether not to fetch and use actual meshes or use just their bounding boxes. */
+    doNotFetchMeshes?: boolean;
 }
 
 /**
@@ -71,6 +75,11 @@ export interface IGeometryData {
      */
     origin: Matrix4;
     /**
+     * Whether the geometry should be rendered or not.
+     * This should also hide child entries.
+     */
+    hidden?: boolean;
+    /**
      * The size of the geometry, if it is a box. This is specific to kind part with box geometry. The size is in the local coordinate system of the owner node
      * and is positioned at the origin.
      */
@@ -95,6 +104,10 @@ export interface IGeometryData {
      * The URL of the mesh to load for this geometry. OBJ format is supported.
      */
     meshUrl?: string;
+    /**
+     * Get a mutable copy of the geometry data, where the node reference is preserved but all other properties are copied.
+     */
+    getCopy(): IGeometryData;
 }
 
 /**
@@ -105,7 +118,7 @@ export interface IGeometryData {
  * - Part: created from part data, has a box, SVG extrusion or mesh geometry
  * - Module: created from module data, has a bounding box (size, position and transform), but no geometry
  */
-enum Object3DNodeKind {
+export enum Object3DNodeKind {
     PosGroup = "posGroup",
     Group = "group",
     Wall = "wall",
@@ -113,6 +126,49 @@ enum Object3DNodeKind {
     Module = "module",
 }
 
+/**
+ * Default implementation of IGeometryData with getCopy() support.
+ */
+class GeometryData implements IGeometryData {
+    ownerNode: IObject3DNode;
+    origin: Matrix4;
+    hidden?: boolean;
+    size?: Vector3;
+    svgPath?: ISvgPathNode[];
+    svgExtrusionDirection?: string;
+    svgString?: string;
+    svgDepth?: number;
+    meshUrl?: string;
+
+    constructor(ownerNode: IObject3DNode, origin: Matrix4) {
+        this.ownerNode = ownerNode;
+        this.origin = origin;
+    }
+
+    getCopy(): IGeometryData {
+        const copy = new GeometryData(this.ownerNode, this.origin.clone());
+        copy.hidden = this.hidden;
+        copy.size = this.size ? new Vector3(this.size._x, this.size._y, this.size._z) : undefined;
+        copy.svgPath = this.svgPath ? [...this.svgPath] : undefined;
+        copy.svgExtrusionDirection = this.svgExtrusionDirection;
+        copy.svgString = this.svgString;
+        copy.svgDepth = this.svgDepth;
+        copy.meshUrl = this.meshUrl;
+        return copy;
+    }
+
+    evaluateWithRenderSettings(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {
+        // This method mutates the geometry data based on the provided render settings.
+        const evaluated = this.getCopy() as GeometryData;
+        if (drawingRenderSettings.doNotFetchMeshes) {
+            evaluated.meshUrl = undefined;
+        }
+        if (!drawingRenderSettings.wallsMaterial && this.ownerNode.kind === Object3DNodeKind.Wall) {
+            evaluated.hidden = true;
+        }
+        return evaluated;
+    }
+}
 
 /**
  * Loose object shape used where the upstream order-data structure is not typed yet.
@@ -274,10 +330,9 @@ export class OrderSceneNode implements IObject3DNode {
         return child;
     }
 
-    readonly _geometry: IGeometryData;
+    readonly _geometry: GeometryData;
     geometry(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {
-        void drawingRenderSettings;
-        return this._geometry!;
+        return this._geometry.evaluateWithRenderSettings(drawingRenderSettings);
     }
 
     destroy(): void {
@@ -299,11 +354,7 @@ export class OrderSceneNode implements IObject3DNode {
         this.kind = kind;
         this.id = id ? this.idsMap.useIdOrGenerateUnique(id) : this.idsMap.getRandomId();
         this.idsMap.register(this);
-        const geometryData: IGeometryData = {
-            ownerNode: this,
-            origin: new Matrix4(),
-        }
-        this._geometry = geometryData;
+        this._geometry = new GeometryData(this, new Matrix4());
     }
 
     /**

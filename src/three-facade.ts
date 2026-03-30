@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
 import { OBJLoader } from "three/examples/jsm/Addons.js";
-import type { IObject3DNode, ISceneGeometryConversionSettings } from "./scene";
+import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
 import * as TC from "./tc/base";
 
 interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
@@ -146,23 +146,21 @@ async function _loadObject3DFromCacheOrFetch(
 }
 
 function _createSurfaceMaterial(
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
+    materialBase: any | undefined,
 ): THREE.MeshBasicMaterial | undefined {
-    if (!drawingRenderSettings.material) {
+    if (!materialBase) {
         return undefined;
     }
-
-    return new THREE.MeshBasicMaterial(drawingRenderSettings.material);
+    return new THREE.MeshBasicMaterial(materialBase);
 }
 
 function _createWireframeMaterial(
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
+    materialBase: any | undefined,
 ): THREE.LineBasicMaterial | undefined {
-    if (!drawingRenderSettings.wireframeMaterial) {
+    if (!materialBase) {
         return undefined;
     }
-
-    return new THREE.LineBasicMaterial(drawingRenderSettings.wireframeMaterial);
+    return new THREE.LineBasicMaterial(materialBase);
 }
 
 function _copyLocalTransform(source: THREE.Object3D, target: THREE.Object3D): void {
@@ -171,23 +169,35 @@ function _copyLocalTransform(source: THREE.Object3D, target: THREE.Object3D): vo
     target.scale.copy(source.scale);
 }
 
+/**
+ * Adds a geometry to a parent Object3D, with optional surface and wireframe materials.
+ * This function is a helper to add a mesh with a surface material and an optional wireframe on top, based on the provided settings.
+ * @param parent the THREE.Object3D to which the geometry (mesh and optional wireframe) will be added as a child
+ * @param geometry the THREE.BufferGeometry to add
+ * @param materialBase the base material properties for the surface mesh; if undefined, no surface mesh will be created
+ * @param wireframeMaterialBase the base material properties for the wireframe; if undefined, no wireframe will be created
+ * @param drawingRenderSettings the settings that may influence how the geometry is rendered, such as edge thresholds for wireframe generation
+ * @param configureRenderable Optional callback to configure the renderable object before adding it to the parent
+ * @param configureSurfaceMaterial Optional callback to configure the surface material before it's applied to the mesh
+ */
 function _addGeometryWithOptionalWireframe(
     parent: THREE.Object3D,
     geometry: THREE.BufferGeometry,
+    materialBase: any | undefined,
+    wireframeMaterialBase: any | undefined,
     drawingRenderSettings: IExtendedDrawingRenderSettings,
     configureRenderable?: (object: THREE.Object3D) => void,
     configureSurfaceMaterial?: (material: THREE.MeshBasicMaterial) => void,
 ): void {
-    const surfaceMaterial = _createSurfaceMaterial(drawingRenderSettings);
+    const surfaceMaterial = _createSurfaceMaterial(materialBase);
     if (surfaceMaterial) {
         configureSurfaceMaterial?.(surfaceMaterial);
         const mesh = new THREE.Mesh(geometry, surfaceMaterial);
         configureRenderable?.(mesh);
         parent.add(mesh);
     }
-
-    const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
-    if (wireframeMaterial) {
+    if (wireframeMaterialBase) {
+        const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
         const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
         configureRenderable?.(wireframe);
         parent.add(wireframe);
@@ -197,6 +207,8 @@ function _addGeometryWithOptionalWireframe(
 function _addObjectGroupWithOptionalWireframe(
     parent: THREE.Object3D,
     objectGroup: THREE.Object3D,
+    materialBase: any | undefined,
+    wireframeMaterialBase: any | undefined,
     drawingRenderSettings: IExtendedDrawingRenderSettings,
 ): void {
     const meshChildren: THREE.Mesh[] = [];
@@ -206,7 +218,7 @@ function _addObjectGroupWithOptionalWireframe(
         }
     });
 
-    const surfaceMaterial = _createSurfaceMaterial(drawingRenderSettings);
+    const surfaceMaterial = _createSurfaceMaterial(materialBase);
     for (const mesh of meshChildren) {
         mesh.visible = Boolean(surfaceMaterial);
         if (surfaceMaterial) {
@@ -214,7 +226,7 @@ function _addObjectGroupWithOptionalWireframe(
         }
     }
 
-    const wireframeMaterial = _createWireframeMaterial(drawingRenderSettings);
+    const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
     if (wireframeMaterial) {
         for (const mesh of meshChildren) {
             const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, drawingRenderSettings.edgesGeometryThresholdAngle), wireframeMaterial);
@@ -271,7 +283,14 @@ export async function orderObjectNodeToThreeObject3D(
     threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
 
     const geom = node.geometry(drawingRenderSettings);
-    if (geom.svgPath?.length) {
+
+    const mainMaterial = node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsMaterial : drawingRenderSettings.material;
+    const wireframeMaterial = drawingRenderSettings.wireframeMaterial;
+
+    if (geom.hidden) {
+        // Don't add any geometry, but still create the Three.js object and process children.}        
+    }
+    else if (geom.svgPath?.length) {
         const shape = new THREE.Shape();
 
         // The svgPath points in this project are authored in world X/Z (see wall creation).
@@ -328,6 +347,8 @@ export async function orderObjectNodeToThreeObject3D(
         _addGeometryWithOptionalWireframe(
             threeObject,
             mainGeometry,
+            mainMaterial,
+            wireframeMaterial,
             drawingRenderSettings,
             (object) => {
                 // Rotate so extrusion is "up" in the scene (world +Y).
@@ -387,6 +408,8 @@ export async function orderObjectNodeToThreeObject3D(
             _addGeometryWithOptionalWireframe(
                 threeObject,
                 geometry2,
+                mainMaterial,
+                wireframeMaterial,
                 drawingRenderSettings,
                 (object) => {
                     object.position.copy(position);
@@ -423,13 +446,15 @@ export async function orderObjectNodeToThreeObject3D(
         );
         objGrp.applyMatrix4(m4);
 
-        _addObjectGroupWithOptionalWireframe(threeObject, objGrp, drawingRenderSettings);
+        _addObjectGroupWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
     }
     else if (geom.size) {
         const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
         _addGeometryWithOptionalWireframe(
             threeObject,
             geometry,
+            mainMaterial,
+            wireframeMaterial,
             drawingRenderSettings,
             (object) => {
                 object.position.copy(new THREE.Vector3(
