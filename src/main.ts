@@ -108,6 +108,13 @@ async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
     else {
       if (node.kind === Object3DNodeKind.Part) {
         // pass if parent module is close to the wall
+        if ([
+          'hinge',
+          'hanger',
+          'drill',
+        ].some(x => node.id.toLowerCase().includes(x))) {
+          return false;
+        }
         let parent = node.parent;
         while (parent) {
           if (nodesCloseToWall.includes(parent)) {
