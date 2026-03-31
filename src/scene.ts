@@ -270,11 +270,10 @@ export interface IObject3DNode {
     wallData: IWallSegment | undefined;
 
     /**
-     * Returns a bounding box in the world coordinate system of the node, taking into account all
-     * descendands.
-     * @returns { size - the width, height and depth of the bounding box; origin - the world transform of the rear left bottom corner of the bounding box }
+     * Returns a list of all corners of bounding boxes of all descendands in world coordinates.
+     * This is useful to determining whether a node is close to a wall.
      */
-    getAbsoluteBoundingBox(): { size: Vector3; origin: Matrix4 }
+    getAllBBoxCornersInWorld(): Vector3[];
 }
 
 /**
@@ -359,81 +358,34 @@ export class OrderSceneNode implements IObject3DNode {
 
     wallData: IWallSegment | undefined;
 
-    getAbsoluteBoundingBox(): { size: Vector3; origin: Matrix4; } {
-        // Helper to get all corners of a box given its origin and size
-        function getBoxCorners(origin: Vector3, size: Vector3): Vector3[] {
-            return [
-                new Vector3(origin._x, origin._y, origin._z),
-                new Vector3(origin._x + size._x, origin._y, origin._z),
-                new Vector3(origin._x, origin._y + size._y, origin._z),
-                new Vector3(origin._x, origin._y, origin._z + size._z),
-                new Vector3(origin._x + size._x, origin._y + size._y, origin._z),
-                new Vector3(origin._x + size._x, origin._y, origin._z + size._z),
-                new Vector3(origin._x, origin._y + size._y, origin._z + size._z),
-                new Vector3(origin._x + size._x, origin._y + size._y, origin._z + size._z),
+    getAllBBoxCornersInWorld(): Vector3[] {
+        const worldCorners: Vector3[] = [];
+
+        const size = this._geometry.size;
+        if (size) {
+            const localCorners = [
+                new Vector3(0, 0, 0),
+                new Vector3(size._x, 0, 0),
+                new Vector3(0, size._y, 0),
+                new Vector3(0, 0, size._z),
+                new Vector3(size._x, size._y, 0),
+                new Vector3(size._x, 0, size._z),
+                new Vector3(0, size._y, size._z),
+                new Vector3(size._x, size._y, size._z),
             ];
+            localCorners.forEach(corner => {
+                const worldCorner = corner.applyMatrix4(this.worldTransform);
+                worldCorners.push(worldCorner);
+            });
+
         }
+        this.children.forEach(child => {
+            const childCorners = child.getAllBBoxCornersInWorld();
+            worldCorners.push(...childCorners);
+        });
 
-        // The node's world transform defines the orientation of the bounding box
-        const myWorld = computeWorldTransform(this);
-        // To get the oriented bounding box, we need to express all corners in the node's world frame
-        // and then compute the min/max in that frame (i.e., treat myWorld as the box's orientation)
-        // To do this, for each world-space corner, transform it into the local frame of myWorld (i.e., apply myWorld^-1)
-        const myWorldInv = myWorld.clone().invert();
+        return worldCorners;
 
-        let min = new Vector3(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
-        let max = new Vector3(Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY);
-
-        function expandTo(point: Vector3) {
-            min._x = Math.min(min._x, point._x);
-            min._y = Math.min(min._y, point._y);
-            min._z = Math.min(min._z, point._z);
-            max._x = Math.max(max._x, point._x);
-            max._y = Math.max(max._y, point._y);
-            max._z = Math.max(max._z, point._z);
-        }
-
-        // 1. Include this node's own box (if any)
-        if (this._geometry.size) {
-            const localOrigin = new Vector3(0, 0, 0);
-            const corners = getBoxCorners(localOrigin, this._geometry.size);
-            for (const c of corners) {
-                // Transform to world, then to myWorld's local frame
-                const worldCorner = new Vector3(c._x, c._y, c._z).applyMatrix4(myWorld);
-                const localInMyWorld = new Vector3(worldCorner._x, worldCorner._y, worldCorner._z).applyMatrix4(myWorldInv);
-                expandTo(localInMyWorld);
-            }
-        }
-
-        // 2. Include all children (their bounding boxes are already in world space)
-        for (const child of this.children) {
-            const childBox = child.getAbsoluteBoundingBox();
-            const childCorners = getBoxCorners(new Vector3(0, 0, 0), childBox.size);
-            for (const c of childCorners) {
-                // Child's corner in world space
-                const worldCorner = new Vector3(c._x, c._y, c._z).applyMatrix4(childBox.origin);
-                // Express in myWorld's local frame
-                const localInMyWorld = new Vector3(worldCorner._x, worldCorner._y, worldCorner._z).applyMatrix4(myWorldInv);
-                expandTo(localInMyWorld);
-            }
-        }
-
-        // If no geometry at all, return zero box at this node's world position/orientation
-        if (!isFinite(min._x)) {
-            return { size: new Vector3(0, 0, 0), origin: myWorld.clone() };
-        }
-
-        // The origin is the node's world transform (including orientation)
-        // The size is the envelope in that frame
-        const size = new Vector3(max._x - min._x, max._y - min._y, max._z - min._z);
-        // The origin matrix is myWorld, but with translation set to the min corner in that frame
-        const origin = myWorld.clone();
-        origin.setPosition(
-            min._x * origin.elements[0] + min._y * origin.elements[4] + min._z * origin.elements[8] + origin.elements[12],
-            min._x * origin.elements[1] + min._y * origin.elements[5] + min._z * origin.elements[9] + origin.elements[13],
-            min._x * origin.elements[2] + min._y * origin.elements[6] + min._z * origin.elements[10] + origin.elements[14]
-        );
-        return { size, origin };
     }
 
     private constructor(idsMap: IdsMap, id: string | undefined, kind: Object3DNodeKind) {

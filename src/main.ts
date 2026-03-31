@@ -9,6 +9,7 @@ import { createScene, Object3DNodeKind, type IObject3DNode } from './scene'
 //
 import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 import { sceneToThreeJsScene } from './three-facade'
+import { filterNodesCloseToWall } from './wall'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
@@ -85,15 +86,37 @@ async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
   console.log('will convert scene to three.js scene');
 
   const selectedWall = orderScene
-  .children
-  .find(child => child.kind === Object3DNodeKind.WallGroup)
-  ?.children
-  .find(child => child.kind === Object3DNodeKind.Wall && child.id.includes('wall-2'));
+    .children
+    .find(child => child.kind === Object3DNodeKind.WallGroup)
+    ?.children
+    .find(child => child.kind === Object3DNodeKind.Wall && child.id.includes('wall-2'));
   ;
+
+  const contentNodes = orderScene
+    .children
+    .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup)
+    .flatMap(group => group.children)
+    .flatMap(group => group.children)
+    ;
+
+  const nodesCloseToWall = filterNodesCloseToWall(contentNodes, selectedWall?.wallData!, false, 300);
+
   const filter = (node: IObject3DNode) => {
     if (node.kind === Object3DNodeKind.Wall) {
-      // Include all walls.
       return node === selectedWall;
+    }
+    else {
+      if (node.kind === Object3DNodeKind.Part) {
+        // pass if parent module is close to the wall
+        let parent = node.parent;
+        while (parent) {
+          if (nodesCloseToWall.includes(parent)) {
+            return true;
+          }
+          parent = parent.parent;
+        }
+        return false;
+      }
     }
     return true;
   };
