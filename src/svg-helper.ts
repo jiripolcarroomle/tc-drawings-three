@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
+import { logError } from './tc/base';
 // Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
 // Only the Object3D cache is persisted across Vite HMR updates to avoid
 // re-downloading meshes while iterating.
@@ -20,7 +21,7 @@ export function loadSvgShapesFromCacheOrParse(
     try {
         const svgData = svgLoader.parse(svg);
         if (svgData.paths.length <= 0) {
-            console.error(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
+            logError(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
         }
         svgData.paths.forEach((path: SVGResultPaths) => {
             const pathIsCCW =
@@ -29,7 +30,7 @@ export function loadSvgShapesFromCacheOrParse(
             shapes = shapes.concat(path.toShapes(pathIsCCW));
         });
     } catch (e) {
-        console.error(
+        logError(
             `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
         );
     }

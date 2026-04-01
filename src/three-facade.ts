@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/Addons.js";
-import { type IOrderSceneNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
+import { type IRenderOrthoCameraParams, type IRenderOrthoCameraResult, type ISceneGeometryConversionSettings } from "./rendereddrawing.interface";
+import { Object3DNodeKind } from "./scene.interfaces";
+import { type IOrderSceneNode } from "./scene.interfaces";
 import * as TC from "./tc/base";
+import { logError, logWarning, logInfo } from "./tc/base";
 import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
@@ -132,8 +135,7 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
             if (cachedResponse) {
                 return await cachedResponse.text();
             }
-
-            console.log(`OBJ fetch ${url}`);
+            logInfo(`OBJ fetch ${url}`);
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
@@ -142,12 +144,12 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
                 await cache.put(url, response.clone());
             } catch (e) {
                 // Cache put can fail for opaque/cors responses or storage limits.
-                console.warn(`OBJ CacheStorage put failed for ${url}: ${e}`);
+                logWarning(`OBJ CacheStorage put failed for ${url}: ${e}`);
             }
             return await response.text();
         }
     } catch (e) {
-        console.warn(`OBJ CacheStorage error for ${url}: ${e}`);
+        logWarning(`OBJ CacheStorage error for ${url}: ${e}`);
     }
 
     const response = await fetch(url);
@@ -182,7 +184,7 @@ async function _loadObject3DFromCacheOrFetch(
             });
         }
     } catch (e) {
-        console.error(
+        logError(
             `Failed to fetch 3d model for part: ${partIdForLogging ?? ''} exception: ${e}`
         );
         obj = new THREE.Group();
@@ -515,37 +517,6 @@ export async function orderObjectNodeToThreeObject3D(
 }
 
 
-export interface IRenderOrthoCameraParams {
-    /** direction of the camera, if unprovided, down direction will be used */
-    direction?: TC.Vector3,
-    /** output image width in pixels */
-    width?: number;
-    /** output image height in pixels */
-    height?: number;
-    /**
-     * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
-     */
-    near?: number;
-    far?: number;
-    left?: number;
-    right?: number;
-    top?: number;
-    bottom?: number;
-}
-
-
-/**
- * Result of the rendered drawing.
- */
-export interface IRenderOrthoCameraResult {
-    /** the settings that were used for rendering */
-    settings: IRenderOrthoCameraParams;
-    /** the matrix transforming world coordinates to view coordinates */
-    worldToViewMatrix: TC.Matrix4;
-    /** the rendered data */
-    data: any,
-}
-
 export function appendSvgElementsToRenderedImage(
     domElement: Element,
     append: (svgRoot: SVGSVGElement) => void,
@@ -679,7 +650,7 @@ export async function renderReadyThreeScene(
     const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
 
     const renderedDomElement = appendTopLeftHelloAnnotation(
-        svgRenderer(threeScene, camera, outputWidth, outputHeight),
+        rasterRenderer(threeScene, camera, outputWidth, outputHeight),
     );
 
     return {
@@ -695,7 +666,7 @@ export async function renderReadyThreeScene(
             far: camera.far,
         },
         worldToViewMatrix,
-        data: { domElement: renderedDomElement },
+        data: { image: renderedDomElement },
     };
 
 }

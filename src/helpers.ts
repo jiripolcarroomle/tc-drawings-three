@@ -1,5 +1,5 @@
-import { type IOrderSceneNode } from "./scene";
-import { Matrix4 } from "./tc/base";
+import { type IOrderSceneNode } from "./scene.interfaces";
+import { logInfo, Matrix4 } from "./tc/base";
 
 /**
  * Pretty-prints a node hierarchy for debugging.
@@ -9,52 +9,8 @@ import { Matrix4 } from "./tc/base";
  */
 export function printSceneHierarchy(node: IOrderSceneNode, indent: number = 0) {
     const indentStr = '  '.repeat(indent)
-    console.log(`${indentStr}- ${node.id} (${node.kind})`);
+    logInfo(`${indentStr}- ${node.id} (${node.kind})`);
     node.children.forEach(child => printSceneHierarchy(child, indent + 1));
-}
-
-/**
- * Collapses the temporary pos-group hierarchy by reparenting visible leaf parts
- * to the module nodes that own them.
- *
- * The lookup is driven by each module node's `orderLineEntry.p` collection.
- * Hidden parts and grouped child parts stay untouched.
- *
- * @param posGroupNode Pos-group root that still owns the parts before reparenting.
- * @param currentNode Current module subtree being processed recursively.
- */
-export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneNode, currentNode: IOrderSceneNode): void {
-    if (currentNode !== posGroupNode) {
-        const currentNodePartChildren = currentNode.orderLineEntry?.p ?? [];
-        currentNodePartChildren?.forEach((partChild: any) => {
-            // Only visible leaf parts are reparented to the owning module.
-            if (partChild._hidden || partChild._childParts.length) {
-                return;
-            }
-            const partChildNodeId = getPartId(partChild);
-            const partChildNode = currentNode.idsMap.get(partChildNodeId);
-            if (!partChildNode) {
-                console.warn(`Could not find node for part ${partChildNodeId}`);
-                return;
-            }
-            const parent = partChildNode.parent;
-            if (!parent) {
-                console.warn(`Part node ${partChildNodeId} has no parent, cannot reparent`);
-                return;
-            }
-            if (parent !== posGroupNode) {
-                console.warn(`Part node ${partChildNodeId} is not a child of the pos group anymore, cannot reparent`);
-            }
-            parent.removeChild(partChildNode);
-            currentNode.addChild(partChildNode, true);
-        });
-    }
-
-    const subModules = currentNode.getModuleChildren();
-    subModules.forEach(subModule => {
-        reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, subModule);
-    });
-
 }
 
 /**

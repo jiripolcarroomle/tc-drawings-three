@@ -1,4 +1,4 @@
-import type { IOrderSceneNode } from "./scene";
+import type { IOrderSceneNode } from "./scene.interfaces";
 
 
 /**
@@ -48,23 +48,6 @@ export class IdsMap {
     }
 
     /**
-     * Unregisters a node from the map.
-     *
-     * Passing the node instance protects against accidentally deleting a newer
-     * registration that reused the same ID.
-     *
-     * @param node Node to unregister.
-     * @returns `true` if the node was removed, otherwise `false`.
-     */
-    unregister(node: IOrderSceneNode): boolean {
-        if (this.#objects.get(node.id) !== node) {
-            return false;
-        }
-
-        return this.#objects.delete(node.id);
-    }
-
-    /**
      * Generates a random 9-character base-36 ID that is not already present in the map.
      *
      * The ID is derived from `Math.random()`, so it is suitable for in-memory uniqueness
@@ -106,7 +89,7 @@ export class IdsMap {
             tryId = `${id}_${counter++}`;
             if (counter > IdsMap.MAX_UNIQUE_ID_ATTEMPTS) {
                 throw new Error(
-                    `IdsMap: Failed to generate a unique ID based on ${id} after ${IdsMap.MAX_UNIQUE_ID_ATTEMPTS} attempts`,
+                    `IdsMap: Failed to generate a unique ID based on ${id} after ${IdsMap.MAX_UNIQUE_ID_ATTEMPTS} attempts.`,
                 );
             }
         }

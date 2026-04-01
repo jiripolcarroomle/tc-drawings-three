@@ -1,3 +1,16 @@
+export function logError(message: string) {
+    console.error(message);
+}
+
+export function logWarning(message: string) {
+    console.warn(message);
+}
+
+export function logInfo(message: string) {
+    console.log(message);
+}
+
+
 export class Vector3 {
     // See: https://github.com/mrdoob/three.js/blob/dev/src/math/Vector3.js   
     constructor(x = 0, y = 0, z = 0) {

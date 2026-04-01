@@ -1,4 +1,5 @@
-import { OrderSceneNode, type IOrderSceneNode } from "./scene";
+import { OrderSceneNode } from "./scene.implementation";
+import { type IOrderSceneNode } from "./scene.interfaces";
 import { IdsMap } from "./idsmap";
 import { Vector3 } from "./tc/base";
 

@@ -4,7 +4,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createAppShell } from './app-shell'
 // import { printSceneHierarchy } from './helpers'
-import { createScene, Object3DNodeKind, type IOrderSceneNode } from './scene'
+import { createScene } from './scene.implementation'
+import { Object3DNodeKind } from "./scene.interfaces"
+import { type IOrderSceneNode } from "./scene.interfaces"
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
