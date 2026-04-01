@@ -2,6 +2,7 @@ import './style.css'
 import * as flatted from 'flatted'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { createAppShell } from './app-shell'
 // import { printSceneHierarchy } from './helpers'
 import { createScene, Object3DNodeKind, type IObject3DNode } from './scene'
 
@@ -13,41 +14,7 @@ import { filterNodesCloseToWall } from './wall'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
-// ---- Minimal Three.js app structure (Vite + TypeScript) ----
-//
-// Three.js rendering in a browser typically follows this workflow:
-// 1) Create a renderer (WebGLRenderer) and attach its <canvas> to the DOM
-// 2) Create a scene (Scene) as the root container for objects
-// 3) Create a camera (PerspectiveCamera / OrthographicCamera)
-// 4) Create objects (Geometry + Material -> Mesh) and add them to the scene
-// 5) Handle resizing so the canvas + camera projection stay correct
-// 6) Run an animation loop: update state each frame, then render(scene, camera)
-// Grab the root element Vite creates in index.html and use it as our
-// “viewport” container.
-const app = document.querySelector<HTMLDivElement>('#app')
-const viewportPanel = document.querySelector<HTMLDivElement>('#viewport-panel')
-const controlsPanel = document.querySelector<HTMLDivElement>('#controls-panel')
-const renderedImagePanel = document.querySelector<HTMLDivElement>('#rendered-image-panel')
-const verticalSplitter = document.querySelector<HTMLDivElement>('#splitter-vertical')
-const horizontalSplitter = document.querySelector<HTMLDivElement>('#splitter-horizontal')
-if (!app) {
-  throw new Error('Missing #app element')
-}
-if (!viewportPanel) {
-  throw new Error('Missing #viewport-panel element')
-}
-if (!controlsPanel) {
-  throw new Error('Missing #controls-panel element')
-}
-if (!renderedImagePanel) {
-  throw new Error('Missing #rendered-image-panel element')
-}
-if (!verticalSplitter) {
-  throw new Error('Missing #splitter-vertical element')
-}
-if (!horizontalSplitter) {
-  throw new Error('Missing #splitter-horizontal element')
-}
+const appShell = createAppShell()
 
 const orderJson = flatted.parse(orderJsonRaw)
 
@@ -55,113 +22,7 @@ const orderScene = createScene(orderJson.o, orderJson.ol);
 
 // printSceneHierarchy(orderScene);
 
-// From here on, treat #app as definitely present.
-// TypeScript doesn't reliably keep the non-null narrowing inside nested
-// functions, so we capture the narrowed value in a new constant.
-const viewportEl = viewportPanel
-const controlsEl = controlsPanel
-const previewPanelEl = renderedImagePanel
-const appEl = app
-
-type SplitterAxis = 'x' | 'y'
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
-function updateSplitPosition(axis: SplitterAxis, pointerClientValue: number) {
-  const rect = appEl.getBoundingClientRect()
-
-  if (axis === 'x') {
-    const minLeftWidth = 260
-    const minRightWidth = 220
-    const next = clamp(pointerClientValue - rect.left, minLeftWidth, rect.width - minRightWidth)
-    appEl.style.setProperty('--split-x', `${next}px`)
-  } else {
-    const minBottomHeight = 120
-    const minTopHeight = 180
-    const topHeight = clamp(pointerClientValue - rect.top, minTopHeight, rect.height - minBottomHeight)
-    const bottomHeight = rect.height - topHeight
-    appEl.style.setProperty('--split-y', `${bottomHeight}px`)
-  }
-}
-
-function bindSplitter(splitter: HTMLDivElement, axis: SplitterAxis) {
-  const handlePointerDown = (event: PointerEvent) => {
-    if (window.matchMedia('(max-width: 980px)').matches) {
-      return
-    }
-
-    event.preventDefault()
-    splitter.classList.add('is-dragging')
-    splitter.setPointerCapture(event.pointerId)
-    document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize'
-    document.body.style.userSelect = 'none'
-    updateSplitPosition(axis, axis === 'x' ? event.clientX : event.clientY)
-    resize()
-  }
-
-  const handlePointerMove = (event: PointerEvent) => {
-    if (!splitter.classList.contains('is-dragging')) {
-      return
-    }
-
-    updateSplitPosition(axis, axis === 'x' ? event.clientX : event.clientY)
-    resize()
-  }
-
-  const stopDragging = (event?: PointerEvent) => {
-    if (!splitter.classList.contains('is-dragging')) {
-      return
-    }
-
-    if (event && splitter.hasPointerCapture(event.pointerId)) {
-      splitter.releasePointerCapture(event.pointerId)
-    }
-    splitter.classList.remove('is-dragging')
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    resize()
-  }
-
-  splitter.addEventListener('pointerdown', handlePointerDown)
-  splitter.addEventListener('pointermove', handlePointerMove)
-  splitter.addEventListener('pointerup', stopDragging)
-  splitter.addEventListener('pointercancel', stopDragging)
-
-  return () => {
-    splitter.removeEventListener('pointerdown', handlePointerDown)
-    splitter.removeEventListener('pointermove', handlePointerMove)
-    splitter.removeEventListener('pointerup', stopDragging)
-    splitter.removeEventListener('pointercancel', stopDragging)
-  }
-}
-
-const renderedPreviewImage = document.createElement('img')
-renderedPreviewImage.className = 'preview-image'
-renderedPreviewImage.alt = 'Orthographic render preview'
-
-const renderedPreviewPlaceholder = previewPanelEl.querySelector<HTMLDivElement>('.preview-placeholder')
-
-function setPreviewImage(imageUrl: string | null) {
-  if (!imageUrl) {
-    renderedPreviewImage.remove()
-    previewPanelEl.classList.remove('has-image')
-    if (renderedPreviewPlaceholder) {
-      renderedPreviewPlaceholder.hidden = false
-    }
-    return
-  }
-
-  renderedPreviewImage.src = imageUrl
-  if (!renderedPreviewImage.isConnected) {
-    previewPanelEl.appendChild(renderedPreviewImage)
-  }
-  previewPanelEl.classList.add('has-image')
-  if (renderedPreviewPlaceholder) {
-    renderedPreviewPlaceholder.hidden = true
-  }
-}
+const { viewportEl, previewPanelEl } = appShell
 
 type PersistedNavigationV1 = {
   v: 1
@@ -372,7 +233,7 @@ resetCameraButton.type = 'button'
 resetCameraButton.className = 'camera-reset-button'
 resetCameraButton.textContent = 'Reset camera'
 
-controlsEl.appendChild(resetCameraButton)
+appShell.mountControl(resetCameraButton)
 
 // --- Wall buttons stack ---
 const wallButtonsContainer = document.createElement('div')
@@ -468,8 +329,8 @@ function getWallRenderDirection(wallId: string | undefined, side?: 'front' | 're
 
 async function renderPreview(wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
   const { filter } = getSceneSelection(wallId, side)
-  const previewWidth = Math.max(320, Math.round(previewPanelEl.clientWidth || 640))
-  const previewHeight = Math.max(180, Math.round(previewPanelEl.clientHeight || 360))
+  const previewWidth = 1920;
+  const previewHeight = 1080;
 
   const result = await renderReadyThreeScene(orderScene, filter, getDrawingSettings(), {
     direction: getWallRenderDirection(wallId, side),
@@ -477,7 +338,7 @@ async function renderPreview(wallId: string | undefined, side?: 'front' | 'rear'
     height: previewHeight,
   })
 
-  setPreviewImage(result.data.image)
+  appShell.setPreviewImage(result.data.image)
 }
 
 
@@ -494,10 +355,11 @@ async function loadPartialOrFullScene(_scene: THREE.Scene, wallId: string | unde
 
 }
 
-controlsEl.appendChild(wallButtonsContainer)
+appShell.mountControl(wallButtonsContainer)
 
-const disposeVerticalSplitter = bindSplitter(verticalSplitter, 'x')
-const disposeHorizontalSplitter = bindSplitter(horizontalSplitter, 'y')
+const disposeSplitters = appShell.bindSplitters(() => {
+  resize()
+})
 
 let hasUserNavigated = false
 
@@ -530,9 +392,8 @@ if (import.meta.hot) {
     controls.dispose()
     resetCameraButton.remove()
     wallButtonsContainer.remove()
-    renderedPreviewImage.remove()
-    disposeVerticalSplitter()
-    disposeHorizontalSplitter()
+    appShell.setPreviewImage(null)
+    disposeSplitters()
   })
 }
 
