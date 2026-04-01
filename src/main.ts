@@ -326,7 +326,7 @@ function getWallRenderDirection(wallId: string | undefined, side?: 'front' | 're
   }
 
   return side === 'rear'
-    ? selectedWall.wallData.normalToWall.scale(-1)
+    ? selectedWall.wallData.normalToWall.copy().scale(-1)
     : selectedWall.wallData.normalToWall
 }
 

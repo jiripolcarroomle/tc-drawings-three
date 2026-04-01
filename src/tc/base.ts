@@ -64,6 +64,9 @@ export class Vector3 {
         return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
     }
 
+    copy(): Vector3 {
+        return new Vector3(this._x, this._y, this._z);
+    }
 
 
     /**
