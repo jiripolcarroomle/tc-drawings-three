@@ -14,54 +14,8 @@ export interface ISceneGeometryConversionSettings {
     wireframeMaterial?: any;
     /** Optional material hint for walls geometry generation. If missing, the walls are not rendered. */
     wallsMaterial?: any;
-    /** Whether not to fetch and use actual meshes or use just their bounding boxes. */
+    /** Whether to fetch and use actual meshes or use just their bounding boxes. */
     doNotFetchMeshes?: boolean;
-}
-
-/**
- * Generic camera settings that renderer implementations may consume.
- */
-export interface ISceneRenderSettings {
-    /** The camera position to render the scene from. */
-    cameraPosition?: Vector3;
-    /** A direction vector indicating where the camera is pointing. */
-    cameraDirection?: Vector3;
-    /** The size of the camera view. Can be a Vector3, a number, or any other type, based on the actually implemented technology or view type */
-    cameraSize?: Vector3 | number | any;
-    /**
-     * Transformation function to convert world coordinates into 2D coordinates in the renderer's screen space. 
-     * @param worldPoint as Vector3
-     * @returns Vector3 where x and y represent the 2D screen coordinates and z can be used for depth sorting. If the point is outside the view, the function returns null.
-     */
-    get2DCoordinateFromWorldPoint?: (worldPoint: Vector3) => Vector3 | null;
-}
-
-/**
- * Constructor contract for renderer adapters that consume the custom scene graph.
- */
-export interface ISceneRenderer {
-    new(rootNode: IObject3DNode, settings: ISceneGeometryConversionSettings): ISceneRenderer;
-    /** Root node passed into the renderer instance. */
-    rootNode: IObject3DNode;
-
-    // getFilteredCopy(filter: (node: IObject3DNode) => boolean): IScene;
-    // render(
-    //     nodeFilter: (node: IObject3DNode) => boolean,
-    //     cameraPosition: Vector3,
-    //     cameraDirection: Vector3,
-    //     cameraSize: Vector3,
-    //     drawingRenderSettings: any,
-    // ): any;
-    // getNodeById(id: string): IObject3DNode | null;
-}
-
-
-/**
- * One SVG path command used to describe wall or part outlines.
- */
-export interface ISvgPathNode {
-    command: 'M' | 'L' | 'Z';
-    args: number[];
 }
 
 /**
@@ -69,7 +23,7 @@ export interface ISvgPathNode {
  */
 export interface IGeometryData {
     /** The owner node is the node that this geometry data belongs to. This is useful for accessing any additional data that may be needed for rendering or interaction. */
-    ownerNode: IObject3DNode;
+    ownerNode: IOrderSceneNode;
     /**
      * The origin represents the local coordinate system of the geometry inside the owner node.
      */
@@ -84,10 +38,6 @@ export interface IGeometryData {
      * and is positioned at the origin.
      */
     size?: Vector3;
-    /**
-     * SVG path nodes. The SVG can be sourced as ISvgPathNode array or as a raw SVG string. 
-     */
-    svgPath?: ISvgPathNode[];
     /**
      * The axis along which the SVG should be extruded. 
      */
@@ -108,6 +58,14 @@ export interface IGeometryData {
      * Get a mutable copy of the geometry data, where the node reference is preserved but all other properties are copied.
      */
     getCopy(): IGeometryData;
+
+    /**
+     * Get a copy of the geometry data with mutations applied according to the provided render settings.
+     * This is useful for applying any renderer-specific optimizations or fallbacks based on the capabilities of the target technology.
+     * Geometry can also be marked as hidden based on it.
+     * @param drawingRenderSettings The render settings to apply to the geometry data.
+     */
+    evaluateWithRenderSettings(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData;
 }
 
 /**
@@ -130,21 +88,17 @@ export enum Object3DNodeKind {
     Module = "module",
 }
 
-/**
- * Default implementation of IGeometryData with getCopy() support.
- */
 class GeometryData implements IGeometryData {
-    ownerNode: IObject3DNode;
+    ownerNode: IOrderSceneNode;
     origin: Matrix4;
     hidden?: boolean;
     size?: Vector3;
-    svgPath?: ISvgPathNode[];
     svgExtrusionDirection?: string;
     svgString?: string;
     svgDepth?: number;
     meshUrl?: string;
 
-    constructor(ownerNode: IObject3DNode, origin: Matrix4) {
+    constructor(ownerNode: IOrderSceneNode, origin: Matrix4) {
         this.ownerNode = ownerNode;
         this.origin = origin;
     }
@@ -153,7 +107,6 @@ class GeometryData implements IGeometryData {
         const copy = new GeometryData(this.ownerNode, this.origin.clone());
         copy.hidden = this.hidden;
         copy.size = this.size ? new Vector3(this.size._x, this.size._y, this.size._z) : undefined;
-        copy.svgPath = this.svgPath ? [...this.svgPath] : undefined;
         copy.svgExtrusionDirection = this.svgExtrusionDirection;
         copy.svgString = this.svgString;
         copy.svgDepth = this.svgDepth;
@@ -164,8 +117,8 @@ class GeometryData implements IGeometryData {
     evaluateWithRenderSettings(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {
         // This method mutates the geometry data based on the provided render settings.
         const evaluated = this.getCopy() as GeometryData;
-        if (drawingRenderSettings.doNotFetchMeshes) {
-            evaluated.meshUrl = undefined;
+        if (drawingRenderSettings.doNotFetchMeshes && evaluated.meshUrl) {
+            delete evaluated.meshUrl;
         }
         if (!drawingRenderSettings.wallsMaterial && this.ownerNode.kind === Object3DNodeKind.Wall) {
             evaluated.hidden = true;
@@ -182,14 +135,16 @@ export interface AnyObject {
 }
 
 /**
- * Untyped order-line payload attached to scene nodes.
+ * Untyped order-line payload attached to scene nodes. This is a loose object shape since the structure comes from another project.
  */
 export interface IOrderLineEntry extends AnyObject { }
 
 /**
  * Technology-agnostic scene-graph node used as the project's domain model.
+ * This is a node-graph constructed from the order data and used as a source for rendering and interaction logic.
+ * It is not tied to any specific rendering technology and should not contain any renderer-specific data or logic.
  */
-export interface IObject3DNode {
+export interface IOrderSceneNode {
     /**
      * The class is used to categorize nodes into types (e.g. wall, part, module).
      */
@@ -204,26 +159,25 @@ export interface IObject3DNode {
     /** Shared node registry for the owning scene tree. */
     readonly idsMap: IdsMap;
     /** Direct child nodes in local transform space. */
-    children: IObject3DNode[];
+    children: IOrderSceneNode[];
     /**
      * Get all children that are of kind "part". This is a convenience method to avoid having to filter the children array manually.
      */
-    getPartChildren(): IObject3DNode[];
+    getPartChildren(): IOrderSceneNode[];
     /**
      * Get all children that are of kind "module". This is a convenience method to avoid having to filter the children array manually.
      */
-    getModuleChildren(): IObject3DNode[];
+    getModuleChildren(): IOrderSceneNode[];
     /**
      * Parent node, or `null` when this node is the root of its tree.
      */
-    parent: IObject3DNode | null;
+    parent: IOrderSceneNode | null;
     /**
      * Reference to the original order line entry that this node represents. This is useful for accessing any additional data that may be needed for rendering or interaction.
      */
     orderLineEntry: IOrderLineEntry | null;
     /**
      * The transform represents the local transformation of this node relative to its parent.
-     * Recommended to get/set, where set will also update the world transform and world transform of all children.
      */
     transform: Matrix4;
     /**
@@ -245,17 +199,17 @@ export interface IObject3DNode {
      * @param child Child node to add.
      * @param keepWorldTransform Use `true` when reparenting an existing node.
      */
-    addChild(child: IObject3DNode, keepWorldTransform?: boolean): void;
+    addChild(child: IOrderSceneNode, keepWorldTransform?: boolean): void;
     /**
      * Removes a child from the node while preserving the child's world transform.
      *
      * @param child Child node to remove.
      * @returns Removed child, or `null` when it was not attached to this node.
      */
-    removeChild(child: IObject3DNode): IObject3DNode | null;
+    removeChild(child: IOrderSceneNode): IOrderSceneNode | null;
     /**
      * Exposes renderer-facing geometry metadata for this node.
-     * @param drawingRenderSettings Optional renderer-specific conversion settings.
+     * @param drawingRenderSettings renderer-specific conversion settings.
      */
     geometry(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData;
     /**
@@ -279,20 +233,20 @@ export interface IObject3DNode {
 /**
  * Default implementation of the project's technology-agnostic scene node.
  */
-export class OrderSceneNode implements IObject3DNode {
+export class OrderSceneNode implements IOrderSceneNode {
     readonly kind: Object3DNodeKind;
     readonly id: string;
     readonly idsMap: IdsMap;
-    children: IObject3DNode[] = [];
+    children: IOrderSceneNode[] = [];
 
-    getPartChildren(): IObject3DNode[] {
+    getPartChildren(): IOrderSceneNode[] {
         return this.children.filter(child => child.kind === Object3DNodeKind.Part);
     }
-    getModuleChildren(): IObject3DNode[] {
+    getModuleChildren(): IOrderSceneNode[] {
         return this.children.filter(child => child.kind === Object3DNodeKind.Module);
     }
 
-    parent: IObject3DNode | null = null;
+    parent: IOrderSceneNode | null = null;
     orderLineEntry: IOrderLineEntry | null = null;
     transform: Matrix4 = new Matrix4(); // identity by default
     _worldTransform: Matrix4 = new Matrix4(); // identity by default
@@ -310,8 +264,8 @@ export class OrderSceneNode implements IObject3DNode {
         }
     }
 
-    addChild(child: IObject3DNode, keepWorldTransform?: boolean): void {
-        // already containts
+    addChild(child: IOrderSceneNode, keepWorldTransform?: boolean): void {
+        // already contains
         if (this.children.includes(child)) {
             return;
         }
@@ -327,7 +281,7 @@ export class OrderSceneNode implements IObject3DNode {
         this.children.push(child);
     }
 
-    removeChild(child: IObject3DNode): IObject3DNode | null {
+    removeChild(child: IOrderSceneNode): IOrderSceneNode | null {
         const index = this.children.indexOf(child);
         if (index === -1) {
             return null;
@@ -440,15 +394,16 @@ export class OrderSceneNode implements IObject3DNode {
     static createFromWall(idsMap: IdsMap, id: string | undefined, wallSegment: IWallSegment): OrderSceneNode {
         const node = new OrderSceneNode(idsMap, id, Object3DNodeKind.Wall);
         node.wallData = wallSegment;
-        const segmentCenter = wallSegment.segmentStart.add(wallSegment.segmentEnd).scale(0.5);
-        node.transform.setPosition(segmentCenter._x, segmentCenter._y, segmentCenter._z);
-        node._geometry.svgPath = [
-            { command: 'M', args: [wallSegment.segmentStart._x, wallSegment.segmentStart._z] },
-            { command: 'L', args: [wallSegment.segmentBackStart._x, wallSegment.segmentBackStart._z] },
-            { command: 'L', args: [wallSegment.segmentBackEnd._x, wallSegment.segmentBackEnd._z] },
-            { command: 'L', args: [wallSegment.segmentEnd._x, wallSegment.segmentEnd._z] },
-            { command: 'L', args: [wallSegment.segmentStart._x, wallSegment.segmentStart._z] },
-        ];
+        node._geometry.svgString = `
+            <svg><path d="
+                M ${wallSegment.segmentStart._x} ${wallSegment.segmentStart._z}
+                L ${wallSegment.segmentEnd._x} ${wallSegment.segmentEnd._z} 
+                L ${wallSegment.segmentBackEnd._x} ${wallSegment.segmentBackEnd._z} 
+                L ${wallSegment.segmentBackStart._x} ${wallSegment.segmentBackStart._z} 
+                Z"
+            /></svg>
+        `;
+        node._geometry.svgExtrusionDirection = 'y';
         node._geometry.svgDepth = wallSegment.wallHeight;
         return node;
     }

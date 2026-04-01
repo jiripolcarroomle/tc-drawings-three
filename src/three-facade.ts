@@ -1,12 +1,12 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/Addons.js";
-import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
+import { type IOrderSceneNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
 import * as TC from "./tc/base";
 import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
 export interface IReadySceneObjectUserData {
-    orderSceneNode: IObject3DNode;
+    orderSceneNode: IOrderSceneNode;
     nodeId: string;
     kind: Object3DNodeKind;
 }
@@ -19,25 +19,25 @@ export interface IReadyThreeScene {
     scene: THREE.Scene;
     rootObject: IReadySceneObject | null;
     objectsByNodeId: Map<string, IReadySceneObject>;
-    objectBySceneNode: WeakMap<IObject3DNode, IReadySceneObject>;
-    sceneNodeByObject: WeakMap<THREE.Object3D, IObject3DNode>;
+    objectBySceneNode: WeakMap<IOrderSceneNode, IReadySceneObject>;
+    sceneNodeByObject: WeakMap<THREE.Object3D, IOrderSceneNode>;
 }
 
 type ReadySceneRegistry = {
     objectsByNodeId: Map<string, IReadySceneObject>;
-    objectBySceneNode: WeakMap<IObject3DNode, IReadySceneObject>;
-    sceneNodeByObject: WeakMap<THREE.Object3D, IObject3DNode>;
+    objectBySceneNode: WeakMap<IOrderSceneNode, IReadySceneObject>;
+    sceneNodeByObject: WeakMap<THREE.Object3D, IOrderSceneNode>;
 };
 
 function _createReadySceneRegistry(): ReadySceneRegistry {
     return {
         objectsByNodeId: new Map<string, IReadySceneObject>(),
-        objectBySceneNode: new WeakMap<IObject3DNode, IReadySceneObject>(),
-        sceneNodeByObject: new WeakMap<THREE.Object3D, IObject3DNode>(),
+        objectBySceneNode: new WeakMap<IOrderSceneNode, IReadySceneObject>(),
+        sceneNodeByObject: new WeakMap<THREE.Object3D, IOrderSceneNode>(),
     };
 }
 
-function _attachSceneNodeReference(object: THREE.Object3D, node: IObject3DNode): IReadySceneObject {
+function _attachSceneNodeReference(object: THREE.Object3D, node: IOrderSceneNode): IReadySceneObject {
     const readyObject = object as IReadySceneObject;
     readyObject.userData.orderSceneNode = node;
     readyObject.userData.nodeId = node.id;
@@ -45,13 +45,13 @@ function _attachSceneNodeReference(object: THREE.Object3D, node: IObject3DNode):
     return readyObject;
 }
 
-export function getOrderSceneNodeFromReadySceneObject(object: THREE.Object3D): IObject3DNode | undefined {
+export function getOrderSceneNodeFromReadySceneObject(object: THREE.Object3D): IOrderSceneNode | undefined {
     return (object.userData as Partial<IReadySceneObjectUserData>).orderSceneNode;
 }
 
 function _registerReadySceneObject(
     object: THREE.Object3D,
-    node: IObject3DNode,
+    node: IOrderSceneNode,
     registry?: ReadySceneRegistry,
 ): IReadySceneObject {
     const readyObject = _attachSceneNodeReference(object, node);
@@ -65,7 +65,7 @@ function _registerReadySceneObject(
 
 export function getReadySceneObjectForOrderSceneNode(
     readyScene: IReadyThreeScene,
-    node: IObject3DNode,
+    node: IOrderSceneNode,
 ): IReadySceneObject | undefined {
     return readyScene.objectBySceneNode.get(node);
 }
@@ -80,7 +80,7 @@ export function getReadySceneObjectByNodeId(
 export function getOrderSceneNodeFromReadyThreeSceneObject(
     readyScene: IReadyThreeScene,
     object: THREE.Object3D,
-): IObject3DNode | undefined {
+): IOrderSceneNode | undefined {
     return readyScene.sceneNodeByObject.get(object) ?? getOrderSceneNodeFromReadySceneObject(object);
 }
 
@@ -325,9 +325,9 @@ function _addRenderableWithOptionalWireframe(
  * @returns Three.js scene containing the converted object hierarchy.
  */
 export async function sceneToReadyThreeScene(
-    rootObject3DNode: IObject3DNode,
+    rootObject3DNode: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<IReadyThreeScene> {
     const registry = _createReadySceneRegistry();
     const threeScene = new THREE.Scene();
@@ -352,9 +352,9 @@ export async function sceneToReadyThreeScene(
 }
 
 export async function sceneToThreeJsScene(
-    rootObject3DNode: IObject3DNode,
+    rootObject3DNode: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<THREE.Scene> {
     return (await sceneToReadyThreeScene(rootObject3DNode, drawingRenderSettings, filter)).scene;
 }
@@ -372,9 +372,9 @@ export async function sceneToThreeJsScene(
  * @returns Three.js object representing the source subtree.
  */
 export async function orderObjectNodeToThreeObject3D(
-    node: IObject3DNode,
+    node: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
     registry?: ReadySceneRegistry,
 ): Promise<IReadySceneObject | null> {
     const passesFilter = !filter || filter(node);
@@ -396,92 +396,21 @@ export async function orderObjectNodeToThreeObject3D(
     if (geom.hidden) {
         return null;
     }
-    else if (geom.svgPath?.length) {
-        const shape = new THREE.Shape();
-
-        // The svgPath points in this project are authored in world X/Z (see wall creation).
-        // Make them local to the node transform (avoid double translation), and map them
-        // into Shape's 2D (x, y) such that after rotating the extrude mesh by -90° around X:
-        // - the shape lies in world XZ
-        // - the extrusion depth becomes world +Y
-        const te = node.transform.elements;
-        const originX = te[12] ?? 0;
-        const originZ = te[14] ?? 0;
-
-        let hasAnyZ = false;
-        let hasStarted = false;
-
-        for (const pathNode of geom.svgPath) {
-            if (pathNode.command === 'Z') {
-                shape.closePath();
-                hasAnyZ = true;
-                continue;
-            }
-
-            const args = pathNode.args;
-            if (!args || args.length < 2) continue;
-
-            const worldX = args[0];
-            const worldZ = args[1];
-
-            const localX = worldX - originX;
-            const localZ = worldZ - originZ;
-
-            // Shape is XY; we want final world Z to be +localZ after a -90° X rotation.
-            const x = localX;
-            const y = -localZ;
-
-            if (pathNode.command === 'M' || !hasStarted) {
-                shape.moveTo(x, y);
-                hasStarted = true;
-            } else if (pathNode.command === 'L') {
-                shape.lineTo(x, y);
-            }
-        }
-
-        if (!hasAnyZ) {
-            shape.closePath();
-        }
-
-        const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-            steps: 1,
-            depth: geom.svgDepth ?? 1,
-        };
-
-        const mainGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-
-        _addRenderableWithOptionalWireframe(
-            threeObject,
-            mainGeometry,
-            mainMaterial,
-            wireframeMaterial,
-            drawingRenderSettings,
-            (object) => {
-                // Rotate so extrusion is "up" in the scene (world +Y).
-                if (geom.svgExtrusionDirection === 'z' || !geom.svgExtrusionDirection) {
-                    object.rotation.x = -Math.PI / 2;
-                }
-                else if (geom.svgExtrusionDirection === 'x') {
-                    object.rotation.z = Math.PI / 2;
-                }
-            },
-        );
-    }
     else if (geom.svgString) {
         let shapes: THREE.Shape[] = loadSvgShapesFromCacheOrParse(geom.svgString);
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
-            extrusionDepth = node.orderLineEntry?._dimx ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimx ?? 1000;
             rot.makeRotationAxis(0, 1, 0, 270);
             extrusionDepth *= -1;
         } else if (geom.svgExtrusionDirection == 'y') {
-            extrusionDepth = node.orderLineEntry?._dimy ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimy ?? 1000;
             rot.makeRotationAxis(1, 0, 0, 90);
             extrusionDepth *= -1;
         }
         else {
-            extrusionDepth = node.orderLineEntry?._dimz ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimz ?? 1000;
             // rot.makeRotationAxis(1, 0, 0, MathUtils.degToRad(-90));
         }
 
@@ -670,8 +599,8 @@ function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
  * @returns @see IRenderOrthoCameraResult
  */
 export async function renderReadyThreeScene(
-    sceneRoot: IObject3DNode,
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    sceneRoot: IOrderSceneNode,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
     drawingSettings: IExtendedDrawingRenderSettings,
     settings: IRenderOrthoCameraParams,
 ): Promise<IRenderOrthoCameraResult> {

@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createAppShell } from './app-shell'
 // import { printSceneHierarchy } from './helpers'
-import { createScene, Object3DNodeKind, type IObject3DNode } from './scene'
+import { createScene, Object3DNodeKind, type IOrderSceneNode } from './scene'
 
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
@@ -264,7 +264,7 @@ function getSceneSelection(wallId: string | undefined, side?: 'front' | 'rear' |
   const selectedWall = wallId ? allWallNodes?.find(wall => wall.id === wallId) : undefined
   const relevantNodes = selectedWall ? filterNodesCloseToWall(contentNodes, selectedWall.wallData!, side === 'rear', 300) : contentNodes
 
-  const filter = (node: IObject3DNode) => {
+  const filter = (node: IOrderSceneNode) => {
     if (selectedWall && node.kind === Object3DNodeKind.Wall) {
       return node === selectedWall
     }

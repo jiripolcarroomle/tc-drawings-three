@@ -1,4 +1,4 @@
-import { OrderSceneNode, type IObject3DNode } from "./scene";
+import { OrderSceneNode, type IOrderSceneNode } from "./scene";
 import { IdsMap } from "./idsmap";
 import { Vector3 } from "./tc/base";
 
@@ -170,12 +170,12 @@ export interface PosContour {
  * @param distance the maximum distance from the wall segment to consider a node as close
  * @returns Filtered array of nodes that are within the specified distance from the wall segment.
  */
-export function filterNodesCloseToWall(nodes: IObject3DNode[], wallSegment: IWallSegment, backSide: boolean, distance: number): IObject3DNode[] {
+export function filterNodesCloseToWall(nodes: IOrderSceneNode[], wallSegment: IWallSegment, backSide: boolean, distance: number): IOrderSceneNode[] {
     const wallStart = backSide ? wallSegment.segmentBackStart : wallSegment.segmentStart;
     const wallEnd = backSide ? wallSegment.segmentBackEnd : wallSegment.segmentEnd;
     const normalFromWall = backSide ? wallSegment.normalToWall : wallSegment.normalToWall.scale(-1);
 
-    const result: IObject3DNode[] = [];
+    const result: IOrderSceneNode[] = [];
 
     for (const node of nodes) {
         const allCorners = node.getAllBBoxCornersInWorld();

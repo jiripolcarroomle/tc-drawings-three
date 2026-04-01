@@ -1,4 +1,4 @@
-import { type IObject3DNode } from "./scene";
+import { type IOrderSceneNode } from "./scene";
 import { Matrix4 } from "./tc/base";
 
 /**
@@ -7,7 +7,7 @@ import { Matrix4 } from "./tc/base";
  * @param node Node to print, including its descendants.
  * @param indent Current indentation depth used during recursion.
  */
-export function printSceneHierarchy(node: IObject3DNode, indent: number = 0) {
+export function printSceneHierarchy(node: IOrderSceneNode, indent: number = 0) {
     const indentStr = '  '.repeat(indent)
     console.log(`${indentStr}- ${node.id} (${node.kind})`);
     node.children.forEach(child => printSceneHierarchy(child, indent + 1));
@@ -23,7 +23,7 @@ export function printSceneHierarchy(node: IObject3DNode, indent: number = 0) {
  * @param posGroupNode Pos-group root that still owns the parts before reparenting.
  * @param currentNode Current module subtree being processed recursively.
  */
-export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IObject3DNode, currentNode: IObject3DNode): void {
+export function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneNode, currentNode: IOrderSceneNode): void {
     if (currentNode !== posGroupNode) {
         const currentNodePartChildren = currentNode.orderLineEntry?.p ?? [];
         currentNodePartChildren?.forEach((partChild: any) => {
@@ -76,9 +76,9 @@ export function getPartId(part: any /* PartBase */): string {
  * @param node Node for which to compute the world transform.
  * @returns World transform matrix of the node.
  */
-export function computeWorldTransform(node: IObject3DNode): Matrix4 {
-    const chain: IObject3DNode[] = [];
-    let current: IObject3DNode | null = node;
+export function computeWorldTransform(node: IOrderSceneNode): Matrix4 {
+    const chain: IOrderSceneNode[] = [];
+    let current: IOrderSceneNode | null = node;
     while (current) {
         chain.push(current);
         current = current.parent;
