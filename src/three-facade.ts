@@ -85,6 +85,7 @@ export function getOrderSceneNodeFromReadyThreeSceneObject(
 
 interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
     edgesGeometryThresholdAngle?: number;
+    cameraDirection?: TC.Vector3;
 }
 
 
@@ -584,3 +585,167 @@ export async function orderObjectNodeToThreeObject3D(
 }
 
 
+export interface IRenderOrthoCameraParams {
+    /** direction of the camera, if unprovided, down direction will be used */
+    direction?: TC.Vector3,
+    /** output image width in pixels */
+    width?: number;
+    /** output image height in pixels */
+    height?: number;
+    /**
+     * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
+     */
+    near?: number;
+    far?: number;
+    left?: number;
+    right?: number;
+    top?: number;
+    bottom?: number;
+}
+
+
+/**
+ * Result of the rendered drawing.
+ */
+export interface IRenderOrthoCameraResult {
+    /** the settings that were used for rendering */
+    settings: IRenderOrthoCameraParams;
+    /** the matrix transforming world coordinates to view coordinates */
+    worldToViewMatrix: TC.Matrix4;
+    /** the rendered data */
+    data: any,
+}
+
+function _getBox3Corners(box: THREE.Box3): THREE.Vector3[] {
+    return [
+        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+    ];
+}
+
+function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
+    const worldY = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(direction.dot(worldY)) < 0.999) {
+        return worldY;
+    }
+    return new THREE.Vector3(0, 0, 1);
+}
+
+/**
+ * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.
+ * @param sceneRoot the root node of the scene to render
+ * @param settings @see IRenderOrthoCameraParams
+ * @returns @see IRenderOrthoCameraResult
+ */
+export async function renderReadyThreeScene(
+    sceneRoot: IObject3DNode,
+    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    drawingSettings: IExtendedDrawingRenderSettings,
+    settings: IRenderOrthoCameraParams,
+): Promise<IRenderOrthoCameraResult> {
+
+    const threeScene: THREE.Scene = await sceneToThreeJsScene(sceneRoot, drawingSettings, filter);
+    threeScene.updateMatrixWorld(true);
+
+    const sceneBoundingBox = new THREE.Box3().setFromObject(threeScene);
+    if (sceneBoundingBox.isEmpty()) {
+        sceneBoundingBox.set(
+            new THREE.Vector3(-0.5, -0.5, -0.5),
+            new THREE.Vector3(0.5, 0.5, 0.5),
+        );
+    }
+
+    const boundingBoxCenter = sceneBoundingBox.getCenter(new THREE.Vector3());
+    const bboxSize = sceneBoundingBox.getSize(new THREE.Vector3());
+    const bboxRadius = Math.max(bboxSize.length() * 0.5, 1);
+
+    const direction = settings.direction
+        ? new THREE.Vector3(settings.direction._x, settings.direction._y, settings.direction._z)
+        : new THREE.Vector3(0, -1, 0);
+    if (direction.lengthSq() < 1e-12) {
+        direction.set(0, -1, 0);
+    }
+    direction.normalize();
+
+    const cameraDistance = bboxRadius * 3;
+    const cameraPosition = boundingBoxCenter.clone().sub(direction.clone().multiplyScalar(cameraDistance));
+
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    camera.position.copy(cameraPosition);
+    camera.up.copy(_resolveUpVector(direction));
+    camera.lookAt(boundingBoxCenter);
+    camera.updateMatrixWorld(true);
+
+    const boxCorners = _getBox3Corners(sceneBoundingBox);
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    let minZ = Number.POSITIVE_INFINITY;
+    let maxZ = Number.NEGATIVE_INFINITY;
+
+    for (const corner of boxCorners) {
+        const p = corner.clone().applyMatrix4(camera.matrixWorldInverse);
+        minX = Math.min(minX, p.x);
+        maxX = Math.max(maxX, p.x);
+        minY = Math.min(minY, p.y);
+        maxY = Math.max(maxY, p.y);
+        minZ = Math.min(minZ, p.z);
+        maxZ = Math.max(maxZ, p.z);
+    }
+
+    const extentPadding = Math.max(1e-4, Math.max(maxX - minX, maxY - minY) * 0.01);
+    const nearFarPadding = Math.max(1e-4, (maxZ - minZ) * 0.01);
+
+    const computedLeft = minX - extentPadding;
+    const computedRight = maxX + extentPadding;
+    const computedTop = maxY + extentPadding;
+    const computedBottom = minY - extentPadding;
+    const computedNear = Math.max(1e-4, -maxZ - nearFarPadding);
+    const computedFar = Math.max(computedNear + 1e-3, -minZ + nearFarPadding);
+
+    camera.left = settings.left ?? computedLeft;
+    camera.right = settings.right ?? computedRight;
+    camera.top = settings.top ?? computedTop;
+    camera.bottom = settings.bottom ?? computedBottom;
+    camera.near = settings.near ?? computedNear;
+    camera.far = settings.far ?? computedFar;
+    camera.updateProjectionMatrix();
+
+    const worldToViewMatrix = new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements);
+
+    const outputWidth = Math.max(1, Math.round(settings.width ?? 1200));
+    const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(outputWidth, outputHeight, false);
+    renderer.setPixelRatio(1);
+    renderer.setClearColor(0xffffff, 1);
+    renderer.render(threeScene, camera);
+
+    const data = renderer.domElement.toDataURL('image/png');
+    renderer.dispose();
+
+    return {
+        settings: {
+            direction: new TC.Vector3(direction.x, direction.y, direction.z),
+            width: outputWidth,
+            height: outputHeight,
+            left: camera.left,
+            right: camera.right,
+            top: camera.top,
+            bottom: camera.bottom,
+            near: camera.near,
+            far: camera.far,
+        },
+        worldToViewMatrix,
+        data: { image: data },
+    };
+
+}

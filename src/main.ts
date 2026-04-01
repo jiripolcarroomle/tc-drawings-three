@@ -8,7 +8,7 @@ import { createScene, Object3DNodeKind, type IObject3DNode } from './scene'
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
 import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
-import { sceneToThreeJsScene } from './three-facade'
+import { renderReadyThreeScene, sceneToThreeJsScene } from './three-facade'
 import { filterNodesCloseToWall } from './wall'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
@@ -25,8 +25,28 @@ import { filterNodesCloseToWall } from './wall'
 // Grab the root element Vite creates in index.html and use it as our
 // “viewport” container.
 const app = document.querySelector<HTMLDivElement>('#app')
+const viewportPanel = document.querySelector<HTMLDivElement>('#viewport-panel')
+const controlsPanel = document.querySelector<HTMLDivElement>('#controls-panel')
+const renderedImagePanel = document.querySelector<HTMLDivElement>('#rendered-image-panel')
+const verticalSplitter = document.querySelector<HTMLDivElement>('#splitter-vertical')
+const horizontalSplitter = document.querySelector<HTMLDivElement>('#splitter-horizontal')
 if (!app) {
   throw new Error('Missing #app element')
+}
+if (!viewportPanel) {
+  throw new Error('Missing #viewport-panel element')
+}
+if (!controlsPanel) {
+  throw new Error('Missing #controls-panel element')
+}
+if (!renderedImagePanel) {
+  throw new Error('Missing #rendered-image-panel element')
+}
+if (!verticalSplitter) {
+  throw new Error('Missing #splitter-vertical element')
+}
+if (!horizontalSplitter) {
+  throw new Error('Missing #splitter-horizontal element')
 }
 
 const orderJson = flatted.parse(orderJsonRaw)
@@ -38,7 +58,110 @@ const orderScene = createScene(orderJson.o, orderJson.ol);
 // From here on, treat #app as definitely present.
 // TypeScript doesn't reliably keep the non-null narrowing inside nested
 // functions, so we capture the narrowed value in a new constant.
+const viewportEl = viewportPanel
+const controlsEl = controlsPanel
+const previewPanelEl = renderedImagePanel
 const appEl = app
+
+type SplitterAxis = 'x' | 'y'
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function updateSplitPosition(axis: SplitterAxis, pointerClientValue: number) {
+  const rect = appEl.getBoundingClientRect()
+
+  if (axis === 'x') {
+    const minLeftWidth = 260
+    const minRightWidth = 220
+    const next = clamp(pointerClientValue - rect.left, minLeftWidth, rect.width - minRightWidth)
+    appEl.style.setProperty('--split-x', `${next}px`)
+  } else {
+    const minBottomHeight = 120
+    const minTopHeight = 180
+    const topHeight = clamp(pointerClientValue - rect.top, minTopHeight, rect.height - minBottomHeight)
+    const bottomHeight = rect.height - topHeight
+    appEl.style.setProperty('--split-y', `${bottomHeight}px`)
+  }
+}
+
+function bindSplitter(splitter: HTMLDivElement, axis: SplitterAxis) {
+  const handlePointerDown = (event: PointerEvent) => {
+    if (window.matchMedia('(max-width: 980px)').matches) {
+      return
+    }
+
+    event.preventDefault()
+    splitter.classList.add('is-dragging')
+    splitter.setPointerCapture(event.pointerId)
+    document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize'
+    document.body.style.userSelect = 'none'
+    updateSplitPosition(axis, axis === 'x' ? event.clientX : event.clientY)
+    resize()
+  }
+
+  const handlePointerMove = (event: PointerEvent) => {
+    if (!splitter.classList.contains('is-dragging')) {
+      return
+    }
+
+    updateSplitPosition(axis, axis === 'x' ? event.clientX : event.clientY)
+    resize()
+  }
+
+  const stopDragging = (event?: PointerEvent) => {
+    if (!splitter.classList.contains('is-dragging')) {
+      return
+    }
+
+    if (event && splitter.hasPointerCapture(event.pointerId)) {
+      splitter.releasePointerCapture(event.pointerId)
+    }
+    splitter.classList.remove('is-dragging')
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    resize()
+  }
+
+  splitter.addEventListener('pointerdown', handlePointerDown)
+  splitter.addEventListener('pointermove', handlePointerMove)
+  splitter.addEventListener('pointerup', stopDragging)
+  splitter.addEventListener('pointercancel', stopDragging)
+
+  return () => {
+    splitter.removeEventListener('pointerdown', handlePointerDown)
+    splitter.removeEventListener('pointermove', handlePointerMove)
+    splitter.removeEventListener('pointerup', stopDragging)
+    splitter.removeEventListener('pointercancel', stopDragging)
+  }
+}
+
+const renderedPreviewImage = document.createElement('img')
+renderedPreviewImage.className = 'preview-image'
+renderedPreviewImage.alt = 'Orthographic render preview'
+
+const renderedPreviewPlaceholder = previewPanelEl.querySelector<HTMLDivElement>('.preview-placeholder')
+
+function setPreviewImage(imageUrl: string | null) {
+  if (!imageUrl) {
+    renderedPreviewImage.remove()
+    previewPanelEl.classList.remove('has-image')
+    if (renderedPreviewPlaceholder) {
+      renderedPreviewPlaceholder.hidden = false
+    }
+    return
+  }
+
+  renderedPreviewImage.src = imageUrl
+  if (!renderedPreviewImage.isConnected) {
+    previewPanelEl.appendChild(renderedPreviewImage)
+  }
+  previewPanelEl.classList.add('has-image')
+  if (renderedPreviewPlaceholder) {
+    renderedPreviewPlaceholder.hidden = true
+  }
+}
 
 type PersistedNavigationV1 = {
   v: 1
@@ -76,7 +199,7 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, })
 renderer.setPixelRatio(getEffectivePixelRatio())
 
 // Mount the renderer's canvas into the page.
-appEl.appendChild(renderer.domElement)
+viewportEl.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene();
 
@@ -249,19 +372,11 @@ resetCameraButton.type = 'button'
 resetCameraButton.className = 'camera-reset-button'
 resetCameraButton.textContent = 'Reset camera'
 
-appEl.appendChild(resetCameraButton)
+controlsEl.appendChild(resetCameraButton)
 
 // --- Wall buttons stack ---
 const wallButtonsContainer = document.createElement('div')
-wallButtonsContainer.style.position = 'absolute'
-wallButtonsContainer.style.top = '60px'
-wallButtonsContainer.style.right = '16px'
-wallButtonsContainer.style.zIndex = '2'
-wallButtonsContainer.style.display = 'block'
-wallButtonsContainer.style.width = 'fit-content'
-wallButtonsContainer.style.maxWidth = '100%'
-wallButtonsContainer.style.padding = '0'
-wallButtonsContainer.style.gap = '0'
+wallButtonsContainer.className = 'controls-panel'
 
 // Find all wall nodes in the scene
 const allWallNodes = orderScene
@@ -271,57 +386,55 @@ const allWallNodes = orderScene
   ;
 
 
-allWallNodes?.forEach((wall, idx) => {
+allWallNodes?.forEach((wall) => {
   ['front', 'rear'].forEach(side => {
     const btn = document.createElement('button')
     btn.type = 'button'
+    btn.className = 'wall-button'
     btn.textContent = `${wall.id} ${side}`
-    btn.style.display = 'block'
-    btn.style.width = '100%'
-    btn.style.margin = '2px 0'
-    btn.style.padding = '2px 8px'
-    btn.style.zIndex = '1';
-    btn.onclick = () => {
-      loadPartialOrFullScene(scene, wall.id, side as 'front' | 'rear');
+    btn.onclick = async () => {
+      await loadPartialOrFullScene(scene, wall.id, side as 'front' | 'rear')
     }
     wallButtonsContainer.appendChild(btn)
   })
 })
 
+function getSceneSelection(wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
+  const selectedWall = wallId ? allWallNodes?.find(wall => wall.id === wallId) : undefined
+  const relevantNodes = selectedWall ? filterNodesCloseToWall(contentNodes, selectedWall.wallData!, side === 'rear', 300) : contentNodes
 
-async function loadPartialOrFullScene(_scene: THREE.Scene, wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
-  // clear scene
-  _scene.clear();
-  // find wall by id
-  const selectedWall = wallId ? allWallNodes?.find(wall => wall.id === wallId) : undefined;
-  // find nodes close to the wall
-  const relevantNodes = selectedWall ? filterNodesCloseToWall(contentNodes, selectedWall?.wallData!, side === 'rear', 300) : contentNodes;
-  // hide all nodes except the wall and the close nodes
   const filter = (node: IObject3DNode) => {
     if (selectedWall && node.kind === Object3DNodeKind.Wall) {
-      return node === selectedWall;
+      return node === selectedWall
     }
-    else if (node.kind === Object3DNodeKind.Part) {
-      // pass if parent module is close to the wall
-      if ([
-        'hinge',
-        'hanger',
-        'drill',
-      ].some(x => node.id.toLowerCase().includes(x))) {
-        return false;
+    if (node.kind === Object3DNodeKind.Part) {
+      if (
+        [
+          'hinge',
+          'hanger',
+          'drill',
+        ].some(x => node.id.toLowerCase().includes(x))
+      ) {
+        return false
       }
-      let parent = node.parent;
+
+      let parent = node.parent
       while (parent) {
         if (relevantNodes.includes(parent)) {
-          return true;
+          return true
         }
-        parent = parent.parent;
+        parent = parent.parent
       }
-      return false;
+      return false
     }
-    return true;
-  };
-  const settings = {
+    return true
+  }
+
+  return { selectedWall, filter }
+}
+
+function getDrawingSettings() {
+  return {
     material: {
       color: 0xcccccc,
       polygonOffset: true,
@@ -340,14 +453,51 @@ async function loadPartialOrFullScene(_scene: THREE.Scene, wallId: string | unde
     doNotFetchMeshes: true,
     edgesGeometryThresholdAngle: 10,
   }
-  const threeScene = await sceneToThreeJsScene(orderScene, settings, filter);
+}
+
+function getWallRenderDirection(wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
+  const selectedWall = wallId ? allWallNodes?.find(wall => wall.id === wallId) : undefined
+  if (!selectedWall?.wallData) {
+    return undefined
+  }
+
+  return side === 'rear'
+    ? selectedWall.wallData.normalToWall.scale(-1)
+    : selectedWall.wallData.normalToWall
+}
+
+async function renderPreview(wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
+  const { filter } = getSceneSelection(wallId, side)
+  const previewWidth = Math.max(320, Math.round(previewPanelEl.clientWidth || 640))
+  const previewHeight = Math.max(180, Math.round(previewPanelEl.clientHeight || 360))
+
+  const result = await renderReadyThreeScene(orderScene, filter, getDrawingSettings(), {
+    direction: getWallRenderDirection(wallId, side),
+    width: previewWidth,
+    height: previewHeight,
+  })
+
+  setPreviewImage(result.data.image)
+}
+
+
+async function loadPartialOrFullScene(_scene: THREE.Scene, wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
+  // clear scene
+  _scene.clear();
+  const { filter } = getSceneSelection(wallId, side)
+  const threeScene = await sceneToThreeJsScene(orderScene, getDrawingSettings(), filter)
   threeScene.children.forEach(child => {
-    _scene.add(child);
-  });
+    _scene.add(child)
+  })
+
+  await renderPreview(wallId, side)
 
 }
 
-appEl.appendChild(wallButtonsContainer)
+controlsEl.appendChild(wallButtonsContainer)
+
+const disposeVerticalSplitter = bindSplitter(verticalSplitter, 'x')
+const disposeHorizontalSplitter = bindSplitter(horizontalSplitter, 'y')
 
 let hasUserNavigated = false
 
@@ -371,7 +521,7 @@ controls.addEventListener('change', () => {
 
 resetCameraButton.addEventListener('click', () => {
   resetCameraToOrigin()
-  loadPartialOrFullScene(scene, undefined, undefined);
+  loadPartialOrFullScene(scene, undefined, undefined)
   persistNavigation(captureNavigation(controls))
 })
 
@@ -379,6 +529,10 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     controls.dispose()
     resetCameraButton.remove()
+    wallButtonsContainer.remove()
+    renderedPreviewImage.remove()
+    disposeVerticalSplitter()
+    disposeHorizontalSplitter()
   })
 }
 
@@ -418,8 +572,8 @@ loadPartialOrFullScene(scene, undefined, undefined).then(() => {
 // - If the canvas size doesn't match its display size, the image looks blurry
 // - If camera.aspect isn't updated, the image looks stretched/squashed
 function resize() {
-  const width = appEl.clientWidth
-  const height = appEl.clientHeight
+  const width = viewportEl.clientWidth
+  const height = viewportEl.clientHeight
 
   renderer.setPixelRatio(getEffectivePixelRatio())
 
