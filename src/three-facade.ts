@@ -3,6 +3,7 @@ import { OBJLoader } from "three/examples/jsm/Addons.js";
 import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
 import * as TC from "./tc/base";
 import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
+import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
 export interface IReadySceneObjectUserData {
     orderSceneNode: IObject3DNode;
@@ -616,6 +617,31 @@ export interface IRenderOrthoCameraResult {
     data: any,
 }
 
+export function appendSvgElementsToRenderedImage(
+    domElement: Element,
+    append: (svgRoot: SVGSVGElement) => void,
+): Element {
+    if (!(domElement instanceof SVGSVGElement)) {
+        return domElement;
+    }
+
+    append(domElement);
+    return domElement;
+}
+
+export function appendTopLeftHelloAnnotation(domElement: Element): Element {
+    return appendSvgElementsToRenderedImage(domElement, (svgRoot) => {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '16');
+        text.setAttribute('y', '28');
+        text.setAttribute('fill', '#000000');
+        text.setAttribute('font-size', '24');
+        text.setAttribute('font-family', 'Arial, sans-serif');
+        text.textContent = 'hello';
+        svgRoot.appendChild(text);
+    });
+}
+
 function _getBox3Corners(box: THREE.Box3): THREE.Vector3[] {
     return [
         new THREE.Vector3(box.min.x, box.min.y, box.min.z),
@@ -723,14 +749,9 @@ export async function renderReadyThreeScene(
     const outputWidth = Math.max(1, Math.round(settings.width ?? 1200));
     const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-    renderer.setSize(outputWidth, outputHeight, false);
-    renderer.setPixelRatio(1);
-    renderer.setClearColor(0xffffff, 1);
-    renderer.render(threeScene, camera);
-
-    const data = renderer.domElement.toDataURL('image/png');
-    renderer.dispose();
+    const renderedDomElement = appendTopLeftHelloAnnotation(
+        svgRenderer(threeScene, camera, outputWidth, outputHeight),
+    );
 
     return {
         settings: {
@@ -745,7 +766,31 @@ export async function renderReadyThreeScene(
             far: camera.far,
         },
         worldToViewMatrix,
-        data: { image: data },
+        data: { domElement: renderedDomElement },
     };
 
+}
+
+
+function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): HTMLImageElement {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(outputWidth, outputHeight, false);
+    renderer.setPixelRatio(1);
+    renderer.setClearColor(0xffffff, 1);
+    renderer.render(threeScene, camera);
+
+    const imgElement = document.createElement('img');
+    imgElement.src = renderer.domElement.toDataURL('image/png');
+    imgElement.className = 'preview-image';
+    renderer.dispose();
+    return imgElement;
+}
+
+function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): SVGSVGElement {
+    const renderer = new SVGRenderer();
+    renderer.setSize(outputWidth, outputHeight);
+    renderer.render(threeScene, camera);
+    const svg = renderer.domElement as SVGSVGElement;
+    svg.classList.add('preview-image');
+    return svg;
 }

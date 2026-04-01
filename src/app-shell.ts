@@ -4,7 +4,7 @@ export interface IAppShell {
   viewportEl: HTMLDivElement
   previewPanelEl: HTMLDivElement
   mountControl(element: HTMLElement): void
-  setPreviewImage(imageUrl: string | null): void
+  setPreviewImage(domElement: Element | null): void
   bindSplitters(onLayoutChange: () => void): () => void
 }
 
@@ -33,10 +33,14 @@ export function createAppShell(): IAppShell {
   renderedPreviewImage.alt = 'Orthographic render preview'
 
   const renderedPreviewPlaceholder = previewPanelEl.querySelector<HTMLDivElement>('.preview-placeholder')
+  let currentPreviewElement: Element | null = null
 
-  function setPreviewImage(imageUrl: string | null) {
-    if (!imageUrl) {
-      renderedPreviewImage.remove()
+  function setPreviewImage(domElement: Element | null) {
+    if (!domElement) {
+      if (currentPreviewElement) {
+        currentPreviewElement.remove()
+        currentPreviewElement = null
+      }
       previewPanelEl.classList.remove('has-image')
       if (renderedPreviewPlaceholder) {
         renderedPreviewPlaceholder.hidden = false
@@ -44,10 +48,11 @@ export function createAppShell(): IAppShell {
       return
     }
 
-    renderedPreviewImage.src = imageUrl
-    if (!renderedPreviewImage.isConnected) {
-      previewPanelEl.appendChild(renderedPreviewImage)
+    if (currentPreviewElement) {
+      currentPreviewElement.remove()
     }
+    currentPreviewElement = domElement
+    previewPanelEl.appendChild(domElement)
     previewPanelEl.classList.add('has-image')
     if (renderedPreviewPlaceholder) {
       renderedPreviewPlaceholder.hidden = true
