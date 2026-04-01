@@ -52,12 +52,24 @@ export async function appOrderFunction(o: any, ol: any) {
         }
         return true;
     }
+    const getWallsFilter = (relevantWall: IOrderSceneNode | undefined) => {
+        return (node: IOrderSceneNode) => {
+            if (!relevantWall) {
+                return true;
+            }
+            if (node.kind === Object3DNodeKind.Wall) {
+                return node === relevantWall;
+            }
+            return true;
+        }
+    }
 
     // get all content nodes (modules)
-    const allModuleNodes = orderScene.children    // root
-        .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup).flatMap(group => group.children) // posgroups
-        .flatMap(group => group.children) // root modules
-        ;
+    const allModuleNodes = orderScene.children // root
+        .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup)
+        .flatMap(group => group.children) // pos-groups
+        .flatMap(group => group.children) // module + part candidates
+        .filter(node => node.kind === Object3DNodeKind.Module);
 
     // get all walls in the order
     const allWalls = orderScene.children.find(child => child.kind === Object3DNodeKind.WallGroup)?.children ?? [];
@@ -83,6 +95,9 @@ export async function appOrderFunction(o: any, ol: any) {
             if (!partsNameFilter(node)) {
                 return false;
             }
+            if (node.kind === Object3DNodeKind.Wall) {
+                return getWallsFilter(wall)(node);
+            }
             if (node.kind === Object3DNodeKind.Part) {
                 // filter by owner module proximity to wall
                 let parent = node.parent
@@ -94,6 +109,7 @@ export async function appOrderFunction(o: any, ol: any) {
                 }
                 return false;
             }
+
             return true;
         }
 

@@ -2,37 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>tc-drawings-three</title>
   </head>
   <body>
-    <div id="app">
-      <section class="app-pane app-pane-viewport">
-        <div id="viewport-panel" class="pane-content"></div>
-      </section>
-      <div id="splitter-vertical" class="splitter splitter-vertical" aria-hidden="true"></div>
-      <section class="app-pane app-pane-controls">
-        <div class="pane-content pane-scroll">
-          <header class="pane-header">
-            <span class="pane-eyebrow">Controls</span>
-            <h1 class="pane-title">Scene Actions</h1>
-          </header>
-          <div id="controls-panel" class="controls-panel"></div>
-        </div>
-      </section>
-      <div id="splitter-horizontal" class="splitter splitter-horizontal" aria-hidden="true"></div>
-      <section class="app-pane app-pane-preview">
-        <div class="pane-content">
-          <div id="rendered-image-panel" class="preview-panel">
-            <div class="preview-placeholder">Rendered orthographic output will go here.</div>
-          </div>
-        </div>
-      </section>
-      <section class="app-pane app-pane-empty">
-        <div class="pane-content pane-empty-state">Reserved</div>
-      </section>
-    </div>
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

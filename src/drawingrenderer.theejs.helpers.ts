@@ -438,18 +438,16 @@ export function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
     return new THREE.Vector3(0, 0, 1);
 }
 
-export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): HTMLImageElement {
+export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): string {
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(outputWidth, outputHeight, false);
     renderer.setPixelRatio(1);
     renderer.setClearColor(0xffffff, 1);
     renderer.render(threeScene, camera);
 
-    const imgElement = document.createElement('img');
-    imgElement.src = renderer.domElement.toDataURL('image/png');
-    imgElement.className = 'preview-image';
+    const pngDataUrl = renderer.domElement.toDataURL('image/png');
     renderer.dispose();
-    return imgElement;
+    return pngDataUrl;
 }
 
 function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): SVGSVGElement {

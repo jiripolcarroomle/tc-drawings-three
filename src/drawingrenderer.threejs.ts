@@ -95,12 +95,12 @@ export const renderScene: IRenderDrawing = async function (
     const outputWidth = Math.max(1, Math.round(settings.width ?? 1200));
     const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
 
-    const renderedDomElement = rasterRenderer(threeScene, camera, outputWidth, outputHeight);
+    const pngDataUrl = rasterRenderer(threeScene, camera, outputWidth, outputHeight);
 
 
     return {
         worldToViewMatrix,
-        renderedResult: { image: renderedDomElement },
+        renderedResult: { image: pngDataUrl },
         renderedScene: threeScene,
     };
 
