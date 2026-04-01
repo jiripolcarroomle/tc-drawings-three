@@ -80,80 +80,12 @@ appEl.appendChild(renderer.domElement)
 
 const scene = new THREE.Scene();
 
-// The scene is a container graph holding everything to be rendered:
-// meshes, lights, groups, helpers, etc.
-async function loadScene(targetObjectToAttachTheSceneWhenReady: THREE.Scene) {
-  console.log('will convert scene to three.js scene');
-
-  const selectedWall = orderScene
-    .children
-    .find(child => child.kind === Object3DNodeKind.WallGroup)
-    ?.children
-    .find(child => child.kind === Object3DNodeKind.Wall && child.id.includes('wall-2'));
+const contentNodes = orderScene
+  .children
+  .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup)
+  .flatMap(group => group.children)
+  .flatMap(group => group.children)
   ;
-
-  const contentNodes = orderScene
-    .children
-    .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup)
-    .flatMap(group => group.children)
-    .flatMap(group => group.children)
-    ;
-
-  const nodesCloseToWall = filterNodesCloseToWall(contentNodes, selectedWall?.wallData!, false, 300);
-
-  const filter = (node: IObject3DNode) => {
-    if (node.kind === Object3DNodeKind.Wall) {
-      return node === selectedWall;
-    }
-    else {
-      if (node.kind === Object3DNodeKind.Part) {
-        // pass if parent module is close to the wall
-        if ([
-          'hinge',
-          'hanger',
-          'drill',
-        ].some(x => node.id.toLowerCase().includes(x))) {
-          return false;
-        }
-        let parent = node.parent;
-        while (parent) {
-          if (nodesCloseToWall.includes(parent)) {
-            return true;
-          }
-          parent = parent.parent;
-        }
-        return false;
-      }
-    }
-    return true;
-  };
-  const settings = {
-    material: {
-      color: 0xcccccc,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    },
-    wireframeMaterial: {
-      color: 0x000000,
-    },
-    wallsMaterial: {
-      color: 0x555555,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    },
-    doNotFetchMeshes: true,
-    edgesGeometryThresholdAngle: 10,
-  }
-
-  const scene = await sceneToThreeJsScene(orderScene, settings, filter);
-  console.log('converted scene to three.js scene');
-  scene.children.forEach(child => {
-    targetObjectToAttachTheSceneWhenReady.add(child);
-  });
-}
-
 // A perspective camera approximates how the human eye sees the world.
 // Parameters: fov (degrees), aspect (width/height), near, far.
 //
@@ -316,7 +248,106 @@ const resetCameraButton = document.createElement('button')
 resetCameraButton.type = 'button'
 resetCameraButton.className = 'camera-reset-button'
 resetCameraButton.textContent = 'Reset camera'
+
 appEl.appendChild(resetCameraButton)
+
+// --- Wall buttons stack ---
+const wallButtonsContainer = document.createElement('div')
+wallButtonsContainer.style.position = 'absolute'
+wallButtonsContainer.style.top = '60px'
+wallButtonsContainer.style.right = '16px'
+wallButtonsContainer.style.zIndex = '2'
+wallButtonsContainer.style.display = 'block'
+wallButtonsContainer.style.width = 'fit-content'
+wallButtonsContainer.style.maxWidth = '100%'
+wallButtonsContainer.style.padding = '0'
+wallButtonsContainer.style.gap = '0'
+
+// Find all wall nodes in the scene
+const allWallNodes = orderScene
+  .children
+  .find(child => child.kind === Object3DNodeKind.WallGroup)
+  ?.children
+  ;
+
+
+allWallNodes?.forEach((wall, idx) => {
+  ['front', 'rear'].forEach(side => {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.textContent = `${wall.id} ${side}`
+    btn.style.display = 'block'
+    btn.style.width = '100%'
+    btn.style.margin = '2px 0'
+    btn.style.padding = '2px 8px'
+    btn.style.zIndex = '1';
+    btn.onclick = () => {
+      loadPartialOrFullScene(scene, wall.id, side as 'front' | 'rear');
+    }
+    wallButtonsContainer.appendChild(btn)
+  })
+})
+
+
+async function loadPartialOrFullScene(_scene: THREE.Scene, wallId: string | undefined, side?: 'front' | 'rear' | undefined) {
+  // clear scene
+  _scene.clear();
+  // find wall by id
+  const selectedWall = wallId ? allWallNodes?.find(wall => wall.id === wallId) : undefined;
+  // find nodes close to the wall
+  const relevantNodes = selectedWall ? filterNodesCloseToWall(contentNodes, selectedWall?.wallData!, side === 'rear', 300) : contentNodes;
+  // hide all nodes except the wall and the close nodes
+  const filter = (node: IObject3DNode) => {
+    if (selectedWall && node.kind === Object3DNodeKind.Wall) {
+      return node === selectedWall;
+    }
+    else if (node.kind === Object3DNodeKind.Part) {
+      // pass if parent module is close to the wall
+      if ([
+        'hinge',
+        'hanger',
+        'drill',
+      ].some(x => node.id.toLowerCase().includes(x))) {
+        return false;
+      }
+      let parent = node.parent;
+      while (parent) {
+        if (relevantNodes.includes(parent)) {
+          return true;
+        }
+        parent = parent.parent;
+      }
+      return false;
+    }
+    return true;
+  };
+  const settings = {
+    material: {
+      color: 0xcccccc,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    },
+    wireframeMaterial: {
+      color: 0x000000,
+    },
+    wallsMaterial: {
+      color: 0x555555,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    },
+    doNotFetchMeshes: true,
+    edgesGeometryThresholdAngle: 10,
+  }
+  const threeScene = await sceneToThreeJsScene(orderScene, settings, filter);
+  threeScene.children.forEach(child => {
+    _scene.add(child);
+  });
+
+}
+
+appEl.appendChild(wallButtonsContainer)
 
 let hasUserNavigated = false
 
@@ -340,6 +371,7 @@ controls.addEventListener('change', () => {
 
 resetCameraButton.addEventListener('click', () => {
   resetCameraToOrigin()
+  loadPartialOrFullScene(scene, undefined, undefined);
   persistNavigation(captureNavigation(controls))
 })
 
@@ -374,7 +406,7 @@ const material = new THREE.MeshNormalMaterial()
 const cube = new THREE.Mesh(geometry, material)
 scene.add(cube)
 
-loadScene(scene).then(() => {
+loadPartialOrFullScene(scene, undefined, undefined).then(() => {
   if (!tryLoadNavigation() && !hasUserNavigated) {
     resetCameraToScene()
   }
