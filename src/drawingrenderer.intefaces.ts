@@ -10,8 +10,7 @@ export type IRenderDrawing = (
     filter: IOrderSceneNodeFilter | undefined,
     drawingSettings: ISceneGeometryConversionSettings,
     renderSettings: IRenderOrthoCameraParams
-) => Promise<IRenderOrthoCameraResult>
-
+) => Promise<IRenderOrthoCameraResult>;
 
 /**
  * Optional renderer-specific settings used while converting node geometry into the target technology.
@@ -25,14 +24,17 @@ export interface ISceneGeometryConversionSettings {
     wallsMaterial?: any;
     /** Whether to fetch and use actual meshes or use just their bounding boxes. */
     doNotFetchMeshes?: boolean;
-}export interface IRenderOrthoCameraParams {
+}
+
+export interface IRenderOrthoCameraParams {
     /** direction of the camera, if unprovided, down direction will be used */
     direction?: TC.Vector3;
     /** output image width in pixels */
     width?: number;
     /** output image height in pixels */
     height?: number;
-    /**
+    
+    /*
      * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
      */
     near?: number;
@@ -42,17 +44,16 @@ export interface ISceneGeometryConversionSettings {
     top?: number;
     bottom?: number;
 }
+
 /**
  * Result of the rendered drawing.
  */
-
-
 export interface IRenderOrthoCameraResult {
-    /** the settings that were used for rendering */
-    settings: IRenderOrthoCameraParams;
     /** the matrix transforming world coordinates to view coordinates */
     worldToViewMatrix: TC.Matrix4;
     /** the rendered data */
-    data: any;
+    renderedResult: any;
+    /** the rendered scene */
+    renderedScene: any;
 }
 

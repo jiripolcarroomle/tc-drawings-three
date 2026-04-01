@@ -1,10 +1,9 @@
 
 import { logWarning, Matrix4, Vector3 } from "./tc/base";
 import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
-import { computeWorldTransform, getPartId } from "./helpers";
 import { IdsMap } from "./idsmap";
 import { type IGeometryData, Object3DNodeKind, type IOrderLineEntry, type IOrderSceneNode } from "./scene.interfaces";
-import { type ISceneGeometryConversionSettings } from "./rendereddrawing.interface";
+import { type ISceneGeometryConversionSettings } from "./drawingrenderer.intefaces";
 
 /**
  * Builds the project's technology-agnostic scene graph from raw order data.
@@ -319,7 +318,7 @@ class GeometryData implements IGeometryData {
         return copy;
     }
 
-    evaluateWithRenderSettings(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {        
+    evaluateWithRenderSettings(drawingRenderSettings: ISceneGeometryConversionSettings): IGeometryData {
         const evaluated = this.getMutableCopy() as GeometryData;
         if (drawingRenderSettings.doNotFetchMeshes && evaluated.meshUrl) {
             delete evaluated.meshUrl;
@@ -359,7 +358,7 @@ function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneN
             const partChildNodeId = getPartId(partChild);
             const partChildNode = currentNode.idsMap.get(partChildNodeId);
             if (!partChildNode) {
-            logWarning(`Could not find node for part ${partChildNodeId}`);
+                logWarning(`Could not find node for part ${partChildNodeId}`);
                 return;
             }
             const parent = partChildNode.parent;
@@ -380,5 +379,39 @@ function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneN
         reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, subModule);
     });
 
+}
+
+
+/**
+ * Computes the world transform of a node by multiplying the transforms of all its ancestors up to the root.
+ * The order of multiplication is from the root to the node, so the local transform of the node is applied last.
+ * @param node Node for which to compute the world transform.
+ * @returns World transform matrix of the node.
+ */
+function computeWorldTransform(node: IOrderSceneNode): Matrix4 {
+    const chain: IOrderSceneNode[] = [];
+    let current: IOrderSceneNode | null = node;
+    while (current) {
+        chain.push(current);
+        current = current.parent;
+    }
+    const world = new Matrix4();
+    for (let i = chain.length - 1; i >= 0; i--) {
+        world.multiply(chain[i].transform);
+    }
+    return world;
+}
+
+/**
+ * Builds a stable part identifier from the fields used by the current order data.
+ *
+ * The resulting string is readable enough for debugging while still being tied
+ * to the source identifiers that distinguish parts within the scene.
+ *
+ * @param part Order-entry part for which to generate an ID.
+ * @returns Stable part ID in the format `part__{partId}__{id}:{parentUniqueId}`.
+ */
+function getPartId(part: any /* PartBase */): string {
+    return `part__${part._partId}__${part._id}:${part._parentUniqueId}`;
 }
 
