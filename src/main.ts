@@ -11,7 +11,7 @@ import { type IOrderSceneNode } from "./scene.interfaces"
 //import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
 import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
-import { renderReadyThreeScene, sceneToThreeJsScene } from './three-facade'
+import { renderScene, sceneToThreeJsScene } from './three-facade'
 import { filterNodesCloseToWall } from './wall'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
@@ -334,7 +334,7 @@ async function renderPreview(wallId: string | undefined, side?: 'front' | 'rear'
   const previewWidth = 1920;
   const previewHeight = 1080;
 
-  const result = await renderReadyThreeScene(orderScene, filter, getDrawingSettings(), {
+  const result = await renderScene(orderScene, filter, getDrawingSettings(), {
     direction: getWallRenderDirection(wallId, side),
     width: previewWidth,
     height: previewHeight,

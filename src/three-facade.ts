@@ -8,85 +8,6 @@ import { logError, logWarning, logInfo } from "./tc/base";
 import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
-export interface IReadySceneObjectUserData {
-    orderSceneNode: IOrderSceneNode;
-    nodeId: string;
-    kind: Object3DNodeKind;
-}
-
-export type IReadySceneObject = THREE.Object3D & {
-    userData: THREE.Object3D['userData'] & IReadySceneObjectUserData;
-};
-
-export interface IReadyThreeScene {
-    scene: THREE.Scene;
-    rootObject: IReadySceneObject | null;
-    objectsByNodeId: Map<string, IReadySceneObject>;
-    objectBySceneNode: WeakMap<IOrderSceneNode, IReadySceneObject>;
-    sceneNodeByObject: WeakMap<THREE.Object3D, IOrderSceneNode>;
-}
-
-type ReadySceneRegistry = {
-    objectsByNodeId: Map<string, IReadySceneObject>;
-    objectBySceneNode: WeakMap<IOrderSceneNode, IReadySceneObject>;
-    sceneNodeByObject: WeakMap<THREE.Object3D, IOrderSceneNode>;
-};
-
-function _createReadySceneRegistry(): ReadySceneRegistry {
-    return {
-        objectsByNodeId: new Map<string, IReadySceneObject>(),
-        objectBySceneNode: new WeakMap<IOrderSceneNode, IReadySceneObject>(),
-        sceneNodeByObject: new WeakMap<THREE.Object3D, IOrderSceneNode>(),
-    };
-}
-
-function _attachSceneNodeReference(object: THREE.Object3D, node: IOrderSceneNode): IReadySceneObject {
-    const readyObject = object as IReadySceneObject;
-    readyObject.userData.orderSceneNode = node;
-    readyObject.userData.nodeId = node.id;
-    readyObject.userData.kind = node.kind;
-    return readyObject;
-}
-
-export function getOrderSceneNodeFromReadySceneObject(object: THREE.Object3D): IOrderSceneNode | undefined {
-    return (object.userData as Partial<IReadySceneObjectUserData>).orderSceneNode;
-}
-
-function _registerReadySceneObject(
-    object: THREE.Object3D,
-    node: IOrderSceneNode,
-    registry?: ReadySceneRegistry,
-): IReadySceneObject {
-    const readyObject = _attachSceneNodeReference(object, node);
-    if (registry) {
-        registry.objectsByNodeId.set(node.id, readyObject);
-        registry.objectBySceneNode.set(node, readyObject);
-        registry.sceneNodeByObject.set(readyObject, node);
-    }
-    return readyObject;
-}
-
-export function getReadySceneObjectForOrderSceneNode(
-    readyScene: IReadyThreeScene,
-    node: IOrderSceneNode,
-): IReadySceneObject | undefined {
-    return readyScene.objectBySceneNode.get(node);
-}
-
-export function getReadySceneObjectByNodeId(
-    readyScene: IReadyThreeScene,
-    nodeId: string,
-): IReadySceneObject | undefined {
-    return readyScene.objectsByNodeId.get(nodeId);
-}
-
-export function getOrderSceneNodeFromReadyThreeSceneObject(
-    readyScene: IReadyThreeScene,
-    object: THREE.Object3D,
-): IOrderSceneNode | undefined {
-    return readyScene.sceneNodeByObject.get(object) ?? getOrderSceneNodeFromReadySceneObject(object);
-}
-
 interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
     edgesGeometryThresholdAngle?: number;
     cameraDirection?: TC.Vector3;
@@ -96,13 +17,8 @@ interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSetting
 type ThreeFacadeHmrData = {
     object3dCache?: Map<string, THREE.Object3D>;
 };
-
 const _hmrData = (import.meta as any).hot?.data as ThreeFacadeHmrData | undefined;
-
-
-
 const _object3dCache: Map<string, THREE.Object3D> = _hmrData?.object3dCache ?? new Map();
-
 if (_hmrData) {
     _hmrData.object3dCache = _object3dCache;
 }
@@ -326,41 +242,24 @@ function _addRenderableWithOptionalWireframe(
  * @param filter Optional filter function to determine which nodes to include.
  * @returns Three.js scene containing the converted object hierarchy.
  */
-export async function sceneToReadyThreeScene(
+export async function sceneToThreeJsScene(
     rootObject3DNode: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
-): Promise<IReadyThreeScene> {
-    const registry = _createReadySceneRegistry();
+): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
     const rootObject = await orderObjectNodeToThreeObject3D(
         rootObject3DNode,
         drawingRenderSettings,
         filter,
-        registry,
     );
     if (rootObject) {
         threeScene.add(rootObject);
     }
 
-    return {
-        scene: threeScene,
-        rootObject,
-        objectsByNodeId: registry.objectsByNodeId,
-        objectBySceneNode: registry.objectBySceneNode,
-        sceneNodeByObject: registry.sceneNodeByObject,
-    };
+    return threeScene;
 }
-
-export async function sceneToThreeJsScene(
-    rootObject3DNode: IOrderSceneNode,
-    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
-): Promise<THREE.Scene> {
-    return (await sceneToReadyThreeScene(rootObject3DNode, drawingRenderSettings, filter)).scene;
-}
-
 
 /**
  * Converts a custom scene node and its descendants into a Three.js object tree.
@@ -377,14 +276,13 @@ export async function orderObjectNodeToThreeObject3D(
     node: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
-    registry?: ReadySceneRegistry,
-): Promise<IReadySceneObject | null> {
+): Promise<THREE.Object3D | null> {
     const passesFilter = !filter || filter(node);
     if (!passesFilter) {
         return null;
     }
 
-    const threeObject = _registerReadySceneObject(new THREE.Object3D(), node, registry);
+    const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
     // set transform
     threeObject.matrix.fromArray(node.transform.elements);
@@ -506,7 +404,7 @@ export async function orderObjectNodeToThreeObject3D(
 
 
     const childThreeObjects = await Promise.all(
-        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter, registry))
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter))
     );
     childThreeObjects.forEach((childThreeObject) => {
         if (childThreeObject) {
@@ -516,31 +414,6 @@ export async function orderObjectNodeToThreeObject3D(
     return threeObject;
 }
 
-
-export function appendSvgElementsToRenderedImage(
-    domElement: Element,
-    append: (svgRoot: SVGSVGElement) => void,
-): Element {
-    if (!(domElement instanceof SVGSVGElement)) {
-        return domElement;
-    }
-
-    append(domElement);
-    return domElement;
-}
-
-export function appendTopLeftHelloAnnotation(domElement: Element): Element {
-    return appendSvgElementsToRenderedImage(domElement, (svgRoot) => {
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', '16');
-        text.setAttribute('y', '28');
-        text.setAttribute('fill', '#000000');
-        text.setAttribute('font-size', '24');
-        text.setAttribute('font-family', 'Arial, sans-serif');
-        text.textContent = 'hello';
-        svgRoot.appendChild(text);
-    });
-}
 
 function _getBox3Corners(box: THREE.Box3): THREE.Vector3[] {
     return [
@@ -569,7 +442,7 @@ function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
  * @param settings @see IRenderOrthoCameraParams
  * @returns @see IRenderOrthoCameraResult
  */
-export async function renderReadyThreeScene(
+export async function renderScene(
     sceneRoot: IOrderSceneNode,
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
     drawingSettings: IExtendedDrawingRenderSettings,
@@ -649,9 +522,8 @@ export async function renderReadyThreeScene(
     const outputWidth = Math.max(1, Math.round(settings.width ?? 1200));
     const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
 
-    const renderedDomElement = appendTopLeftHelloAnnotation(
-        rasterRenderer(threeScene, camera, outputWidth, outputHeight),
-    );
+    const renderedDomElement = rasterRenderer(threeScene, camera, outputWidth, outputHeight);
+
 
     return {
         settings: {
