@@ -88,6 +88,10 @@ export async function appOrderFunction(o: any, ol: any) {
             { wall, side: 'rear' as const },
         ]
     });
+
+    const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
+    results.push(topView);
+
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
         const modulesCloseToWall = filterNodesCloseToWall(allModuleNodes, wall.wallData!, side === 'rear', moduleCloseToWallDistanceThreshold)
