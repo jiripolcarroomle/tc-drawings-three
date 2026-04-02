@@ -110,10 +110,15 @@ export const renderScene: IRenderDrawing = async function (
 
     const pngDataUrl = rasterRenderer(threeScene, camera, adjustedWidth, adjustedHeight);
 
-    const worldToViewMatrix =
-        new TC.Matrix4().fromArray(camera.projectionMatrix.elements).multiply(
-            new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements)
-        );
+    const imageSpaceMatrix = new TC.Matrix4().set(
+        adjustedWidth / 2, 0, 0, adjustedWidth / 2,
+        0, -adjustedHeight / 2, 0, adjustedHeight / 2,
+        0, 0, 0.5, 0.5,
+        0, 0, 0, 1,
+    );
+    const worldToViewMatrix = imageSpaceMatrix
+        .multiply(new TC.Matrix4().fromArray(camera.projectionMatrix.elements))
+        .multiply(new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements));
 
 
 

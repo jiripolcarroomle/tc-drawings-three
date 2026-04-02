@@ -49,7 +49,7 @@ export interface IRenderOrthoCameraParams {
  * Result of the rendered drawing.
  */
 export interface IRenderOrthoCameraResult {
-    /** the matrix transforming world coordinates to view coordinates */
+    /** the matrix transforming world coordinates to output image pixel coordinates */
     worldToViewMatrix: TC.Matrix4;
     /** the rendered data */
     renderedResult: any;
