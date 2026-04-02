@@ -1,9 +1,9 @@
 import * as  flatted from 'flatted'
 
 
-//import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
-import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+// import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 import { appOrderFunction } from './orderfunction'
 
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'

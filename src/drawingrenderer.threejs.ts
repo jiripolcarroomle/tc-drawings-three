@@ -90,18 +90,40 @@ export const renderScene: IRenderDrawing = async function (
     camera.far = settings.far ?? computedFar;
     camera.updateProjectionMatrix();
 
-    const worldToViewMatrix = new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements);
 
-    const outputWidth = Math.max(1, Math.round(settings.width ?? 1200));
-    const outputHeight = Math.max(1, Math.round(settings.height ?? 800));
 
-    const pngDataUrl = rasterRenderer(threeScene, camera, outputWidth, outputHeight);
+    // compute image size so that the image is not streched in width or height and does not exceed the maximum
+    const outputWidth = settings.drawingMaxWidth ?? 1200;
+    const outputHeight = settings.drawingMaxHeight ?? 800;
+
+    const frustrumRatio = (camera.right - camera.left) / (camera.top - camera.bottom);
+    const imageRatio = outputWidth / outputHeight;
+
+    const scale = frustrumRatio > imageRatio
+        ? (camera.right - camera.left) / outputWidth
+        : (camera.top - camera.bottom) / outputHeight;
+
+    const adjustedWidth = Math.ceil((camera.right - camera.left) / scale);
+    const adjustedHeight = Math.ceil((camera.top - camera.bottom) / scale);
+
+
+
+    const pngDataUrl = rasterRenderer(threeScene, camera, adjustedWidth, adjustedHeight);
+
+    const worldToViewMatrix =
+        new TC.Matrix4().fromArray(camera.projectionMatrix.elements).multiply(
+            new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements)
+        );
+
+
 
 
     return {
         worldToViewMatrix,
         renderedResult: { image: pngDataUrl },
         renderedScene: threeScene,
+        imageHeight: adjustedHeight,
+        imageWidth: adjustedWidth,
     };
 
 }

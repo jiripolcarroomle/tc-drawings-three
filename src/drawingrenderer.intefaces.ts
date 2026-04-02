@@ -29,10 +29,10 @@ export interface ISceneGeometryConversionSettings {
 export interface IRenderOrthoCameraParams {
     /** direction of the camera, if unprovided, down direction will be used */
     direction?: TC.Vector3;
-    /** output image width in pixels */
-    width?: number;
-    /** output image height in pixels */
-    height?: number;
+    /** Output maximum image width in pixels. The actual size will depend on the content. */
+    drawingMaxWidth?: number;
+    /** Output maximum image height in pixels. The actual size will depend on the content. */
+    drawingMaxHeight?: number;
     
     /*
      * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
@@ -55,5 +55,7 @@ export interface IRenderOrthoCameraResult {
     renderedResult: any;
     /** the rendered scene */
     renderedScene: any;
+    imageWidth: number;
+    imageHeight: number;
 }
 

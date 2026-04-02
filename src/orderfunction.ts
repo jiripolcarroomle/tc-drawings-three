@@ -1,4 +1,4 @@
-import type { IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
+import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
 import type { IExtendedDrawingRenderSettings } from "./drawingrenderer.theejs.helpers";
 import { renderScene } from "./drawingrenderer.threejs";
 import { createScene } from "./scene.implementation";
@@ -34,8 +34,12 @@ export async function appOrderFunction(o: any, ol: any) {
         doNotFetchMeshes: true,
         // three.js property - angle in degrees between adjacent faces above which an edge will be rendered
         edgesGeometryThresholdAngle: 10,
-    }
+            }
     const moduleCloseToWallDistanceThreshold = 300; // in mm
+    const orthoCameraRenderSettings: IRenderOrthoCameraParams = {
+        drawingMaxWidth: 1920,
+        drawingMaxHeight: 1080,
+    }
 
     const partsNameFilter = (node: IOrderSceneNode) => {
         // filter out tiny parts that are not important for the overview drawings
@@ -116,7 +120,7 @@ export async function appOrderFunction(o: any, ol: any) {
 
         const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.copy().scale(-1);
 
-        const result = await renderScene(orderScene, renderingFilter, drawingSettings, { direction: cameraDirection });
+        const result = await renderScene(orderScene, renderingFilter, drawingSettings, {  ...orthoCameraRenderSettings, direction: cameraDirection });
         results.push(result);
 
         // do something with the result, e.g. display the rendered image
