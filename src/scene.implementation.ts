@@ -114,6 +114,7 @@ export class OrderSceneNode implements IOrderSceneNode {
 
         const size = this._geometry.size;
         if (size) {
+            const geometryWorldTransform = this.worldTransform.clone().multiply(this._geometry.origin);
             const localCorners = [
                 new Vector3(0, 0, 0),
                 new Vector3(size._x, 0, 0),
@@ -125,7 +126,7 @@ export class OrderSceneNode implements IOrderSceneNode {
                 new Vector3(size._x, size._y, size._z),
             ];
             localCorners.forEach(corner => {
-                const worldCorner = corner.applyMatrix4(this.worldTransform);
+                const worldCorner = corner.applyMatrix4(geometryWorldTransform);
                 worldCorners.push(worldCorner);
             });
 
@@ -251,6 +252,7 @@ export class OrderSceneNode implements IOrderSceneNode {
         source._childParts.forEach((childPart: any /* PartBase */) => {
             OrderSceneNode.createScenePartNodeFromPartBase(childPart, posGroupNode);
         });
+        partNode._geometry.origin.setPosition(source._x ?? 0, source._y ?? 0, source._z ?? 0);
         partNode._geometry.size = new Vector3(source._dimx, source._dimy, source._dimz);
         if (source._extrude) {
             partNode._geometry.svgString = source._extrude.svg;

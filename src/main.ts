@@ -2,10 +2,11 @@ import * as  flatted from 'flatted'
 import * as TC from "./tc/base";
 
 
+// import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
-import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-// import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 import { appOrderFunction } from './orderfunction'
+import type { IOrderSceneNode } from './scene.interfaces';
 
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
@@ -23,13 +24,13 @@ const run = async () => {
     // Create SVG element
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("width", "100%");
-    svg.setAttribute("height", "auto");
+    svg.setAttribute("width", (result.imageWidth / 2).toString());
+    svg.setAttribute("height", (result.imageHeight / 2).toString());
     svg.setAttribute("viewBox", `0 0 ${result.imageWidth} ${result.imageHeight}`); // Default, or you can use actual image size if available
 
     // Create <image> element and embed PNG
     const image = document.createElementNS(svgNS, "image");
-    image.setAttributeNS(null, "href", result.renderedResult.image);
+    image.setAttributeNS(null, "href", result.image.image);
     image.setAttribute("x", "0");
     image.setAttribute("y", "0");
     image.setAttribute("width", result.imageWidth.toString());
@@ -37,21 +38,38 @@ const run = async () => {
 
     svg.appendChild(image);
 
-    const worldToViewMatrix = result.worldToViewMatrix.elements;
-    [
-      new TC.Vector3(4815, 0, -3690),
-      new TC.Vector3(4815 - 561, 820, -3690 + 600),
-    ].forEach(vector => {
-      const pointToDisplay = vector.applyMatrix4(new TC.Matrix4().fromArray(worldToViewMatrix)) as TC.Vector3;
-      console.log('Transformed point:', pointToDisplay);
+    const worldToViewMatrix = new TC.Matrix4().fromArray(result.worldToViewMatrix.elements);
 
-      // Add annotation (example: a red circle at the transformed point)
-      const annotation = document.createElementNS(svgNS, "circle");
-      annotation.setAttribute("cx", pointToDisplay._x.toString());
-      annotation.setAttribute("cy", pointToDisplay._y.toString());
-      annotation.setAttribute("r", "10");
-      annotation.setAttribute("fill", "red");
-      svg.appendChild(annotation);
+    const points = result.data?.modulesCloseToWall?.flatMap((moduleNode: IOrderSceneNode) => {
+      return { points: moduleNode.getAllBBoxCornersInWorld(), moduleId: moduleNode.id };
+    });
+
+    points?.forEach((pointData: { points: TC.Vector3[]; moduleId: string }) => {
+      const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16); // Generate random color for each point
+      const displayPoints = pointData.points.map((point) => point.copy().applyMatrix4(worldToViewMatrix) as TC.Vector3);
+      const vector = displayPoints[0]; // Example: take the first corner of the bounding box
+      const label = pointData.moduleId; // Example: use module ID as label
+      const pointToDisplay = vector;
+      //console.log('Transformed point:', pointToDisplay);
+      
+      const text = document.createElementNS(svgNS, "text");
+      text.setAttribute("x", (pointToDisplay._x + 5).toString()); // Position label slightly to the right of the point
+      text.setAttribute("y", (pointToDisplay._y - 5).toString()); // Position label slightly above the point
+      text.setAttribute("font-size", "30");
+      text.setAttribute("fill", randomColor);
+      text.textContent = label;
+      svg.appendChild(text);
+      
+      displayPoints.forEach((displayPoint) => {
+        // Add a dot and a label
+        const annotation = document.createElementNS(svgNS, "circle");
+        annotation.setAttribute("cx", displayPoint._x.toString());
+        annotation.setAttribute("cy", displayPoint._y.toString());
+        annotation.setAttribute("r", "2");
+        annotation.setAttribute("fill", randomColor);
+        svg.appendChild(annotation);
+      });
+
     });
 
 

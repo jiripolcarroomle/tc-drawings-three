@@ -51,11 +51,15 @@ export interface IRenderOrthoCameraParams {
 export interface IRenderOrthoCameraResult {
     /** the matrix transforming world coordinates to output image pixel coordinates */
     worldToViewMatrix: TC.Matrix4;
-    /** the rendered data */
-    renderedResult: any;
-    /** the rendered scene */
-    renderedScene: any;
+    /** the rendered data in any format */
+    image: any;
+    /** the scene that has been rendered; useful for debugging or further processing */
+    renderedScene?: any;
+    /** the actual width of the rendered image in pixels or another unit */
     imageWidth: number;
+    /** the actual height of the rendered image in pixels or another unit */
     imageHeight: number;
+    /** additional metadata or information related to the rendered image */
+    data?: any;
 }
 

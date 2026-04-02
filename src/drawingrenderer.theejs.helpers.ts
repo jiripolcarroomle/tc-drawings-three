@@ -360,6 +360,9 @@ export async function orderObjectNodeToThreeObject3D(
     }
     else if (geom.meshUrl) {
         const objGrp = await _loadObject3DFromCacheOrFetch(geom.meshUrl, undefined, node.id);
+        const originX = geom.origin.elements[12];
+        const originY = geom.origin.elements[13];
+        const originZ = geom.origin.elements[14];
 
         let bbox = new THREE.Box3().setFromObject(objGrp);
         let bsize = new THREE.Vector3(0, 0, 0);
@@ -377,9 +380,9 @@ export async function orderObjectNodeToThreeObject3D(
         bbox = new THREE.Box3().setFromObject(objGrp);
         m4 = new THREE.Matrix4();
         m4.setPosition(
-            node.orderLineEntry!._x - bbox.min.x,
-            node.orderLineEntry!._y - bbox.min.y,
-            node.orderLineEntry!._z - bbox.min.z
+            originX - bbox.min.x,
+            originY - bbox.min.y,
+            originZ - bbox.min.z
         );
         objGrp.applyMatrix4(m4);
 
@@ -395,9 +398,9 @@ export async function orderObjectNodeToThreeObject3D(
             drawingRenderSettings,
             (object) => {
                 object.position.copy(new THREE.Vector3(
-                    node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
-                    node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
-                    node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
+                    geom.origin.elements[12] + geom.size._x / 2,
+                    geom.origin.elements[13] + geom.size._y / 2,
+                    geom.origin.elements[14] + geom.size._z / 2,
                 ));
             },
         );
