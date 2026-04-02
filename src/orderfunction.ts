@@ -1,3 +1,4 @@
+import { all } from "three/tsl";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
 import type { IExtendedDrawingRenderSettings } from "./drawingrenderer.theejs.helpers";
 import { renderScene } from "./drawingrenderer.threejs";
@@ -90,6 +91,9 @@ export async function appOrderFunction(o: any, ol: any) {
     });
 
     const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
+    topView.data = {
+        modulesInDrawing: [...allModuleNodes],
+    }
     results.push(topView);
 
     for (const wallAndSide of allWallSides) {
@@ -126,7 +130,7 @@ export async function appOrderFunction(o: any, ol: any) {
 
         const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
         if (!result.data) { result.data = {}; }
-        result.data.modulesCloseToWall = modulesCloseToWall;
+        result.data.modulesInDrawing = modulesCloseToWall;
         results.push(result);
 
         // do something with the result, e.g. display the rendered image

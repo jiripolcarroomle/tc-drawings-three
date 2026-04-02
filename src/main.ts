@@ -40,7 +40,7 @@ const run = async () => {
 
     const worldToViewMatrix = new TC.Matrix4().fromArray(result.worldToViewMatrix.elements);
 
-    const points = result.data?.modulesCloseToWall?.flatMap((moduleNode: IOrderSceneNode) => {
+    const points = result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
       return { points: moduleNode.getAllBBoxCornersInWorld(), moduleId: moduleNode.id };
     });
 
