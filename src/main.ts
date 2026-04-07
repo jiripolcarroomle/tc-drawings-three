@@ -3,14 +3,15 @@ import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 
 
 // import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-//
-import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/10000141.flatted.json?raw'
+//import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 import { appOrderFunction } from './orderfunction'
 import type { IOrderSceneNode } from './scene.interfaces';
+import { filterAnnotationForModule, type IAnnotation } from './annotationstable';
 
-//import orderJsonRaw from '../assets/10000141.flatted.json?raw'
-//import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 
 const orderJson = parseFlattedWithNestedPropertyValues<{ o: unknown; ol: unknown }>(orderJsonRaw)
@@ -41,11 +42,29 @@ const run = async () => {
 
     const worldToViewMatrix = new TC.Matrix4().fromArray(result.worldToViewMatrix.elements);
 
-    const points = result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
-      return { points: moduleNode.getAllBBoxCornersInWorld(), moduleId: moduleNode.id };
+    const points: { points: TC.Vector3[]; moduleId: string }[] = result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
+      const moduleData = moduleNode.orderLineEntry;
+      const id = moduleData!.modId;
+      const annotations = filterAnnotationForModule(id, moduleData, result.data);
+      if (annotations.length > 0) {
+        const result = { points: [], moduleId: id };
+        annotations.forEach((annotation: IAnnotation) => {
+          const annotablePoints = annotation.out_AnnotablePoints(moduleData);
+          const drawingAnnotablePoints = annotablePoints.map(ap => ap.coordinate.copy().applyMatrix4(moduleNode.worldTransform) as TC.Vector3);
+          result.points.push(...drawingAnnotablePoints);
+        });
+        // If there are annotations, get the points from the annotations
+        return result;
+      }
+      else {
+        return null;;
+        //return { points: moduleNode.getAllBBoxCornersInWorld(), moduleId: id };
+      }
+
     });
 
     points?.forEach((pointData: { points: TC.Vector3[]; moduleId: string }) => {
+      if (!pointData) { return; }
       const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16); // Generate random color for each point
       const displayPoints = pointData.points.map((point) => point.copy().applyMatrix4(worldToViewMatrix) as TC.Vector3);
       const vector = displayPoints[0]; // Example: take the first corner of the bounding box
@@ -66,7 +85,7 @@ const run = async () => {
         const annotation = document.createElementNS(svgNS, "circle");
         annotation.setAttribute("cx", displayPoint._x.toString());
         annotation.setAttribute("cy", displayPoint._y.toString());
-        annotation.setAttribute("r", "2");
+        annotation.setAttribute("r", "5");
         annotation.setAttribute("fill", randomColor);
         svg.appendChild(annotation);
       });
