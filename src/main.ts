@@ -1,10 +1,11 @@
-import * as  flatted from 'flatted'
 import * as TC from "./tc/base";
+import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 
 
 // import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 //
 import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+
 import { appOrderFunction } from './orderfunction'
 import type { IOrderSceneNode } from './scene.interfaces';
 
@@ -12,7 +13,7 @@ import type { IOrderSceneNode } from './scene.interfaces';
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 
-const orderJson = flatted.parse(orderJsonRaw)
+const orderJson = parseFlattedWithNestedPropertyValues<{ o: unknown; ol: unknown }>(orderJsonRaw)
 
 // get the html document
 const document = window.document;
@@ -51,7 +52,7 @@ const run = async () => {
       const label = pointData.moduleId; // Example: use module ID as label
       const pointToDisplay = vector;
       //console.log('Transformed point:', pointToDisplay);
-      
+
       const text = document.createElementNS(svgNS, "text");
       text.setAttribute("x", (pointToDisplay._x + 5).toString()); // Position label slightly to the right of the point
       text.setAttribute("y", (pointToDisplay._y - 5).toString()); // Position label slightly above the point
@@ -59,7 +60,7 @@ const run = async () => {
       text.setAttribute("fill", randomColor);
       text.textContent = label;
       svg.appendChild(text);
-      
+
       displayPoints.forEach((displayPoint) => {
         // Add a dot and a label
         const annotation = document.createElementNS(svgNS, "circle");

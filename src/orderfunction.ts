@@ -134,7 +134,7 @@ export async function appOrderFunction(o: any, ol: any) {
         results.push(result);
 
         // do something with the result, e.g. display the rendered image
-        console.log(`Rendered image for wall ${wall.id} (${side} side) with ${modulesCloseToWall.length} close modules:`);
+        console.log(`Rendered image or wall ${wall.id} (${side} side) with ${modulesCloseToWall.length} close modules.`);
     }
 
 
