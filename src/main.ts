@@ -3,14 +3,15 @@ import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 
 
 // import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
-//import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+// import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
+//
+import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 import { appOrderFunction } from './orderfunction'
 import type { IOrderSceneNode } from './scene.interfaces';
-import { filterAnnotationForModule, type IAnnotation } from './annotationstable';
+import { filterAnnotationForModule, type IAnnotation, type SvgInjection } from './annotationstable';
 
 
 
@@ -42,7 +43,10 @@ const run = async () => {
 
     const worldToViewMatrix = new TC.Matrix4().fromArray(result.worldToViewMatrix.elements);
 
-    const points: { points: TC.Vector3[]; moduleId: string }[] = result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
+    const points: { points: TC.Vector3[]; moduleId: string }[] = [];
+    const svgInjections: { injection: SvgInjection; moduleId: string }[] = [];
+
+    result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
       const moduleData = moduleNode.orderLineEntry;
       const id = moduleData!.modId;
       const annotations = filterAnnotationForModule(id, moduleData, result.data);
@@ -51,17 +55,27 @@ const run = async () => {
         annotations.forEach((annotation: IAnnotation) => {
           const annotablePoints = annotation.out_AnnotablePoints(moduleData);
           const drawingAnnotablePoints = annotablePoints.map(ap => ap.coordinate.copy().applyMatrix4(moduleNode.worldTransform) as TC.Vector3);
-          result.points.push(...drawingAnnotablePoints);
+          points.push({ points: drawingAnnotablePoints, moduleId: id });
+          const svgInjection = annotation.out_SvgInjections(moduleData);
+          svgInjection.forEach(injection => {
+            injection.path.forEach(cmd => {
+              if (cmd.coordinate3d) {
+                cmd.coordinate3d.applyMatrix4(moduleNode.worldTransform);
+              }
+            });
+            svgInjections.push({ injection, moduleId: id });
+          });
         });
         // If there are annotations, get the points from the annotations
         return result;
       }
       else {
-        return null;;
+        return null;
         //return { points: moduleNode.getAllBBoxCornersInWorld(), moduleId: id };
       }
 
     });
+
 
     points?.forEach((pointData: { points: TC.Vector3[]; moduleId: string }) => {
       if (!pointData) { return; }
@@ -71,14 +85,15 @@ const run = async () => {
       const label = pointData.moduleId; // Example: use module ID as label
       const pointToDisplay = vector;
       //console.log('Transformed point:', pointToDisplay);
-
-      const text = document.createElementNS(svgNS, "text");
-      text.setAttribute("x", (pointToDisplay._x + 5).toString()); // Position label slightly to the right of the point
-      text.setAttribute("y", (pointToDisplay._y - 5).toString()); // Position label slightly above the point
-      text.setAttribute("font-size", "30");
-      text.setAttribute("fill", randomColor);
-      text.textContent = label;
-      svg.appendChild(text);
+      if (pointToDisplay) {
+        const text = document.createElementNS(svgNS, "text");
+        text.setAttribute("x", (pointToDisplay._x + 5).toString()); // Position label slightly to the right of the point
+        text.setAttribute("y", (pointToDisplay._y - 5).toString()); // Position label slightly above the point
+        text.setAttribute("font-size", "30");
+        text.setAttribute("fill", randomColor);
+        text.textContent = label;
+        svg.appendChild(text);
+      }
 
       displayPoints.forEach((displayPoint) => {
         // Add a dot and a label
@@ -92,7 +107,34 @@ const run = async () => {
 
     });
 
+    svgInjections.forEach(({ injection, moduleId }) => {
+      const path = document.createElementNS(svgNS, "path");
+      const d = injection.path.map(cmd => {
+        if (cmd.command === 'Z') {
+          return 'Z';
+        }
 
+        const coord2d = cmd.coordinate3d!.copy().applyMatrix4(worldToViewMatrix) as TC.Vector3;
+        return `${cmd.command} ${coord2d._x} ${coord2d._y}`;
+      }).join(' ');
+      path.setAttribute("d", d);
+      if (injection.fill) {
+        path.setAttribute("fill", injection.fill);
+      } else {
+        path.setAttribute("fill", "none");
+      }
+      if (injection.stroke) {
+        path.setAttribute("stroke", injection.stroke);
+      }
+      if (injection['stroke-dasharray']) {
+        path.setAttribute("stroke-dasharray", injection['stroke-dasharray']);
+      }
+      if (injection['stroke-width']) {
+        path.setAttribute("stroke-width", injection['stroke-width']);
+      }
+      svg.appendChild(path);
+
+    });
 
 
     document.body.appendChild(svg);

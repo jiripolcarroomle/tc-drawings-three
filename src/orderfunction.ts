@@ -1,4 +1,3 @@
-import { all } from "three/tsl";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
 import type { IExtendedDrawingRenderSettings } from "./drawingrenderer.theejs.helpers";
 import { renderScene } from "./drawingrenderer.threejs";
@@ -70,11 +69,23 @@ export async function appOrderFunction(o: any, ol: any) {
     }
 
     // get all content nodes (modules)
-    const allModuleNodes = orderScene.children // root
+    const allModuleNodesIncludingGenerationModules = orderScene.children // root
         .filter(child => child.kind === Object3DNodeKind.Group || child.kind === Object3DNodeKind.PosGroup)
         .flatMap(group => group.children) // pos-groups
         .flatMap(group => group.children) // module + part candidates
         .filter(node => node.kind === Object3DNodeKind.Module);
+
+        const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry?._isGenerated);
+
+        const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
+
+        generationModules.forEach(generationModule => {
+            // find the module that has the same modId as the generation module and is not generated
+           generationModule.children.forEach(generationModuleChild => {
+            allModuleNodes.push(generationModuleChild);
+           }); 
+        });
+
 
     // get all walls in the order
     const allWalls = orderScene.children.find(child => child.kind === Object3DNodeKind.WallGroup)?.children ?? [];
