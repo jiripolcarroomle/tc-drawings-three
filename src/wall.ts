@@ -1,4 +1,5 @@
-import { OrderSceneNode } from "./scene";
+import { OrderSceneNode } from "./scene.implementation";
+import { type IOrderSceneNode } from "./scene.interface";
 import { IdsMap } from "./idsmap";
 import { Vector3 } from "./tc/base";
 
@@ -158,4 +159,40 @@ export interface PosContourSegment {
 export interface PosContour {
     level: number;
     segments: PosContourSegment[];
+}
+
+
+/**
+ * Filters nodes that are within a certain distance from a wall segment.
+ * This is solved in footprint in 2D
+ * @param nodes the nodes to filter
+ * @param wallSegment the wall segment to check against
+ * @param backSide whether to check the distance to the wall's back side instead of the front side
+ * @param distance the maximum distance from the wall segment to consider a node as close
+ * @returns Filtered array of nodes that are within the specified distance from the wall segment.
+ */
+export function filterNodesCloseToWall(nodes: IOrderSceneNode[], wallSegment: IWallSegment, backSide: boolean, distance: number): IOrderSceneNode[] {
+    const wallStart = backSide ? wallSegment.segmentBackStart : wallSegment.segmentStart;
+    const wallEnd = backSide ? wallSegment.segmentBackEnd : wallSegment.segmentEnd;
+    const normalFromWall = backSide ? wallSegment.normalToWall : wallSegment.normalToWall.scale(-1);
+
+    const result: IOrderSceneNode[] = [];
+
+    for (const node of nodes) {
+        const allCorners = node.getAllBBoxCornersInWorld();
+        for (const corner of allCorners) {
+            const toCorner = corner.subtract(wallStart);
+            const projectionLength = toCorner.dot(wallEnd.subtract(wallStart).normalize());
+            const projectionPoint = wallStart.add(wallEnd.subtract(wallStart).normalize().scale(projectionLength));
+            const distanceToWall = corner.subtract(projectionPoint).dot(normalFromWall);
+            // floating point tolerance ... maybe down to >= -wallThickness / 2?
+            if (distanceToWall >= -1 && distanceToWall <= distance) {
+                result.push(node);
+                break;
+            }
+        }
+
+    }
+
+    return result;
 }

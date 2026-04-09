@@ -1,4 +1,4 @@
-import type { IObject3DNode } from "./scene";
+import type { IOrderSceneNode } from "./scene.interface";
 
 
 /**
@@ -10,7 +10,7 @@ import type { IObject3DNode } from "./scene";
 export class IdsMap {
     static readonly MAX_UNIQUE_ID_ATTEMPTS = 1000;
 
-    readonly #objects = new Map<string, IObject3DNode>();
+    readonly #objects = new Map<string, IOrderSceneNode>();
 
     /**
      * Returns the registered node for the given ID, if present.
@@ -18,7 +18,7 @@ export class IdsMap {
      * @param id ID to look up.
      * @returns The registered node or `undefined` when the ID is not known.
      */
-    get(id: string): IObject3DNode | undefined {
+    get(id: string): IOrderSceneNode | undefined {
         return this.#objects.get(id);
     }
 
@@ -38,30 +38,13 @@ export class IdsMap {
      * @param node Node to register.
      * @throws Error if a different node is already registered under the same ID.
      */
-    register(node: IObject3DNode): void {
+    register(node: IOrderSceneNode): void {
         const existingNode = this.#objects.get(node.id);
         if (existingNode && existingNode !== node) {
             throw new Error(`IdsMap: Cannot register duplicate ID ${node.id}`);
         }
 
         this.#objects.set(node.id, node);
-    }
-
-    /**
-     * Unregisters a node from the map.
-     *
-     * Passing the node instance protects against accidentally deleting a newer
-     * registration that reused the same ID.
-     *
-     * @param node Node to unregister.
-     * @returns `true` if the node was removed, otherwise `false`.
-     */
-    unregister(node: IObject3DNode): boolean {
-        if (this.#objects.get(node.id) !== node) {
-            return false;
-        }
-
-        return this.#objects.delete(node.id);
     }
 
     /**
@@ -106,7 +89,7 @@ export class IdsMap {
             tryId = `${id}_${counter++}`;
             if (counter > IdsMap.MAX_UNIQUE_ID_ATTEMPTS) {
                 throw new Error(
-                    `IdsMap: Failed to generate a unique ID based on ${id} after ${IdsMap.MAX_UNIQUE_ID_ATTEMPTS} attempts`,
+                    `IdsMap: Failed to generate a unique ID based on ${id} after ${IdsMap.MAX_UNIQUE_ID_ATTEMPTS} attempts.`,
                 );
             }
         }

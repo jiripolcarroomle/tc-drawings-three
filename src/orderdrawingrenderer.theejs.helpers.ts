@@ -1,27 +1,23 @@
 import * as THREE from "three";
-import { SVGLoader, type SVGResultPaths } from 'three/addons/loaders/SVGLoader.js';
-import { OBJLoader } from "three/examples/jsm/Addons.js";
-import { type IObject3DNode, type ISceneGeometryConversionSettings, Object3DNodeKind } from "./scene";
+import { OBJLoader, SVGLoader, type SVGResultPaths } from "three/examples/jsm/Addons.js";
+import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
+import { Object3DNodeKind } from "./scene.interface";
+import { type IOrderSceneNode } from "./scene.interface";
 import * as TC from "./tc/base";
+import { logError, logWarning, logInfo } from "./tc/base";
+import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
-interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
+export interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
     edgesGeometryThresholdAngle?: number;
+    cameraDirection?: TC.Vector3;
 }
 
 
 type ThreeFacadeHmrData = {
     object3dCache?: Map<string, THREE.Object3D>;
 };
-
 const _hmrData = (import.meta as any).hot?.data as ThreeFacadeHmrData | undefined;
-
-
-// Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
-// Only the Object3D cache is persisted across Vite HMR updates to avoid
-// re-downloading meshes while iterating.
-const _svgShapeCache = new Map<string, THREE.Shape[]>();
 const _object3dCache: Map<string, THREE.Object3D> = _hmrData?.object3dCache ?? new Map();
-
 if (_hmrData) {
     _hmrData.object3dCache = _object3dCache;
 }
@@ -54,8 +50,7 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
             if (cachedResponse) {
                 return await cachedResponse.text();
             }
-
-            console.log(`OBJ fetch ${url}`);
+            logInfo(`OBJ fetch ${url}`);
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
@@ -64,12 +59,12 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
                 await cache.put(url, response.clone());
             } catch (e) {
                 // Cache put can fail for opaque/cors responses or storage limits.
-                console.warn(`OBJ CacheStorage put failed for ${url}: ${e}`);
+                logWarning(`OBJ CacheStorage put failed for ${url}: ${e}`);
             }
             return await response.text();
         }
     } catch (e) {
-        console.warn(`OBJ CacheStorage error for ${url}: ${e}`);
+        logWarning(`OBJ CacheStorage error for ${url}: ${e}`);
     }
 
     const response = await fetch(url);
@@ -79,34 +74,7 @@ async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
     return await response.text();
 }
 
-function _loadSvgShapesFromCacheOrParse(
-    svg: string,
-    partIdForLogging?: string
-): THREE.Shape[] {
-    if (_svgShapeCache.has(svg)) {
-        return _svgShapeCache.get(svg)!;
-    }
 
-    let shapes: THREE.Shape[] = [];
-    try {
-        const svgData = svgLoader.parse(svg);
-        if (svgData.paths.length <= 0) {
-            console.error(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
-        }
-        svgData.paths.forEach((path: SVGResultPaths) => {
-            const pathIsCCW =
-                path.subPaths.length > 0 &&
-                !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
-            shapes = shapes.concat(path.toShapes(pathIsCCW));
-        });
-    } catch (e) {
-        console.error(
-            `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
-        );
-    }
-    _svgShapeCache.set(svg, shapes);
-    return shapes;
-}
 
 const objLoader = new OBJLoader();
 
@@ -131,14 +99,12 @@ async function _loadObject3DFromCacheOrFetch(
             });
         }
     } catch (e) {
-        console.error(
+        logError(
             `Failed to fetch 3d model for part: ${partIdForLogging ?? ''} exception: ${e}`
         );
+        // we need to return something
         obj = new THREE.Group();
-        const errMaterial = material?.clone() ?? new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        errMaterial.transparent = true;
-        errMaterial.opacity = 0.5;
-        // add a box
+        obj.name = `Failed to load: ${url}`;
     }
 
     _object3dCache.set(url, obj);
@@ -274,21 +240,42 @@ function _addRenderableWithOptionalWireframe(
  * @returns Three.js scene containing the converted object hierarchy.
  */
 export async function sceneToThreeJsScene(
-    rootObject3DNode: IObject3DNode,
+    rootObject3DNode: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
-    const rootThreeObject = await orderObjectNodeToThreeObject3D(rootObject3DNode, drawingRenderSettings, filter);
-    if (rootThreeObject) {
-        threeScene.add(rootThreeObject);
+    const material = drawingRenderSettings.material ?? new THREE.MeshBasicMaterial({ color: 0xcccccc });
+    (material as THREE.MeshBasicMaterial).polygonOffset = true;
+    (material as THREE.MeshBasicMaterial).polygonOffsetFactor = 1;
+    (material as THREE.MeshBasicMaterial).polygonOffsetUnits = 1;
+
+    const wallsMaterial = drawingRenderSettings.wallsMaterial ?? undefined;
+    if (wallsMaterial) {
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffset = true;
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffsetFactor = 1;
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffsetUnits = 1;
     }
+
+    const wallsWireframeMaterial = drawingRenderSettings.wallsWireframeMaterial ?? (wallsMaterial ? drawingRenderSettings.wireframeMaterial : undefined);
+
+    const settings = { ...drawingRenderSettings, material, wallsMaterial, wallsWireframeMaterial };
+
+
+    const rootObject = await orderObjectNodeToThreeObject3D(
+        rootObject3DNode,
+        drawingRenderSettings,
+        filter,
+    );
+    if (rootObject) {
+        threeScene.add(rootObject);
+    }
+
+    threeScene.updateMatrixWorld(true);
 
     return threeScene;
 }
-
-const svgLoader = new SVGLoader();
 
 /**
  * Converts a custom scene node and its descendants into a Three.js object tree.
@@ -302,9 +289,9 @@ const svgLoader = new SVGLoader();
  * @returns Three.js object representing the source subtree.
  */
 export async function orderObjectNodeToThreeObject3D(
-    node: IObject3DNode,
+    node: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
-    filter: ((node: IObject3DNode) => boolean) | undefined = undefined,
+    filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<THREE.Object3D | null> {
     const passesFilter = !filter || filter(node);
     if (!passesFilter) {
@@ -313,7 +300,6 @@ export async function orderObjectNodeToThreeObject3D(
 
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
-    threeObject.userData.kind = node.kind;
     // set transform
     threeObject.matrix.fromArray(node.transform.elements);
     threeObject.matrixAutoUpdate = false; // we will manage the matrix updates manually
@@ -321,97 +307,26 @@ export async function orderObjectNodeToThreeObject3D(
     const geom = node.geometry(drawingRenderSettings);
 
     const mainMaterial = node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsMaterial : drawingRenderSettings.material;
-    const wireframeMaterial = drawingRenderSettings.wireframeMaterial;
+    const wireframeMaterial =  node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsWireframeMaterial : drawingRenderSettings.wireframeMaterial;
 
     if (geom.hidden) {
         return null;
     }
-    else if (geom.svgPath?.length) {
-        const shape = new THREE.Shape();
-
-        // The svgPath points in this project are authored in world X/Z (see wall creation).
-        // Make them local to the node transform (avoid double translation), and map them
-        // into Shape's 2D (x, y) such that after rotating the extrude mesh by -90° around X:
-        // - the shape lies in world XZ
-        // - the extrusion depth becomes world +Y
-        const te = node.transform.elements;
-        const originX = te[12] ?? 0;
-        const originZ = te[14] ?? 0;
-
-        let hasAnyZ = false;
-        let hasStarted = false;
-
-        for (const pathNode of geom.svgPath) {
-            if (pathNode.command === 'Z') {
-                shape.closePath();
-                hasAnyZ = true;
-                continue;
-            }
-
-            const args = pathNode.args;
-            if (!args || args.length < 2) continue;
-
-            const worldX = args[0];
-            const worldZ = args[1];
-
-            const localX = worldX - originX;
-            const localZ = worldZ - originZ;
-
-            // Shape is XY; we want final world Z to be +localZ after a -90° X rotation.
-            const x = localX;
-            const y = -localZ;
-
-            if (pathNode.command === 'M' || !hasStarted) {
-                shape.moveTo(x, y);
-                hasStarted = true;
-            } else if (pathNode.command === 'L') {
-                shape.lineTo(x, y);
-            }
-        }
-
-        if (!hasAnyZ) {
-            shape.closePath();
-        }
-
-        const extrudeSettings: THREE.ExtrudeGeometryOptions = {
-            steps: 1,
-            depth: geom.svgDepth ?? 1,
-        };
-
-        const mainGeometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-
-        _addRenderableWithOptionalWireframe(
-            threeObject,
-            mainGeometry,
-            mainMaterial,
-            wireframeMaterial,
-            drawingRenderSettings,
-            (object) => {
-                // Rotate so extrusion is "up" in the scene (world +Y).
-                if (geom.svgExtrusionDirection === 'z' || !geom.svgExtrusionDirection) {
-                    object.rotation.x = -Math.PI / 2;
-                }
-                else if (geom.svgExtrusionDirection === 'x') {
-                    object.rotation.z = Math.PI / 2;
-                }
-            },
-        );
-    }
     else if (geom.svgString) {
-        let shapes: THREE.Shape[] = _loadSvgShapesFromCacheOrParse(geom.svgString);
+        let shapes: THREE.Shape[] = loadSvgShapesFromCacheOrParse(geom.svgString);
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
-            extrusionDepth = node.orderLineEntry?._dimx ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimx ?? 1000;
             rot.makeRotationAxis(0, 1, 0, 270);
             extrusionDepth *= -1;
         } else if (geom.svgExtrusionDirection == 'y') {
-            extrusionDepth = node.orderLineEntry?._dimy ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimy ?? 1000;
             rot.makeRotationAxis(1, 0, 0, 90);
             extrusionDepth *= -1;
         }
         else {
-            extrusionDepth = node.orderLineEntry?._dimz ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimz ?? 1000;
             // rot.makeRotationAxis(1, 0, 0, MathUtils.degToRad(-90));
         }
 
@@ -459,6 +374,9 @@ export async function orderObjectNodeToThreeObject3D(
     }
     else if (geom.meshUrl) {
         const objGrp = await _loadObject3DFromCacheOrFetch(geom.meshUrl, undefined, node.id);
+        const originX = geom.origin.elements[12];
+        const originY = geom.origin.elements[13];
+        const originZ = geom.origin.elements[14];
 
         let bbox = new THREE.Box3().setFromObject(objGrp);
         let bsize = new THREE.Vector3(0, 0, 0);
@@ -476,9 +394,9 @@ export async function orderObjectNodeToThreeObject3D(
         bbox = new THREE.Box3().setFromObject(objGrp);
         m4 = new THREE.Matrix4();
         m4.setPosition(
-            node.orderLineEntry!._x - bbox.min.x,
-            node.orderLineEntry!._y - bbox.min.y,
-            node.orderLineEntry!._z - bbox.min.z
+            originX - bbox.min.x,
+            originY - bbox.min.y,
+            originZ - bbox.min.z
         );
         objGrp.applyMatrix4(m4);
 
@@ -494,9 +412,9 @@ export async function orderObjectNodeToThreeObject3D(
             drawingRenderSettings,
             (object) => {
                 object.position.copy(new THREE.Vector3(
-                    node.orderLineEntry?._x + node.orderLineEntry?._dimx / 2,
-                    node.orderLineEntry?._y + node.orderLineEntry?._dimy / 2,
-                    node.orderLineEntry?._z + node.orderLineEntry?._dimz / 2,
+                    geom.origin.elements[12] + geom.size!._x / 2,
+                    geom.origin.elements[13] + geom.size!._y / 2,
+                    geom.origin.elements[14] + geom.size!._z / 2,
                 ));
             },
         );
@@ -516,3 +434,97 @@ export async function orderObjectNodeToThreeObject3D(
 }
 
 
+export function _getBox3Corners(box: THREE.Box3): THREE.Vector3[] {
+    return [
+        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+    ];
+}
+
+export function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
+    const worldY = new THREE.Vector3(0, 1, 0);
+    if (Math.abs(direction.dot(worldY)) < 0.999) {
+        return worldY;
+    }
+    return new THREE.Vector3(0, 0, 1);
+}
+
+export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): string {
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(outputWidth, outputHeight, false);
+    renderer.setPixelRatio(1);
+    renderer.setClearColor(0xffffff, 1);
+    renderer.render(threeScene, camera);
+
+    const pngDataUrl = renderer.domElement.toDataURL('image/png');
+    renderer.dispose();
+    return pngDataUrl;
+}
+
+function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): SVGSVGElement {
+    const renderer = new SVGRenderer();
+    renderer.setSize(outputWidth, outputHeight);
+    renderer.render(threeScene, camera);
+    const svg = renderer.domElement as SVGSVGElement;
+    svg.classList.add('preview-image');
+    return svg;
+}
+
+
+// Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
+// Only the Object3D cache is persisted across Vite HMR updates to avoid
+// re-downloading meshes while iterating.
+const _svgShapeCache = new Map<string, THREE.Shape[]>();
+
+const svgLoader = new SVGLoader();
+
+
+ function loadSvgShapesFromCacheOrParse(
+    svg: string,
+    partIdForLogging?: string
+): THREE.Shape[] {
+    if (_svgShapeCache.has(svg)) {
+        return _svgShapeCache.get(svg)!;
+    }
+
+    let shapes: THREE.Shape[] = [];
+    try {
+        const svgData = svgLoader.parse(svg);
+        if (svgData.paths.length <= 0) {
+            logError(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
+        }
+        svgData.paths.forEach((path: SVGResultPaths) => {
+            const pathIsCCW =
+                path.subPaths.length > 0 &&
+                !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
+            shapes = shapes.concat(path.toShapes(pathIsCCW));
+        });
+    } catch (e) {
+        logError(
+            `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
+        );
+    }
+    _svgShapeCache.set(svg, shapes);
+    return shapes;
+}
+
+ function computeMinAndMaxFromShapes(svgString: string): { minX: number; minY: number; maxX: number; maxY: number } {
+    const shapes = loadSvgShapesFromCacheOrParse(svgString);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    shapes.forEach(shape => {
+        const points = shape.getPoints();
+        points.forEach(p => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        });
+    });
+    return { minX, minY, maxX, maxY };
+}
