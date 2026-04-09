@@ -1,38 +1,26 @@
-import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
-import type { IExtendedDrawingRenderSettings } from "./drawingrenderer.theejs.helpers";
-import { renderScene } from "./drawingrenderer.threejs";
+import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
+import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.theejs.helpers";
+import { renderScene } from "./orderdrawingrenderer.threejs";
 import { createScene } from "./scene.implementation";
-import { Object3DNodeKind, type IOrderSceneNode } from "./scene.interfaces";
+import { Object3DNodeKind, type IOrderSceneNode } from "./scene.interface";
 import { filterNodesCloseToWall } from "./wall";
 
 export async function appOrderFunction(o: any, ol: any) {
 
     const results: IRenderOrthoCameraResult[] = [];
 
-    // convert order to scene nodes
+    // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
     const orderScene = createScene(o, ol);
 
     // settings
     const drawingSettings: IExtendedDrawingRenderSettings = {
-        material: {
-            color: 0xcccccc,
-            // three.js properties - he edges to avoid z-fighting with the edge lines
-            polygonOffset: true,
-            polygonOffsetFactor: 1,
-            polygonOffsetUnits: 1,
-        },
-        wireframeMaterial: {
-            color: 0x000000,
-        },
-        wallsMaterial: {
-            color: 0x555555,
-            polygonOffset: true,
-            polygonOffsetFactor: 1,
-            polygonOffsetUnits: 1,
-        },
+        material: { color: 0xcccccc, },
+        wireframeMaterial: { color: 0x000000, },
+        wallsMaterial: { color: 0x555555, },
+        wallsWireframeMaterial: { color: 0x000000, },
         // will not fetch meshes and will render bounding boxes of the meshes instead
         doNotFetchMeshes: true,
-        // three.js property - angle in degrees between adjacent faces above which an edge will be rendered
+        // three.js renderer property - angle in degrees between adjacent faces above which an edge will be rendered
         edgesGeometryThresholdAngle: 10,
     }
     const moduleCloseToWallDistanceThreshold = 300; // in mm
@@ -75,16 +63,16 @@ export async function appOrderFunction(o: any, ol: any) {
         .flatMap(group => group.children) // module + part candidates
         .filter(node => node.kind === Object3DNodeKind.Module);
 
-        const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry?._isGenerated);
+    const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry?._isGenerated);
 
-        const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
+    const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
 
-        generationModules.forEach(generationModule => {
-            // find the module that has the same modId as the generation module and is not generated
-           generationModule.children.forEach(generationModuleChild => {
+    generationModules.forEach(generationModule => {
+        // find the module that has the same modId as the generation module and is not generated
+        generationModule.children.forEach(generationModuleChild => {
             allModuleNodes.push(generationModuleChild);
-           }); 
         });
+    });
 
 
     // get all walls in the order

@@ -1,5 +1,5 @@
 import { IdsMap } from "./idsmap";
-import { type ISceneGeometryConversionSettings } from "./drawingrenderer.intefaces";
+import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
 import { Matrix4, Vector3 } from "./tc/base";
 import { type IWallSegment } from "./wall";
 

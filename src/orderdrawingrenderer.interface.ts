@@ -1,4 +1,4 @@
-import type { IOrderSceneNode, IOrderSceneNodeFilter } from "./scene.interfaces";
+import type { IOrderSceneNode, IOrderSceneNodeFilter } from "./scene.interface";
 import * as TC from "./tc/base";
 
 /**
@@ -16,12 +16,14 @@ export type IRenderDrawing = (
  * Optional renderer-specific settings used while converting node geometry into the target technology.
  */
 export interface ISceneGeometryConversionSettings {
-    /** Optional material hint for solid geometry generation. If missing, the object is not rendered. */
+    /** Optional material for solid geometry generation. If missing, the a default material will be used. */
     material?: any;
-    /** Optional material hint for wireframe geometry generation. If missing, the wireframe is not rendered. */
+    /** Optional material for wireframe geometry generation. If missing, the wireframe is not rendered. */
     wireframeMaterial?: any;
-    /** Optional material hint for walls geometry generation. If missing, the walls are not rendered. */
+    /** Optional material for walls geometry generation. If missing, the walls are not rendered. */
     wallsMaterial?: any;
+    /** Optional material for walls wireframe generation. If missing, but wallsMaterial is provided, the wireframeMaterial will be used. */
+    wallsWireframeMaterial?: any;
     /** Whether to fetch and use actual meshes or use just their bounding boxes. */
     doNotFetchMeshes?: boolean;
 }

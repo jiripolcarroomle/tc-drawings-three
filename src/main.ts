@@ -10,7 +10,7 @@ import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
 import { appOrderFunction } from './orderfunction'
-import type { IOrderSceneNode } from './scene.interfaces';
+import type { IOrderSceneNode } from './scene.interface';
 import { filterAnnotationForModule, type IAnnotation, type SvgInjection } from './annotationstable';
 
 
@@ -137,32 +137,43 @@ const run = async () => {
     });
 
 
-    document.body.appendChild(svg);
-
-    // Add download button for SVG
-    const downloadBtn = document.createElement('button');
-    downloadBtn.textContent = 'Download SVG';
-    downloadBtn.style.display = 'block';
-    downloadBtn.style.margin = '8px 0 24px 0';
-    downloadBtn.onclick = () => {
-      // Serialize SVG
-      const serializer = new XMLSerializer();
-      const svgString = serializer.serializeToString(svg);
-      const blob = new Blob([svgString], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'rendered-image.svg';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-    };
-    document.body.appendChild(downloadBtn);
-
+    addSvgToDocument(document.body, svg);
 
   });
 }
 run();
+
+
+
+
+
+
+
+function addSvgToDocument(target: HTMLElement, svg: any) {
+
+  document.body.appendChild(svg);
+
+  // Add download button for SVG
+  const downloadBtn = document.createElement('button');
+  downloadBtn.textContent = 'Download SVG';
+  downloadBtn.style.display = 'block';
+  downloadBtn.style.margin = '8px 0 24px 0';
+  downloadBtn.onclick = () => {
+    // Serialize SVG
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svg);
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rendered-image.svg';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+  document.body.appendChild(downloadBtn);
+
+}

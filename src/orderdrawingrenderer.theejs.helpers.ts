@@ -1,11 +1,10 @@
 import * as THREE from "three";
-import { OBJLoader } from "three/examples/jsm/Addons.js";
-import { type ISceneGeometryConversionSettings } from "./drawingrenderer.intefaces";
-import { Object3DNodeKind } from "./scene.interfaces";
-import { type IOrderSceneNode } from "./scene.interfaces";
+import { OBJLoader, SVGLoader, type SVGResultPaths } from "three/examples/jsm/Addons.js";
+import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
+import { Object3DNodeKind } from "./scene.interface";
+import { type IOrderSceneNode } from "./scene.interface";
 import * as TC from "./tc/base";
 import { logError, logWarning, logInfo } from "./tc/base";
-import { loadSvgShapesFromCacheOrParse } from "./svg-helper";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
 export interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
@@ -103,11 +102,9 @@ async function _loadObject3DFromCacheOrFetch(
         logError(
             `Failed to fetch 3d model for part: ${partIdForLogging ?? ''} exception: ${e}`
         );
+        // we need to return something
         obj = new THREE.Group();
-        const errMaterial = material?.clone() ?? new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        errMaterial.transparent = true;
-        errMaterial.opacity = 0.5;
-        // add a box
+        obj.name = `Failed to load: ${url}`;
     }
 
     _object3dCache.set(url, obj);
@@ -249,6 +246,23 @@ export async function sceneToThreeJsScene(
 ): Promise<THREE.Scene> {
     const threeScene = new THREE.Scene();
 
+    const material = drawingRenderSettings.material ?? new THREE.MeshBasicMaterial({ color: 0xcccccc });
+    (material as THREE.MeshBasicMaterial).polygonOffset = true;
+    (material as THREE.MeshBasicMaterial).polygonOffsetFactor = 1;
+    (material as THREE.MeshBasicMaterial).polygonOffsetUnits = 1;
+
+    const wallsMaterial = drawingRenderSettings.wallsMaterial ?? undefined;
+    if (wallsMaterial) {
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffset = true;
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffsetFactor = 1;
+        (wallsMaterial as THREE.MeshBasicMaterial).polygonOffsetUnits = 1;
+    }
+
+    const wallsWireframeMaterial = drawingRenderSettings.wallsWireframeMaterial ?? (wallsMaterial ? drawingRenderSettings.wireframeMaterial : undefined);
+
+    const settings = { ...drawingRenderSettings, material, wallsMaterial, wallsWireframeMaterial };
+
+
     const rootObject = await orderObjectNodeToThreeObject3D(
         rootObject3DNode,
         drawingRenderSettings,
@@ -293,7 +307,7 @@ export async function orderObjectNodeToThreeObject3D(
     const geom = node.geometry(drawingRenderSettings);
 
     const mainMaterial = node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsMaterial : drawingRenderSettings.material;
-    const wireframeMaterial = drawingRenderSettings.wireframeMaterial;
+    const wireframeMaterial =  node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsWireframeMaterial : drawingRenderSettings.wireframeMaterial;
 
     if (geom.hidden) {
         return null;
@@ -398,9 +412,9 @@ export async function orderObjectNodeToThreeObject3D(
             drawingRenderSettings,
             (object) => {
                 object.position.copy(new THREE.Vector3(
-                    geom.origin.elements[12] + geom.size._x / 2,
-                    geom.origin.elements[13] + geom.size._y / 2,
-                    geom.origin.elements[14] + geom.size._z / 2,
+                    geom.origin.elements[12] + geom.size!._x / 2,
+                    geom.origin.elements[13] + geom.size!._y / 2,
+                    geom.origin.elements[14] + geom.size!._z / 2,
                 ));
             },
         );
@@ -460,4 +474,57 @@ function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth 
     const svg = renderer.domElement as SVGSVGElement;
     svg.classList.add('preview-image');
     return svg;
+}
+
+
+// Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
+// Only the Object3D cache is persisted across Vite HMR updates to avoid
+// re-downloading meshes while iterating.
+const _svgShapeCache = new Map<string, THREE.Shape[]>();
+
+const svgLoader = new SVGLoader();
+
+
+ function loadSvgShapesFromCacheOrParse(
+    svg: string,
+    partIdForLogging?: string
+): THREE.Shape[] {
+    if (_svgShapeCache.has(svg)) {
+        return _svgShapeCache.get(svg)!;
+    }
+
+    let shapes: THREE.Shape[] = [];
+    try {
+        const svgData = svgLoader.parse(svg);
+        if (svgData.paths.length <= 0) {
+            logError(`SVG data does not contain any paths! Part ${partIdForLogging ?? ''} will not be drawn! Is the SVG valid? (SVG: ${svg})`);
+        }
+        svgData.paths.forEach((path: SVGResultPaths) => {
+            const pathIsCCW =
+                path.subPaths.length > 0 &&
+                !THREE.ShapeUtils.isClockWise(path.subPaths[0].getPoints());
+            shapes = shapes.concat(path.toShapes(pathIsCCW));
+        });
+    } catch (e) {
+        logError(
+            `Failed to parse SVG for extrude part ${partIdForLogging ?? ''}: ${svg} \nexception:${e}`
+        );
+    }
+    _svgShapeCache.set(svg, shapes);
+    return shapes;
+}
+
+ function computeMinAndMaxFromShapes(svgString: string): { minX: number; minY: number; maxX: number; maxY: number } {
+    const shapes = loadSvgShapesFromCacheOrParse(svgString);
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    shapes.forEach(shape => {
+        const points = shape.getPoints();
+        points.forEach(p => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+        });
+    });
+    return { minX, minY, maxX, maxY };
 }

@@ -1,4 +1,4 @@
-import type { IOrderSceneNode } from "./scene.interfaces";
+import type { IOrderSceneNode } from "./scene.interface";
 
 
 /**

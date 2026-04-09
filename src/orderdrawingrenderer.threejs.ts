@@ -2,9 +2,9 @@
 // Keep the *-as imports for legibility.
 import * as THREE from "three";
 import * as TC from "./tc/base";
-import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingrenderer.intefaces";
-import type { IOrderSceneNode } from "./scene.interfaces";
-import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer } from "./drawingrenderer.theejs.helpers";
+import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
+import type { IOrderSceneNode } from "./scene.interface";
+import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer } from "./orderdrawingrenderer.theejs.helpers";
 
 /**
  * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.
