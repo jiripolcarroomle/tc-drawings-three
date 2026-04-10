@@ -3,9 +3,9 @@ import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 
 
 // import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-// import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
-//
-import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+// 
+import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
+// import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 

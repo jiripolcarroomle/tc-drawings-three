@@ -16,7 +16,11 @@ export async function appOrderFunction(o: any, ol: any) {
     const drawingSettings: IExtendedDrawingRenderSettings = {
         material: { color: 0xcccccc, },
         wireframeMaterial: { color: 0x000000, },
-        wallsMaterial: { color: 0x555555, },
+        wallsMaterial: {
+            color: 0x555500,
+            transparent: true, opacity: 0.2            ,
+
+        },
         wallsWireframeMaterial: { color: 0x000000, },
         // will not fetch meshes and will render bounding boxes of the meshes instead
         doNotFetchMeshes: true,
@@ -66,14 +70,6 @@ export async function appOrderFunction(o: any, ol: any) {
     const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry?._isGenerated);
 
     const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
-
-    generationModules.forEach(generationModule => {
-        // find the module that has the same modId as the generation module and is not generated
-        generationModule.children.forEach(generationModuleChild => {
-            allModuleNodes.push(generationModuleChild);
-        });
-    });
-
 
     // get all walls in the order
     const allWalls = orderScene.children.find(child => child.kind === Object3DNodeKind.WallGroup)?.children ?? [];

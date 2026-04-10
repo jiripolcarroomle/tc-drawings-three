@@ -39,6 +39,15 @@ export function createScene(
         reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, posGroupNode);
     })
 
+
+    posGroupsRootNode.children.forEach(posGroup => {
+        posGroup.children.forEach(rootModuleOrLoosePartGroup => {
+            if (rootModuleOrLoosePartGroup.kind === Object3DNodeKind.Module) {
+                reparentGenerationModuleChildrenToGroupRoot(rootModuleOrLoosePartGroup, posGroup);
+            }
+        });
+    });
+
     return scenceRoot;
 }
 
@@ -95,10 +104,10 @@ export class OrderSceneNode implements IOrderSceneNode {
         if (index === -1) {
             return null;
         }
-        const childWorld = computeWorldTransform(child);
-        child.transform = childWorld;
+        const childWorldTransform = computeWorldTransform(child);
         child.parent = null;
         this.children.splice(index, 1);
+        child.transform = childWorldTransform;
         return child;
     }
 
@@ -382,6 +391,23 @@ function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneN
         reparentPartsFromPosGroupsToModulesRecursive(posGroupNode, subModule);
     });
 
+}
+
+/**
+ * Generation modules do not have their own transform. Their submodules are placed at the final coordinates, not the generation modules themselves.
+ * For this reason, we have to reparent their children to the generation module's parent.
+ * @param currentNode Current generation module node whose children need to be reparented.
+ * @param nodeToReparent Node to which the children should be reparented.
+    
+ */
+function reparentGenerationModuleChildrenToGroupRoot(currentNode: IOrderSceneNode, nodeToReparent: IOrderSceneNode  ): void {
+    if (currentNode.kind === Object3DNodeKind.Module && currentNode.orderLineEntry?._isGenerated) {
+        const childrenToReparent = [...currentNode.children];
+        childrenToReparent.forEach(child => {
+            currentNode.removeChild(child);
+            nodeToReparent.addChild(child, true);
+        });
+    }
 }
 
 

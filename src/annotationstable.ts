@@ -127,6 +127,54 @@ export const tab_Annotations: IAnnotation[] = [
 
 
     {
+        in_ModuleId: 'mc_Leg01',
+        in_ModuleCondition: (moduleData: any) => { return true; },
+        in_DrawingCondition: (drawingData: any) => { return true; }, // apply to all drawings
+        out_AnnotablePoints: (moduleData: any) => { return []; },
+        out_SvgInjections: (moduleData: any) => {
+            return [
+                {
+                    path: [
+                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
+                        { command: 'L', coordinate3d: new Vector3(50, 0, 50) },
+                        { command: 'Z' },
+                        { command: 'M', coordinate3d: new Vector3(0, 0, 50) },
+                        { command: 'L', coordinate3d: new Vector3(50, 0, 0) },
+                        { command: 'Z' },
+                    ],
+                    stroke: '#0000ff',
+                    'stroke-dasharray': '10,5',
+                    'stroke-width': '2',
+                }
+            ];
+        }
+    },
+
+    {
+        in_ModuleId: 'mr_CornerunitStraight',
+        in_ModuleCondition: (moduleData: any) => { return moduleData.mod_CreateCountertop || moduleData.mod_CreatePaneltop }, // apply to all modules with the specified ID
+        in_DrawingCondition: (drawingData: any) => { return true; }, // apply to all drawings
+        out_AnnotablePoints: (moduleData: any) => { return []; },
+        out_SvgInjections: (moduleData: any) => {
+            return [
+                {
+                    path: [
+                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
+                        { command: 'L', coordinate3d: new Vector3(moduleData.mod_Width, 0, 0) },
+                        { command: 'L', coordinate3d: new Vector3(moduleData.mod_Width, 0, moduleData.mod_Depth) },
+                        { command: 'L', coordinate3d: new Vector3(0, 0, moduleData.mod_Depth) },
+                        { command: 'Z' }
+                    ],
+                    stroke: '#00ff00',
+                    'stroke-dasharray': '10,5',
+                    'stroke-width': '2',
+                }
+            ];
+        }
+    },
+
+
+    {
         in_ModuleId: 'mr_StorageunitSingle',
         in_ModuleCondition: (moduleData: any) => { return moduleData._articlePos.y > 100 /** todo: base on mod_ElementType */ }, 
         in_DrawingCondition: (drawingData: any) => { return true; /** todo: top view only */ },
