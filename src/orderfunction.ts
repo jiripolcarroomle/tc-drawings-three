@@ -1,3 +1,6 @@
+import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationstable";
+import { Drawing } from "./drawing.implementation";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.theejs.helpers";
 import { renderScene } from "./orderdrawingrenderer.threejs";
@@ -20,7 +23,7 @@ export async function appOrderFunction(o: any, ol: any) {
         wireframeMaterial: { color: 0x000000, },
         wallsMaterial: {
             color: 0x555500,
-            transparent: true, opacity: 0.2,
+            transparent: true, opacity: 0.1,
 
         },
         wallsWireframeMaterial: { color: 0x000000, },
@@ -92,7 +95,7 @@ export async function appOrderFunction(o: any, ol: any) {
     // =================
 
     const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
-     orthoCameraRenderResults.push(topView);
+    orthoCameraRenderResults.push(topView);
 
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
@@ -135,9 +138,45 @@ export async function appOrderFunction(o: any, ol: any) {
     // 3. make drawings from the renderings
     // =================
 
-    
+    const svgs: SVGElement[] = [];
+
+    orthoCameraRenderResults.forEach((renderResult, index) => {
+        const drawing = new Drawing(renderResult, { drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation });
+
+        renderResult.renderedNodes?.forEach((moduleNode: IOrderSceneNode) => {
+            const moduleData = moduleNode.orderLineEntry;
+            const nodeMatrix = moduleNode.worldTransform;
+            if (!moduleData) { return; }
+            const id = moduleData!.modId;
+            if (!id) { return; }
+            const annotations = filterAnnotationForModule(id, moduleData, drawing);
+            if (annotations.length > 0) {
+                annotations.forEach((annotation: I_tab_Annotation) => {
+                    annotation.out_SvgInjections?.(moduleData)?.forEach((injection: SvgInjectionData) => {
+                        drawing.addOverlay(nodeMatrix, injection);
+                    });
+                    annotation.out_Annotations?.(moduleData)?.forEach((annotation: Annotation) => {
+                        drawing.addAnnotation(nodeMatrix, annotation);
+                    });
+                    annotation.out_AnnotablePoints?.(moduleData)?.forEach((point: AnnotablePoint) => {
+                        const radius = 15;
+                        const svgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        svgCircle.setAttribute("cx", point.coordinate._x.toString());
+                        svgCircle.setAttribute("cy", point.coordinate._y.toString());
+                        svgCircle.setAttribute("r", radius.toString());
+                        svgCircle.setAttribute("fill", "blue");
+                        drawing.addSvgObject(nodeMatrix, svgCircle);
+                    });
+
+                });
+            }
+        });
+
+        const svg = drawing.render();
+        svgs.push(svg);
+    });
 
 
 
-    return orthoCameraRenderResults;
+    return svgs;
 }

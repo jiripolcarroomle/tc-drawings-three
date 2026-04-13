@@ -1,22 +1,23 @@
 import { Vector3 } from "./tc/base";
-import type { AnnotablePoint, SvgInjectionData } from "./drawing.interface";
+import type { AnnotablePoint, Annotation, SvgInjectionData } from "./drawing.interface";
 
 
 
 export interface I_tab_Annotation {
     in_ModuleId: string;
-    in_ModuleCondition: (moduleData: any) => boolean;
-    in_DrawingCondition: (drawingData: any) => boolean;
-    out_AnnotablePoints: (moduleData: any) => AnnotablePoint[];
-    out_SvgInjections: (moduleData: any) => SvgInjectionData[];
+    in_ModuleCondition?: (moduleData: any) => boolean;
+    in_DrawingCondition?: (drawingData: any) => boolean;
+    out_AnnotablePoints?: (moduleData: any) => AnnotablePoint[];
+    out_SvgInjections?: (moduleData: any) => SvgInjectionData[];
+    out_Annotations?: (moduleData: any) => Annotation[];
 }
 
 
 export function filterAnnotationForModule(moduleId: string, moduleData: any, drawingData: any): I_tab_Annotation[] {
     return tab_Annotations.filter(annotation => {
         return annotation.in_ModuleId === moduleId
-            && annotation.in_ModuleCondition(moduleData)
-            && annotation.in_DrawingCondition(drawingData);
+            && (annotation.in_ModuleCondition ? annotation.in_ModuleCondition(moduleData) : true)
+            && (annotation.in_DrawingCondition ? annotation.in_DrawingCondition(drawingData) : true);
     });
 }
 
@@ -25,8 +26,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        in_ModuleCondition: (_moduleData: any) => true, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => true, // apply to all drawings
         out_AnnotablePoints: (moduleData: any) => {
             return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
@@ -36,7 +35,18 @@ export const tab_Annotations: I_tab_Annotation[] = [
                 { coordinate: new Vector3(0, moduleData.mod_PlinthAreaHeight + moduleData.mod_Height, 0) }, // example point at the module pivot
             ]
         },
-        out_SvgInjections: (_moduleData: any) => { return []; }
+        out_Annotations: (moduleData: any) => {
+            return [
+                {
+                    start: new Vector3(0, 0, 0),
+                    end: new Vector3(moduleData.mod_Width, 0, 0),
+                }, {
+                    start: new Vector3(0, 0, 0),
+                    end: new Vector3(0, 0, moduleData.mod_Depth),
+                },
+            ];
+
+        }
     },
 
     {
@@ -102,6 +112,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'L', coordinate3d: new Vector3(0, 0, moduleData.mod_Depth) },
                         { command: 'Z' }
                     ],
+                    'fill': 'none',
                     stroke: '#ff0000',
                     'stroke-dasharray': '10,5',
                     'stroke-width': '2',
@@ -110,7 +121,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
         }
     },
 
-        {
+    {
         in_ModuleId: 'mf_Door',
         in_ModuleCondition: (_moduleData: any) => { return true; }, // apply to all modules with the specified ID
         in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
@@ -125,6 +136,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'L', coordinate3d: new Vector3(0, 0, moduleData.mod_FrontThk ?? 50) },
                         { command: 'Z' }
                     ],
+                    'fill': 'none',
                     stroke: '#ff0000',
                     'stroke-dasharray': '10,5',
                     'stroke-width': '2',
@@ -136,7 +148,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mc_Leg01',
-        in_ModuleCondition: (_moduleData: any) => { return true; },
+        in_ModuleCondition: (_moduleData: any) => { return false; },
         in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
         out_AnnotablePoints: (_moduleData: any) => { return []; },
         out_SvgInjections: (_moduleData: any) => {
@@ -150,6 +162,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'L', coordinate3d: new Vector3(50, 0, 0) },
                         { command: 'Z' },
                     ],
+                    'fill': 'none',
                     stroke: '#0000ff',
                     'stroke-dasharray': '10,5',
                     'stroke-width': '2',
@@ -173,6 +186,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'L', coordinate3d: new Vector3(0, 0, moduleData.mod_Depth) },
                         { command: 'Z' }
                     ],
+                    'fill': 'none',
                     stroke: '#00ff00',
                     'stroke-dasharray': '10,5',
                     'stroke-width': '2',

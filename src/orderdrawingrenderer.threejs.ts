@@ -127,7 +127,7 @@ export const renderScene: IRenderDrawing = async function (
 
     return {
         worldToViewMatrix,
-        image: { image: pngDataUrl },
+        image: { dataUrl: pngDataUrl },
         renderedScene: threeScene,
         imageHeight: adjustedHeight,
         imageWidth: adjustedWidth,

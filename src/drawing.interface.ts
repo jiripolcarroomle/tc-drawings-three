@@ -19,19 +19,18 @@ export enum DrawingDirection {
  */
 export interface IPlanSvgDrawing {
 
-    new(renderResult: IRenderOrthoCameraResult, options?: any): IPlanSvgDrawing;
 
     get worldToViewMatrix(): TC.Matrix4;
     get sceneRender(): IRenderOrthoCameraResult;
 
     get drawingDirection(): DrawingDirection;
 
-    /** Add an SVG object to the drawing at the specified world position */
-    addSvgObject(worldPosition: TC.Vector3): void;
+    /** Add an SVG object to the drawing at the specified world position. */
+    addSvgObject(worldTransform: TC.Matrix4, svgInjection: SVGElement): void;
     /** Add an annotable point to the drawing */
-    addAnnotablePoint(worldStart: TC.Vector3, worldEnd: TC.Vector3, onAnnotationLine: boolean, overrideLabel: string): void;
+    addAnnotation(worldTransform: TC.Matrix4, annotation: Annotation): void;
     /** Add an overlay SVG object to the drawing at the specified world position */
-    addOverlay(worldPosition: TC.Vector3, svgInjection: SvgInjectionData): void;
+    addOverlay(worldTransform: TC.Matrix4, svgInjection: SvgInjectionData): void;
 
     /**
      * After all SVG objects have been added, render the final SVG element.
@@ -59,12 +58,13 @@ export interface Annotation {
     /** The label the annotation should have. If not provided, the length of the annotation line will be used as the label */
     label?: string;
     /** Whether the annotation line should be at the annotated points (false) or if it will be on a common annotation line on the edge of the drawing (true) */
-    shouldGoToAnnotationLine: boolean;
+    shouldGoToAnnotationLine?: boolean;
     /**
      * If !shouldGoToAnnotationLine, this applies. Defines the distance of the annotation line from the annotated points.
      * Distance is given in the SVG drawing units.
      * If distance is given and is long enough, helper lines are drawn.
      * From start to end, positive distance lifts the annotation line to left (e.g. start 9 o'clock, end 3 o'clock, annotation line above if distance positive).
+     * The text might be flipped to always be legible (e.g. not upside-down etc.)
      */
     distance?: number;
 }
@@ -91,10 +91,3 @@ export interface SvgInjectionData {
     'stroke-width'?: string;
     path: SvgPathCommandData[];
 }
-
-
-export interface SvgToString {
-    toSvgString: () => string;
-}
-export interface SvgPathCommand extends SvgPathCommandData, SvgToString { }
-export interface SvgInjection extends SvgInjectionData, SvgToString { }

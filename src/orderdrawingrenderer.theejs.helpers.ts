@@ -301,8 +301,6 @@ export async function orderObjectNodeToThreeObject3D(
         logInfo(`Node ${node.id} passed filter and will be rendered.`);
     }
 
-    convertedNodesCollector.push(node);
-
     const threeObject = new THREE.Object3D();
     threeObject.name = node.id;
     // set transform
@@ -424,6 +422,7 @@ export async function orderObjectNodeToThreeObject3D(
             },
         );
     }
+    convertedNodesCollector.push(node);
 
 
 
