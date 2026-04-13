@@ -35,7 +35,7 @@ export interface IRenderOrthoCameraParams {
     drawingMaxWidth?: number;
     /** Output maximum image height in pixels. The actual size will depend on the content. */
     drawingMaxHeight?: number;
-    
+
     /*
      * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
      */

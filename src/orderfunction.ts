@@ -18,7 +18,7 @@ export async function appOrderFunction(o: any, ol: any) {
         wireframeMaterial: { color: 0x000000, },
         wallsMaterial: {
             color: 0x555500,
-            transparent: true, opacity: 0.2            ,
+            transparent: true, opacity: 0.2,
 
         },
         wallsWireframeMaterial: { color: 0x000000, },

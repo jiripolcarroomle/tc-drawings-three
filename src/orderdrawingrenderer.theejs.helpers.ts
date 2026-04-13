@@ -307,7 +307,7 @@ export async function orderObjectNodeToThreeObject3D(
     const geom = node.geometry(drawingRenderSettings);
 
     const mainMaterial = node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsMaterial : drawingRenderSettings.material;
-    const wireframeMaterial =  node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsWireframeMaterial : drawingRenderSettings.wireframeMaterial;
+    const wireframeMaterial = node.kind === Object3DNodeKind.Wall ? drawingRenderSettings.wallsWireframeMaterial : drawingRenderSettings.wireframeMaterial;
 
     if (geom.hidden) {
         return null;
@@ -485,7 +485,7 @@ const _svgShapeCache = new Map<string, THREE.Shape[]>();
 const svgLoader = new SVGLoader();
 
 
- function loadSvgShapesFromCacheOrParse(
+function loadSvgShapesFromCacheOrParse(
     svg: string,
     partIdForLogging?: string
 ): THREE.Shape[] {
@@ -514,7 +514,7 @@ const svgLoader = new SVGLoader();
     return shapes;
 }
 
- function computeMinAndMaxFromShapes(svgString: string): { minX: number; minY: number; maxX: number; maxY: number } {
+function computeMinAndMaxFromShapes(svgString: string): { minX: number; minY: number; maxX: number; maxY: number } {
     const shapes = loadSvgShapesFromCacheOrParse(svgString);
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     shapes.forEach(shape => {

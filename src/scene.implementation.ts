@@ -400,7 +400,7 @@ function reparentPartsFromPosGroupsToModulesRecursive(posGroupNode: IOrderSceneN
  * @param nodeToReparent Node to which the children should be reparented.
     
  */
-function reparentGenerationModuleChildrenToGroupRoot(currentNode: IOrderSceneNode, nodeToReparent: IOrderSceneNode  ): void {
+function reparentGenerationModuleChildrenToGroupRoot(currentNode: IOrderSceneNode, nodeToReparent: IOrderSceneNode): void {
     if (currentNode.kind === Object3DNodeKind.Module && currentNode.orderLineEntry?._isGenerated) {
         const childrenToReparent = [...currentNode.children];
         childrenToReparent.forEach(child => {

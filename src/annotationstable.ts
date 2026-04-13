@@ -1,4 +1,3 @@
-import { textureLevel } from "three/tsl";
 import { Vector3 } from "./tc/base";
 
 export interface AnnotablePoint {
@@ -43,7 +42,7 @@ export const tab_Annotations: IAnnotation[] = [
         in_ModuleCondition: (moduleData: any) => true, // apply to all modules with the specified ID
         in_DrawingCondition: (drawingData: any) => true, // apply to all drawings
         out_AnnotablePoints: (moduleData: any) => {
-            return  [
+            return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
                 { coordinate: new Vector3(moduleData.mod_Width, 0, 0) }, // example point at the module pivot
                 { coordinate: new Vector3(0, 0, moduleData.mod_Depth) }, // example point at the module pivot
@@ -86,7 +85,7 @@ export const tab_Annotations: IAnnotation[] = [
         out_SvgInjections: (moduleData: any) => { return []; }
     },
 
-        {
+    {
         in_ModuleId: 'mc_Countertop01',
         in_ModuleCondition: (moduleData: any) => true, // apply to all modules with the specified ID
         in_DrawingCondition: (drawingData: any) => true, // apply to all drawings
@@ -176,7 +175,7 @@ export const tab_Annotations: IAnnotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        in_ModuleCondition: (moduleData: any) => { return moduleData._articlePos.y > 100 /** todo: base on mod_ElementType */ }, 
+        in_ModuleCondition: (moduleData: any) => { return moduleData._articlePos.y > 100 /** todo: base on mod_ElementType */ },
         in_DrawingCondition: (drawingData: any) => { return true; /** todo: top view only */ },
         out_AnnotablePoints: (moduleData: any) => { return []; },
         out_SvgInjections: (moduleData: any) => {
