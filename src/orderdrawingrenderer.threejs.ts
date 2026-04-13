@@ -21,7 +21,9 @@ export const renderScene: IRenderDrawing = async function (
 
     // Build a Three.js scene from the provided scene root and render settings
     // with filtered out nodes.
-    const threeScene: THREE.Scene = await sceneToThreeJsScene(sceneRoot, drawingSettings, filter);
+    const conversionResult = await sceneToThreeJsScene(sceneRoot, drawingSettings, filter);
+    const threeScene: THREE.Scene = conversionResult.scene;
+    const collectedNodes: IOrderSceneNode[] = conversionResult.nodesInScene;
 
     // Get the size of the scene. The camera will be set so that the whole scene fits into the view.
     const sceneBoundingBox = new THREE.Box3().setFromObject(threeScene);
@@ -129,6 +131,8 @@ export const renderScene: IRenderDrawing = async function (
         renderedScene: threeScene,
         imageHeight: adjustedHeight,
         imageWidth: adjustedWidth,
+        cameraParameters: settings,
+        renderedNodes: collectedNodes,
     };
 
 }

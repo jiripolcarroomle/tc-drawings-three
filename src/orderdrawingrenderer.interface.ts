@@ -61,6 +61,11 @@ export interface IRenderOrthoCameraResult {
     imageWidth: number;
     /** the actual height of the rendered image in pixels or another unit */
     imageHeight: number;
+    /** list of nodes that have been rendered in the scene */
+    renderedNodes?: IOrderSceneNode[];
+    /** original drawing settings with which the rendering was performed */
+    cameraParameters?: IRenderOrthoCameraParams;
+
     /** additional metadata or information related to the rendered image */
     data?: any;
 }

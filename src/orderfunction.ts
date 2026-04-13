@@ -7,12 +7,14 @@ import { filterNodesCloseToWall } from "./wall";
 
 export async function appOrderFunction(o: any, ol: any) {
 
-    const results: IRenderOrthoCameraResult[] = [];
+    const orthoCameraRenderResults: IRenderOrthoCameraResult[] = [];
 
     // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
     const orderScene = createScene(o, ol);
 
-    // settings
+    // =================
+    // 1. settings and preparations 
+    // =================
     const drawingSettings: IExtendedDrawingRenderSettings = {
         material: { color: 0xcccccc, },
         wireframeMaterial: { color: 0x000000, },
@@ -85,11 +87,12 @@ export async function appOrderFunction(o: any, ol: any) {
         ]
     });
 
+    // =================
+    // 2. collect relevant renderings
+    // =================
+
     const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
-    topView.data = {
-        modulesInDrawing: [...allModuleNodes],
-    }
-    results.push(topView);
+     orthoCameraRenderResults.push(topView);
 
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
@@ -124,18 +127,17 @@ export async function appOrderFunction(o: any, ol: any) {
         const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.copy().scale(-1);
 
         const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
-        if (!result.data) { result.data = {}; }
-        result.data.modulesInDrawing = modulesCloseToWall;
-        results.push(result);
+        orthoCameraRenderResults.push(result);
 
-        // do something with the result, e.g. display the rendered image
-        console.log(`Rendered image or wall ${wall.id} (${side} side) with ${modulesCloseToWall.length} close modules.`);
     }
 
+    // =================
+    // 3. make drawings from the renderings
+    // =================
+
+    
 
 
 
-
-
-    return results;
+    return orthoCameraRenderResults;
 }

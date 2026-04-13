@@ -448,6 +448,7 @@ let warned = false;
 
 function mergeModuleOrderEntryWithAttributes(source: any, attributes: any): any {
     if (!warned) {
+        warned = true;
         logWarning(`
             
             -------------------------

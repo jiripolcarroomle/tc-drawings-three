@@ -11,7 +11,8 @@ import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
 
 import { appOrderFunction } from './orderfunction'
 import type { IOrderSceneNode } from './scene.interface';
-import { filterAnnotationForModule, type IAnnotation, type SvgInjection } from './annotationstable';
+import { filterAnnotationForModule, type I_tab_Annotation } from './annotationstable';
+import { type SvgInjectionData } from "./drawing.interface";
 
 
 
@@ -44,15 +45,17 @@ const run = async () => {
     const worldToViewMatrix = new TC.Matrix4().fromArray(result.worldToViewMatrix.elements);
 
     const points: { points: TC.Vector3[]; moduleId: string }[] = [];
-    const svgInjections: { injection: SvgInjection; moduleId: string }[] = [];
+    const svgInjections: { injection: SvgInjectionData; moduleId: string }[] = [];
 
-    result.data?.modulesInDrawing?.flatMap((moduleNode: IOrderSceneNode) => {
+    result.renderedNodes?.flatMap((moduleNode: IOrderSceneNode) => {
       const moduleData = moduleNode.orderLineEntry;
+      if (!moduleData) { return null; }
       const id = moduleData!.modId;
+      if (!id) { return null; }
       const annotations = filterAnnotationForModule(id, moduleData, result.data);
       if (annotations.length > 0) {
         const result = { points: [], moduleId: id };
-        annotations.forEach((annotation: IAnnotation) => {
+        annotations.forEach((annotation: I_tab_Annotation) => {
           const annotablePoints = annotation.out_AnnotablePoints(moduleData);
           const drawingAnnotablePoints = annotablePoints.map(ap => ap.coordinate.copy().applyMatrix4(moduleNode.worldTransform) as TC.Vector3);
           points.push({ points: drawingAnnotablePoints, moduleId: id });
