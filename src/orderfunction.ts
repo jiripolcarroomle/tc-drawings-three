@@ -103,6 +103,17 @@ export async function appOrderFunction(o: any, ol: any) {
         // nothing -> do not render
         if (!modulesCloseToWall.length) continue;
 
+        const isOwnedByModuleCloseToWall = (node: IOrderSceneNode) => {
+            let current: IOrderSceneNode | null = node;
+            while (current) {
+                if (modulesCloseToWall.includes(current)) {
+                    return true;
+                }
+                current = current.parent;
+            }
+            return false;
+        };
+
         const renderingFilter = (node: IOrderSceneNode) => {
             // filter by name
             if (!partsNameFilter(node)) {
@@ -111,16 +122,8 @@ export async function appOrderFunction(o: any, ol: any) {
             if (node.kind === Object3DNodeKind.Wall) {
                 return getWallsFilter(wall)(node);
             }
-            if (node.kind === Object3DNodeKind.Part) {
-                // filter by owner module proximity to wall
-                let parent = node.parent
-                while (parent) {
-                    if (modulesCloseToWall.includes(parent)) {
-                        return true;
-                    }
-                    parent = parent.parent
-                }
-                return false;
+            if (node.kind === Object3DNodeKind.Part || node.kind === Object3DNodeKind.Module) {
+                return isOwnedByModuleCloseToWall(node);
             }
 
             return true;
