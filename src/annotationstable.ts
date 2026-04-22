@@ -38,11 +38,11 @@ export const tab_Annotations: I_tab_Annotation[] = [
         out_Annotations: (moduleData: any) => {
             return [
                 {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(moduleData.mod_Width, 0, 0),
+                    start: new Vector3(0, 0, 100),
+                    end: new Vector3(moduleData.mod_Width, 0, 100),
                 }, {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(0, 0, moduleData.mod_Depth),
+                    start: new Vector3(100, 0, 0),
+                    end: new Vector3(100, 0, moduleData.mod_Depth),
                 },
             ];
 

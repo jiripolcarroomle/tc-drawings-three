@@ -64,7 +64,7 @@ export class Vector3 {
         return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
     }
 
-    copy(): Vector3 {
+    clone(): Vector3 {
         return new Vector3(this._x, this._y, this._z);
     }
 
@@ -78,13 +78,22 @@ export class Vector3 {
  */
     static EPS: number = 0.01;
     add(v: Vector3) {
-        return new Vector3(this._x + v._x, this._y + v._y, this._z + v._z);
+        this._x += v._x;
+        this._y += v._y;
+        this._z += v._z;
+        return this;
     }
-    subtract(v: Vector3) {
-        return new Vector3(this._x - v._x, this._y - v._y, this._z - v._z);
+    sub(v: Vector3) {
+        this._x -= v._x;
+        this._y -= v._y;
+        this._z -= v._z;
+        return this;
     }
-    scale(scalar: number) {
-        return new Vector3(this._x * scalar, this._y * scalar, this._z * scalar);
+    multiply(scalar: number) {
+        this._x *= scalar;
+        this._y *= scalar;
+        this._z *= scalar;
+        return this;
     }
     normalize() {
         const magnitude = this.magnitude();
@@ -92,14 +101,14 @@ export class Vector3 {
             return new Vector3(0, 0, 0);
         }
         else {
-            return this.scale(1 / this.magnitude());
+            return this.multiply(1 / this.magnitude());
         }
     }
     magnitude() {
         return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
     }
     isCoincident(v: Vector3, tolerance: number = Vector3.EPS) {
-        return this.subtract(v).magnitude() < tolerance;
+        return this.clone().sub(v).magnitude() < tolerance;
     }
     /** dot product */
     dot(v: Vector3) {

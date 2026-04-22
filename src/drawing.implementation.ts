@@ -52,8 +52,8 @@ export class Drawing implements IPlanSvgDrawing {
     addAnnotation(worldTransform: Matrix4, annotation: Annotation): void {
         const drawingTransform = this.worldToViewMatrix.clone().multiply(worldTransform);
         const annotationCopy = { ...annotation };
-        annotationCopy.start = annotation.start.copy().applyMatrix4(drawingTransform);
-        annotationCopy.end = annotation.end.copy().applyMatrix4(drawingTransform);
+        annotationCopy.start = annotation.start.clone().applyMatrix4(drawingTransform);
+        annotationCopy.end = annotation.end.clone().applyMatrix4(drawingTransform);
         annotationCopy.label = annotation.label || annotation.start.distanceTo(annotation.end).toFixed(0);
         this._annotations.push(annotationCopy);
     }

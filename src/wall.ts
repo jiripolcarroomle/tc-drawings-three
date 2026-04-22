@@ -57,12 +57,12 @@ export class WallSegment implements IWallSegment {
         const wallHeight = to.height ?? from.height ?? DEFAULT_WALL_HEIGHT;
         const segmentStart = new Vector3(from.x, 0, -from.y);
         const segmentEnd = new Vector3(to.x, 0, -to.y);
-        const direction = segmentEnd.subtract(segmentStart).normalize();
-        const length = segmentEnd.subtract(segmentStart).magnitude();
+        const direction = segmentEnd.clone().sub(segmentStart).clone().normalize();
+        const length = segmentEnd.clone().sub(segmentStart).length();
         const normalToWall = new Vector3(-direction._z, 0, direction._x);
         const rotationY = -Math.atan2(normalToWall._z, normalToWall._x) - Math.PI / 2;
-        const segmentBackStart = segmentStart.add(normalToWall.scale(wallThickness));
-        const segmentBackEnd = segmentEnd.add(normalToWall.scale(wallThickness));
+        const segmentBackStart = segmentStart.add(normalToWall.clone().multiply(wallThickness));
+        const segmentBackEnd = segmentEnd.add(normalToWall.clone().multiply(wallThickness));
 
         return new WallSegment(
             segmentStart,
@@ -121,8 +121,8 @@ export function createWallsGroupFromOrderData(roomContours: PosContour[], idsMap
                 continue;
             }
             const jointPoint = from.segmentEnd
-                .add(to.direction.scale(from.wallThickness / from.normalToWall.dot(to.direction)))
-                .add(from.direction.scale(to.wallThickness / to.normalToWall.dot(from.direction)));
+                .add(to.direction.clone().multiply(from.wallThickness / from.normalToWall.dot(to.direction)))
+                .add(from.direction.clone().multiply(to.wallThickness / to.normalToWall.dot(from.direction)));
             from.segmentBackEnd = jointPoint;
             to.segmentBackStart = jointPoint;
         }
@@ -174,17 +174,17 @@ export interface PosContour {
 export function filterNodesCloseToWall(nodes: IOrderSceneNode[], wallSegment: IWallSegment, backSide: boolean, distance: number): IOrderSceneNode[] {
     const wallStart = backSide ? wallSegment.segmentBackStart : wallSegment.segmentStart;
     const wallEnd = backSide ? wallSegment.segmentBackEnd : wallSegment.segmentEnd;
-    const normalFromWall = backSide ? wallSegment.normalToWall : wallSegment.normalToWall.scale(-1);
+    const normalFromWall = backSide ? wallSegment.normalToWall : wallSegment.normalToWall.clone().multiply(-1);
 
     const result: IOrderSceneNode[] = [];
 
     for (const node of nodes) {
         const allCorners = node.getAllBBoxCornersInWorld();
         for (const corner of allCorners) {
-            const toCorner = corner.subtract(wallStart);
-            const projectionLength = toCorner.dot(wallEnd.subtract(wallStart).normalize());
-            const projectionPoint = wallStart.add(wallEnd.subtract(wallStart).normalize().scale(projectionLength));
-            const distanceToWall = corner.subtract(projectionPoint).dot(normalFromWall);
+            const toCorner = corner.clone().sub(wallStart);
+            const projectionLength = toCorner.dot(wallEnd.clone().sub(wallStart).clone().normalize());
+            const projectionPoint = wallStart.add(wallEnd.clone().sub(wallStart).clone().normalize().multiply(projectionLength));
+            const distanceToWall = corner.clone().sub(projectionPoint).dot(normalFromWall);
             // floating point tolerance ... maybe down to >= -wallThickness / 2?
             if (distanceToWall >= -1 && distanceToWall <= distance) {
                 result.push(node);

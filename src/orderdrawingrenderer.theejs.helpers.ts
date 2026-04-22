@@ -320,16 +320,16 @@ export async function orderObjectNodeToThreeObject3D(
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimx ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimx'] ?? 1000;
             rot.makeRotationAxis(0, 1, 0, 270);
             extrusionDepth *= -1;
         } else if (geom.svgExtrusionDirection == 'y') {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimy ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimy'] ?? 1000;
             rot.makeRotationAxis(1, 0, 0, 90);
             extrusionDepth *= -1;
         }
         else {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimz ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimz'] ?? 1000;
             // rot.makeRotationAxis(1, 0, 0, MathUtils.degToRad(-90));
         }
 
@@ -387,9 +387,9 @@ export async function orderObjectNodeToThreeObject3D(
         let m4 = new THREE.Matrix4();
         m4.scale(
             new THREE.Vector3(
-                node.orderLineEntry!._dimx / bsize.x,
-                node.orderLineEntry!._dimy / bsize.y,
-                node.orderLineEntry!._dimz / bsize.z
+                node.orderLineEntry!['_dimx'] / bsize.x,
+                node.orderLineEntry!['_dimy'] / bsize.y,
+                node.orderLineEntry!['_dimz'] / bsize.z
             )
         );
         objGrp.applyMatrix4(m4);
