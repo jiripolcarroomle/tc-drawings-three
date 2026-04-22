@@ -147,16 +147,20 @@ export class Vector3 {
     /**
      * Normalizes the vector so it has a length of 1.
      * Mutates the current vector and returns it for chaining.
-     * If the length is very small (less than Vector3.EPS), it returns (0, 0, 0)
+     * If the length is very small (less than the given tolerance),
+     * the current vector is set to the zero vector instead
      * to avoid division by zero and numerical instability.
      */
-    normalize(): Vector3 {
+    normalize(tolerance: number = Vector3.EPS): Vector3 {
         const magnitude = this.length();
-        if (magnitude < Vector3.EPS) {
-            return new Vector3(0, 0, 0);
+        if (magnitude < tolerance) {
+            this._x = 0;
+            this._y = 0;
+            this._z = 0;
         } else {
-            return this.clone().multiply(1 / magnitude);
+            this.multiply(1 / magnitude);
         }
+        return this;
     }
 
     /** Returns true if all components are equal in a === way */
@@ -192,10 +196,13 @@ export class Vector3 {
      * are parallel.
      */
     cross(v: Vector3): Vector3 {
-        // return new Vector3(this._y * v._z - this._z * v._y, this._z * v._x - this._x * v._z, this._x * v._y - this._y * v._x);
-        this._x = this._y * v._z - this._z * v._y;
-        this._y = this._z * v._x - this._x * v._z;
-        this._z = this._x * v._y - this._y * v._x;
+        const x = this._x;
+        const y = this._y;
+        const z = this._z;
+
+        this._x = y * v._z - z * v._y;
+        this._y = z * v._x - x * v._z;
+        this._z = x * v._y - y * v._x;
         return this;
     }
 
@@ -203,8 +210,14 @@ export class Vector3 {
      * Returns true if this vector is parallel to the given vector.
      * It does this by checking whether the length of the cross product is below
      * the given tolerance.
+     * If the vectors are near-zero, they will result as false
      */
     isParallel(v: Vector3, tolerance: number = Vector3.EPS): boolean {
+        const thisLength = this.length();
+        const vLength = v.length();
+        if (thisLength < tolerance || vLength < tolerance) {
+            return false;
+        }
         return this.clone().cross(v).length() < tolerance;
     }
 
