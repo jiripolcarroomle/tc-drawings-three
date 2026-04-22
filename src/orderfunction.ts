@@ -130,7 +130,7 @@ export async function appOrderFunction(o: any, ol: any) {
         }
 
 
-        const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.copy().scale(-1);
+        const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.clone().multiply(-1);
 
         const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
         orthoCameraRenderResults.push(result);

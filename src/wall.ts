@@ -57,12 +57,12 @@ export class WallSegment implements IWallSegment {
         const wallHeight = to.height ?? from.height ?? DEFAULT_WALL_HEIGHT;
         const segmentStart = new Vector3(from.x, 0, -from.y);
         const segmentEnd = new Vector3(to.x, 0, -to.y);
-        const direction = segmentEnd.clone().sub(segmentStart).clone().normalize();
+        const direction = segmentEnd.clone().sub(segmentStart).normalize();
         const length = segmentEnd.clone().sub(segmentStart).length();
         const normalToWall = new Vector3(-direction._z, 0, direction._x);
         const rotationY = -Math.atan2(normalToWall._z, normalToWall._x) - Math.PI / 2;
-        const segmentBackStart = segmentStart.add(normalToWall.clone().multiply(wallThickness));
-        const segmentBackEnd = segmentEnd.add(normalToWall.clone().multiply(wallThickness));
+        const segmentBackStart = segmentStart.clone().add(normalToWall.clone().multiply(wallThickness));
+        const segmentBackEnd = segmentEnd.clone().add(normalToWall.clone().multiply(wallThickness));
 
         return new WallSegment(
             segmentStart,
@@ -120,7 +120,7 @@ export function createWallsGroupFromOrderData(roomContours: PosContour[], idsMap
             if (!from.segmentEnd.isCoincident(to.segmentStart)) {
                 continue;
             }
-            const jointPoint = from.segmentEnd
+            const jointPoint = from.segmentEnd.clone()
                 .add(to.direction.clone().multiply(from.wallThickness / from.normalToWall.dot(to.direction)))
                 .add(from.direction.clone().multiply(to.wallThickness / to.normalToWall.dot(from.direction)));
             from.segmentBackEnd = jointPoint;
@@ -182,8 +182,8 @@ export function filterNodesCloseToWall(nodes: IOrderSceneNode[], wallSegment: IW
         const allCorners = node.getAllBBoxCornersInWorld();
         for (const corner of allCorners) {
             const toCorner = corner.clone().sub(wallStart);
-            const projectionLength = toCorner.dot(wallEnd.clone().sub(wallStart).clone().normalize());
-            const projectionPoint = wallStart.add(wallEnd.clone().sub(wallStart).clone().normalize().multiply(projectionLength));
+            const projectionLength = toCorner.dot(wallEnd.clone().sub(wallStart).normalize());
+            const projectionPoint = wallStart.clone().add(wallEnd.clone().sub(wallStart).normalize().multiply(projectionLength));
             const distanceToWall = corner.clone().sub(projectionPoint).dot(normalFromWall);
             // floating point tolerance ... maybe down to >= -wallThickness / 2?
             if (distanceToWall >= -1 && distanceToWall <= distance) {
