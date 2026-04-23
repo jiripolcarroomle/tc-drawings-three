@@ -45,10 +45,10 @@ export interface IPlanSvgDrawing {
 export interface AnnotablePoint {
     /** coordinate in the scene, relative to the module pivot */
     coordinate: TC.Vector3;
-    /** whether the point is relevant for the horizontal (X) axis of the drawing. Undefined means the point is relevant. If true, the point will be dragged at the edge of the drawingon the annotation line. */
-    relevantInX?: boolean;
-    /** whether the point is relevant for the vertical (Y) axis of the drawing. Undefined means the point is relevant. If true, the point will be dragged at the edge of the drawingon the annotation line. */
-    relevantInY?: boolean;
+    /** whether the point is relevant for the horizontal (X) axis of the drawing. defaults false. if true, annotation won't show on the given annotation line */
+    notHorizontal?: boolean;
+    /** whether the point is relevant for the vertical (Y) axis of the drawing. defaults false. if true, annotation won't show on the given annotation line */
+    notVertical?: boolean;
 }
 
 /**
