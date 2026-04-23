@@ -1,6 +1,6 @@
-import { DrawingDirection, type Annotation, type IPlanSvgDrawing, type SvgInjectionData } from "./drawing.interface";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
-import { Matrix4, Vector3 } from "./tc/base";
+import { Matrix4 } from "./tc/base";
 
 
 export class Drawing implements IPlanSvgDrawing {
@@ -30,64 +30,37 @@ export class Drawing implements IPlanSvgDrawing {
         return this._options?.drawingDirection || DrawingDirection.Top;
     }
 
-    // internal storage of the annotations etc.
-    _svgObjects: { worldTransform: Matrix4, svgInjection: SVGElement }[] = [];
-    _annotations: Annotation[] = [];
-
-    /**
-     * Adds a general SVG object at a given position to the drawing.
-     * @param worldTransform The owner module's world matrix.
-     * @param svgInjection The SVG element to be added to the drawing. Since this is a direct injection of the SVG elemnent, world or drawing matrix won't apply to it.
-     */
-    addSvgObject(worldTransform: Matrix4, svgInjection: SVGElement): void {
-        const drawingTransform = this.worldToViewMatrix.clone().multiply(worldTransform);
-        const svgGroupObject = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        // apply the drawing transform to the group element
-        const e = drawingTransform.elements;
-        svgGroupObject.setAttribute("transform", `matrix(${e[0]}, ${e[1]}, ${e[4]}, ${e[5]}, ${e[12]}, ${e[13]})`);
-        svgGroupObject.appendChild(svgInjection);
-        this._svgObjects.push({ worldTransform, svgInjection: svgGroupObject });
-    }
+    _svgOverlays: { transform: Matrix4, svgInjection: SvgInjectionData }[] = [];
+    _annotations: { transform: Matrix4, annotation: Annotation }[] = [];
+    _annotablePoints: { transform: Matrix4, point: AnnotablePoint }[] = [];
 
     addAnnotation(worldTransform: Matrix4, annotation: Annotation): void {
-        const drawingTransform = this.worldToViewMatrix.clone().multiply(worldTransform);
-        const annotationCopy = { ...annotation };
-        annotationCopy.start = annotation.start.clone().applyMatrix4(drawingTransform);
-        annotationCopy.end = annotation.end.clone().applyMatrix4(drawingTransform);
-        annotationCopy.label = annotation.label || annotation.start.distanceTo(annotation.end).toFixed(0);
-        this._annotations.push(annotationCopy);
+        const copy = { ...annotation };
+        this._annotations.push({ transform: worldTransform, annotation: copy });
     }
 
     addOverlay(worldTransform: Matrix4, svgInjection: SvgInjectionData): void {
-        const drawingTransform = this.worldToViewMatrix.clone().multiply(worldTransform);
-        const svgPathObject = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        if (svgInjection.fill) { svgPathObject.setAttribute("fill", svgInjection.fill); }
-        if (svgInjection.stroke) { svgPathObject.setAttribute("stroke", svgInjection.stroke); }
-        if (svgInjection['stroke-dasharray']) { svgPathObject.setAttribute("stroke-dasharray", svgInjection['stroke-dasharray']); }
-        if (svgInjection['stroke-width']) { svgPathObject.setAttribute("stroke-width", svgInjection['stroke-width']); }
-        let path = "";
-        for (const command of svgInjection.path) {
-            if (command.command === 'Z') {
-                path += "Z ";
-            }
-            else {
-                const coord = command.coordinate3d!;
-                const drawingCoord = new Vector3(coord._x, coord._y, coord._z).applyMatrix4(drawingTransform);
-                path += `${command.command} ${drawingCoord._x} ${drawingCoord._y} `;
-            }
-        }
-        svgPathObject.setAttribute("d", path);
-        // put the overlay objects first
-        this._svgObjects.unshift({ worldTransform, svgInjection: svgPathObject });
+        const copy = { ...svgInjection };
+        this._svgOverlays.unshift({ transform: worldTransform, svgInjection: copy });
+    }
+
+    addAnnotablePoint(worldTransform: Matrix4, point: AnnotablePoint): void {
+        const copy = { ...point };
+        this._annotablePoints.push({ transform: worldTransform, point: copy });
     }
 
     render(): SVGElement {
         // Implementation for rendering the final SVG element
         const svgRoot = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 
+        let margin = 0;
+
+
         svgRoot.setAttribute("width", (this.sceneRender.imageWidth / 2).toString());
         svgRoot.setAttribute("height", (this.sceneRender.imageHeight / 2).toString());
-        svgRoot.setAttribute("viewBox", `0 0 ${this.sceneRender.imageWidth} ${this.sceneRender.imageHeight}`); // Default, or you can use actual image size if available
+        svgRoot.setAttribute("viewBox", `${-margin} ${-margin} ${this.sceneRender.imageWidth + 2 * margin} ${this.sceneRender.imageHeight + 2 * margin}`); // Default, or you can use actual image size if available
+
+
 
         // add the image
         const imageElement = document.createElementNS("http://www.w3.org/2000/svg", "image");
@@ -96,29 +69,77 @@ export class Drawing implements IPlanSvgDrawing {
         imageElement.setAttribute("height", this.sceneRender.imageHeight.toString());
         svgRoot.appendChild(imageElement);
 
-        // Append all SVG objects to the root
-        for (const obj of this._svgObjects) {
-            svgRoot.appendChild(obj.svgInjection);
+        const directAnnotations = this._annotations.filter(a => !a.annotation.shouldGoToAnnotationLine);
+
+        for (const { transform, point } of this._annotablePoints) {
+            const radius = 5;
+            const svgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            const transformedCoord = point.coordinate.clone().applyMatrix4(transform).applyMatrix4(this.worldToViewMatrix);
+            svgCircle.setAttribute("cx", transformedCoord._x.toString());
+            svgCircle.setAttribute("cy", transformedCoord._y.toString());
+            svgCircle.setAttribute("r", radius.toString());
+            svgCircle.setAttribute("fill", "blue");
+            svgRoot.appendChild(svgCircle);
         }
 
-        const directAnnotations = this._annotations.filter(a => !a.shouldGoToAnnotationLine);
+        for (const { transform, svgInjection } of this._svgOverlays) {
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            const transformedPathData = svgInjection.path.map(cmd => {
+                if (cmd.coordinate3d) {
+                    const transformedCoord = cmd.coordinate3d.clone().applyMatrix4(transform).applyMatrix4(this.worldToViewMatrix);
+                    return { ...cmd, coordinate3d: transformedCoord };
+                }
+                return cmd;
+            });
+            const d = transformedPathData.map(cmd => {
+                if (cmd.command === 'Z') {
+                    return 'Z';
+                } else if (cmd.coordinate3d) {
+                    return `${cmd.command} ${cmd.coordinate3d._x} ${cmd.coordinate3d._y}`;
+                }
+                return '';
+            }).join(' ');
+            path.setAttribute("d", d);
+            if (svgInjection.fill) {
+                path.setAttribute("fill", svgInjection.fill);
+            } else {
+                path.setAttribute("fill", "none");
+            } if (svgInjection.stroke) {
+                path.setAttribute("stroke", svgInjection.stroke);
+            } else {
+                path.setAttribute("stroke", "black");
+            }
+            if (svgInjection['stroke-width']) {
+                path.setAttribute("stroke-width", svgInjection['stroke-width']);
+            } else {
+                path.setAttribute("stroke-width", "1");
+            }
+            if (svgInjection['stroke-dasharray']) {
+                path.setAttribute("stroke-dasharray", svgInjection['stroke-dasharray']);
+            }
+            svgRoot.appendChild(path);
+        }
 
-        for (const annotation of directAnnotations) {
+        for (const { transform, annotation } of directAnnotations) {
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", annotation.start._x.toString());
-            line.setAttribute("y1", annotation.start._y.toString());
-            line.setAttribute("x2", annotation.end._x.toString());
-            line.setAttribute("y2", annotation.end._y.toString());
+            const start = annotation.start.clone().applyMatrix4(transform).applyMatrix4(this.worldToViewMatrix);
+            const end = annotation.end.clone().applyMatrix4(transform).applyMatrix4(this.worldToViewMatrix);
+            const label = annotation.label || start.distanceTo(end).toFixed(0);
+
+            line.setAttribute("x1", start._x.toString());
+            line.setAttribute("y1", start._y.toString());
+            line.setAttribute("x2", end._x.toString());
+            line.setAttribute("y2", end._y.toString());
             line.setAttribute("stroke", "green");
             line.setAttribute("stroke-width", "2");
             svgRoot.appendChild(line);
 
-            if (annotation.label) {
+            if (label) {
                 const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                text.setAttribute("x", ((annotation.start._x + annotation.end._x) / 2).toString());
-                text.setAttribute("y", ((annotation.start._y + annotation.end._y) / 2).toString());
+                text.setAttribute("x", ((start._x + end._x) / 2).toString());
+                text.setAttribute("y", ((start._y + end._y) / 2).toString());
                 text.setAttribute("fill", "green");
-                text.textContent = annotation.label;
+                text.textContent = label;
                 svgRoot.appendChild(text);
             }
         }

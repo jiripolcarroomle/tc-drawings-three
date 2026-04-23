@@ -162,13 +162,7 @@ export async function appOrderFunction(o: any, ol: any) {
                         drawing.addAnnotation(nodeMatrix, annotation);
                     });
                     annotation.out_AnnotablePoints?.(moduleData)?.forEach((point: AnnotablePoint) => {
-                        const radius = 15;
-                        const svgCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                        svgCircle.setAttribute("cx", point.coordinate._x.toString());
-                        svgCircle.setAttribute("cy", point.coordinate._y.toString());
-                        svgCircle.setAttribute("r", radius.toString());
-                        svgCircle.setAttribute("fill", "blue");
-                        drawing.addSvgObject(nodeMatrix, svgCircle);
+                        drawing.addAnnotablePoint(nodeMatrix, { coordinate: point.coordinate });
                     });
 
                 });

@@ -7,8 +7,6 @@ import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface"
  * All coordinates the content creator should define must be in world coordinate system or in the module coordinate system.
  * All projections to the 2D drawing coordinate system and all SVG related calculations should be handled by the provided app.
  */
-
-
 export enum DrawingDirection {
     Top = 'top',
     Elevation = 'elevation',
@@ -25,12 +23,14 @@ export interface IPlanSvgDrawing {
 
     get drawingDirection(): DrawingDirection;
 
-    /** Add an SVG object to the drawing at the specified world position. */
-    addSvgObject(worldTransform: TC.Matrix4, svgInjection: SVGElement): void;
     /** Add an annotable point to the drawing */
     addAnnotation(worldTransform: TC.Matrix4, annotation: Annotation): void;
     /** Add an overlay SVG object to the drawing at the specified world position */
     addOverlay(worldTransform: TC.Matrix4, svgInjection: SvgInjectionData): void;
+    /**
+     * Add an annotable point to the drawing. The point will be rendered as a circle and can be used for example to mark important points in the drawing.
+      */
+    addAnnotablePoint(worldTransform: TC.Matrix4, point: AnnotablePoint): void;
 
     /**
      * After all SVG objects have been added, render the final SVG element.
@@ -43,7 +43,12 @@ export interface IPlanSvgDrawing {
 
 
 export interface AnnotablePoint {
-    coordinate: TC.Vector3; // coordinate in the scene, relative to the module pivot
+    /** coordinate in the scene, relative to the module pivot */
+    coordinate: TC.Vector3;
+    /** whether the point is relevant for the horizontal (X) axis of the drawing. Undefined means the point is relevant. If true, the point will be dragged at the edge of the drawingon the annotation line. */
+    relevantInX?: boolean;
+    /** whether the point is relevant for the vertical (Y) axis of the drawing. Undefined means the point is relevant. If true, the point will be dragged at the edge of the drawingon the annotation line. */
+    relevantInY?: boolean;
 }
 
 /**
@@ -67,6 +72,8 @@ export interface Annotation {
      * The text might be flipped to always be legible (e.g. not upside-down etc.)
      */
     distance?: number;
+
+
 }
 
 

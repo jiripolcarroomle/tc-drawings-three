@@ -1,4 +1,3 @@
-import * as TC from "./tc/base";
 import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 
 
@@ -31,11 +30,11 @@ run();
 
 
 
- async function run() {
+async function run() {
   const orderCallResults = await appOrderFunction(orderJson.o, orderJson.ol);
 
   orderCallResults.forEach(svg => {
-  
+
     addSvgToDocument(document.body, svg);
 
   });
@@ -43,7 +42,7 @@ run();
 
 function addSvgToDocument(target: HTMLElement, svg: any) {
 
-  document.body.appendChild(svg);
+  target.appendChild(svg);
 
   // Add download button for SVG
   const downloadBtn = document.createElement('button');
@@ -59,13 +58,13 @@ function addSvgToDocument(target: HTMLElement, svg: any) {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'rendered-image.svg';
-    document.body.appendChild(a);
+    target.appendChild(a);
     a.click();
     setTimeout(() => {
-      document.body.removeChild(a);
+      target.removeChild(a);
       URL.revokeObjectURL(url);
     }, 100);
   };
-  document.body.appendChild(downloadBtn);
+  target.appendChild(downloadBtn);
 
 }
