@@ -10,9 +10,8 @@ export function logInfo(message: string) {
     console.log(message);
 }
 
-
 export class Vector3 {
-    // See: https://github.com/mrdoob/three.js/blob/dev/src/math/Vector3.js   
+    // See: https://github.com/mrdoob/three.js/blob/dev/src/math/Vector3.js
     constructor(x = 0, y = 0, z = 0) {
         this._x = x;
         this._y = y;
@@ -21,7 +20,33 @@ export class Vector3 {
     _x: number;
     _y: number;
     _z: number;
-    applyMatrix4(m: Matrix4) {
+
+    /**
+     * Epsilon value used to compare coordinate or position equality.
+     * Apparently, 0.000001 was too small.
+     * TC provided near-zero position values such as:
+     * "x": 900.0, "y": -2.6679314139854693E-12, "z": -6.103515625E-05, "rotationY": 1.1920928955078125E-07
+     * where the previous value failed.
+     * 0.01 mm is a reasonable value to try.
+     */
+    static EPS: number = 0.01;
+
+    /**
+     * Creates a new Vector3 instance from the given array, starting at the specified offset.
+     * @param array The array containing the vector components in the order [x, y, z].
+     * @param offset The starting index in the array (default is 0).
+     * @returns A new Vector3 instance with components set from the array.
+     */
+    static fromArray(array: Array<number>, offset: number = 0) {
+        return new Vector3(array[offset], array[offset + 1], array[offset + 2]);
+    }
+
+    /**
+     * Sets the components of this vector from the position encoded in the given 4x4 transformation matrix.
+     * Mutates the current vector and returns it for chaining.
+     * @param m The 4x4 transformation matrix.
+     */
+    applyMatrix4(m: Matrix4): Vector3 {
         const x = this._x, y = this._y, z = this._z;
 
         const e = m.elements;
@@ -34,7 +59,12 @@ export class Vector3 {
         return this;
     }
 
-    setFromMatrixPosition(m: Matrix4) {
+    /**
+     * Sets the components of this vector from the position encoded in the given 4x4 transformation matrix.
+     * Mutates the current vector and returns it for chaining.
+     * @param m The 4x4 transformation matrix.
+     */
+    setFromMatrixPosition(m: Matrix4): Vector3 {
         const e = m.elements;
 
         this._x = e[12];
@@ -44,80 +74,159 @@ export class Vector3 {
         return this;
     }
 
-    setFromMatrixColumn(m: Matrix4, index: number) {
+    /**
+     * Sets the components of this vector from the column of the given 4x4 transformation matrix.
+     * Mutates the current vector and returns it for chaining.
+     * @param m The 4x4 transformation matrix.
+     * @param index The column index (0-3) to extract.
+     */
+    setFromMatrixColumn(m: Matrix4, index: number): Vector3 {
         return this.fromArray(m.elements, index * 4);
     }
 
+    /**
+     * Sets the components of this vector from the given array, starting at the specified offset.
+     * Mutates the current vector and returns it for chaining.
+     * @param array The array containing the vector components in the order [x, y, z].
+     * @param offset The starting index in the array (default is 0).
+     */
     fromArray(array: Array<number>, offset: number = 0) {
         this._x = array[offset];
         this._y = array[offset + 1];
         this._z = array[offset + 2];
-
         return this;
     }
 
-    static fromArray(array: Array<number>, offset: number = 0) {
-        return new Vector3(array[offset], array[offset + 1], array[offset + 2]);
-    }
-
+    /**
+     * Returns the length (magnitude) of the vector.
+     */
     length() {
         return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
     }
 
-    copy(): Vector3 {
+    /**
+     * Makes a copy of the vector with the same components.
+     */
+    clone(): Vector3 {
         return new Vector3(this._x, this._y, this._z);
     }
 
+    /**
+     * Adds the given vector to this vector.
+     * Mutates the current vector and returns it for chaining.
+     */
+    add(v: Vector3): Vector3 {
+        this._x += v._x;
+        this._y += v._y;
+        this._z += v._z;
+        return this;
+    }
 
     /**
- * Epsilon value to compare coordinate or position equality.
- * apparently, 0.000001 was too little
- * TC provided near-zero position values: "x": 900.0, "y": -2.6679314139854693E-12, "z": -6.103515625E-05, "rotationY": 1.1920928955078125E-07
- * where the previous value failed
- * 0.01 mm is a suggestion for trying out
- */
-    static EPS: number = 0.01;
-    add(v: Vector3) {
-        return new Vector3(this._x + v._x, this._y + v._y, this._z + v._z);
+     * Subtracts the given vector from this vector.
+     * Mutates the current vector and returns it for chaining.
+     */
+    sub(v: Vector3): Vector3 {
+        this._x -= v._x;
+        this._y -= v._y;
+        this._z -= v._z;
+        return this;
     }
-    subtract(v: Vector3) {
-        return new Vector3(this._x - v._x, this._y - v._y, this._z - v._z);
+
+    /**
+     * Multiplies the vector by a scalar.
+     * Mutates the current vector and returns it for chaining.
+     */
+    multiply(scalar: number): Vector3 {
+        this._x *= scalar;
+        this._y *= scalar;
+        this._z *= scalar;
+        return this;
     }
-    scale(scalar: number) {
-        return new Vector3(this._x * scalar, this._y * scalar, this._z * scalar);
-    }
-    normalize() {
-        const magnitude = this.magnitude();
-        if (magnitude < Vector3.EPS) {
-            return new Vector3(0, 0, 0);
+
+    /**
+     * Normalizes the vector so it has a length of 1.
+     * Mutates the current vector and returns it for chaining.
+     * If the length is very small (less than the given tolerance),
+     * the current vector is set to the zero vector instead
+     * to avoid division by zero and numerical instability.
+     */
+    normalize(tolerance: number = Vector3.EPS): Vector3 {
+        const magnitude = this.length();
+        if (magnitude < tolerance) {
+            this._x = 0;
+            this._y = 0;
+            this._z = 0;
+        } else {
+            this.multiply(1 / magnitude);
         }
-        else {
-            return this.scale(1 / this.magnitude());
-        }
+        return this;
     }
-    magnitude() {
-        return Math.sqrt(this._x * this._x + this._y * this._y + this._z * this._z);
+
+    /** Returns true if all components are equal in a === way */
+    equals(v: Vector3) {
+        return ((v._x === this._x) && (v._y === this._y) && (v._z === this._z));
     }
+
+    /**
+     * Returns true if distance between vectors is less than the given tolerance.
+     * This is more robust for computing actual 3D position equality, as TC sometimes
+     * provides near-zero values that should be treated as zero and would not compare
+     * equal with the equals() method.
+     * @param v The vector to compare with.
+     * @param tolerance The distance threshold used to consider the vectors coincident.
+     */
     isCoincident(v: Vector3, tolerance: number = Vector3.EPS) {
-        return this.subtract(v).magnitude() < tolerance;
+        return this.clone().sub(v).length() < tolerance;
     }
-    /** dot product */
-    dot(v: Vector3) {
+
+    /**
+     * Returns the dot product with the given vector.
+     */
+    dot(v: Vector3): number {
         return this._x * v._x + this._y * v._y + this._z * v._z;
     }
-    /** cross product */
-    cross(v: Vector3) {
-        return new Vector3(this._y * v._z - this._z * v._y, this._z * v._x - this._x * v._z, this._x * v._y - this._y * v._x);
-    }
-    /** size of cross is size of area between two vectors - if that is 0, they are parallel */
-    isParallel(v: Vector3, tolerance: number = Vector3.EPS) {
-        return this.cross(v).magnitude() < tolerance;
-    }
-    distanceTo(v: Vector3) {
-        return this.subtract(v).magnitude();
+
+    /**
+     * Computes the cross product with the given vector.
+     * Mutates the current vector and returns it for chaining.
+     * The cross product is perpendicular to the plane defined by the two input vectors,
+     * in the right-hand direction from this vector to the other. Its length equals
+     * the area of the parallelogram defined by the two vectors and is zero when they
+     * are parallel.
+     */
+    cross(v: Vector3): Vector3 {
+        const x = this._x;
+        const y = this._y;
+        const z = this._z;
+
+        this._x = y * v._z - z * v._y;
+        this._y = z * v._x - x * v._z;
+        this._z = x * v._y - y * v._x;
+        return this;
     }
 
+    /**
+     * Returns true if this vector is parallel to the given vector.
+     * It does this by checking whether the length of the cross product is below
+     * the given tolerance.
+     * If the vectors are near-zero, they will result as false
+     */
+    isParallel(v: Vector3, tolerance: number = Vector3.EPS): boolean {
+        const thisLength = this.length();
+        const vLength = v.length();
+        if (thisLength < tolerance || vLength < tolerance) {
+            return false;
+        }
+        return this.clone().cross(v).length() < tolerance;
+    }
 
+    /**
+     * Returns the distance between this vector and the given vector.
+     */
+    distanceTo(v: Vector3): number {
+        return this.clone().sub(v).length();
+    }
 }
 
 export class Matrix4 {
@@ -379,8 +488,6 @@ export class Matrix4 {
         this.elements = te;
         return this;
     }
-
-
 }
 
 

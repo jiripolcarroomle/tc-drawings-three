@@ -243,8 +243,8 @@ export async function sceneToThreeJsScene(
     rootObject3DNode: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
-): Promise<THREE.Scene> {
-    const threeScene = new THREE.Scene();
+): Promise<{ scene: THREE.Scene, nodesInScene: IOrderSceneNode[] }> {
+    const scene = new THREE.Scene();
 
     const material = drawingRenderSettings.material ?? new THREE.MeshBasicMaterial({ color: 0xcccccc });
     (material as THREE.MeshBasicMaterial).polygonOffset = true;
@@ -258,23 +258,21 @@ export async function sceneToThreeJsScene(
         (wallsMaterial as THREE.MeshBasicMaterial).polygonOffsetUnits = 1;
     }
 
-    const wallsWireframeMaterial = drawingRenderSettings.wallsWireframeMaterial ?? (wallsMaterial ? drawingRenderSettings.wireframeMaterial : undefined);
-
-    const settings = { ...drawingRenderSettings, material, wallsMaterial, wallsWireframeMaterial };
-
+    const nodesInScene: IOrderSceneNode[] = [];
 
     const rootObject = await orderObjectNodeToThreeObject3D(
         rootObject3DNode,
         drawingRenderSettings,
         filter,
+        nodesInScene,
     );
     if (rootObject) {
-        threeScene.add(rootObject);
+        scene.add(rootObject);
     }
 
-    threeScene.updateMatrixWorld(true);
+    scene.updateMatrixWorld(true);
 
-    return threeScene;
+    return { scene, nodesInScene };
 }
 
 /**
@@ -292,10 +290,15 @@ export async function orderObjectNodeToThreeObject3D(
     node: IOrderSceneNode,
     drawingRenderSettings: IExtendedDrawingRenderSettings = {},
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
+    convertedNodesCollector: IOrderSceneNode[],
 ): Promise<THREE.Object3D | null> {
-    const passesFilter = !filter || filter(node);
+    const passesFilter = (filter === undefined) || filter(node);
     if (!passesFilter) {
         return null;
+    }
+
+    if (node.id.includes('hinge')) {
+        logInfo(`Node ${node.id} passed filter and will be rendered.`);
     }
 
     const threeObject = new THREE.Object3D();
@@ -317,16 +320,16 @@ export async function orderObjectNodeToThreeObject3D(
         const rot = new TC.Matrix4();
         let extrusionDepth;
         if (geom.svgExtrusionDirection == 'x') {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimx ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimx'] ?? 1000;
             rot.makeRotationAxis(0, 1, 0, 270);
             extrusionDepth *= -1;
         } else if (geom.svgExtrusionDirection == 'y') {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimy ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimy'] ?? 1000;
             rot.makeRotationAxis(1, 0, 0, 90);
             extrusionDepth *= -1;
         }
         else {
-            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?._dimz ?? 1000;
+            extrusionDepth = geom.svgDepth ?? node.orderLineEntry?.['_dimz'] ?? 1000;
             // rot.makeRotationAxis(1, 0, 0, MathUtils.degToRad(-90));
         }
 
@@ -384,9 +387,9 @@ export async function orderObjectNodeToThreeObject3D(
         let m4 = new THREE.Matrix4();
         m4.scale(
             new THREE.Vector3(
-                node.orderLineEntry!._dimx / bsize.x,
-                node.orderLineEntry!._dimy / bsize.y,
-                node.orderLineEntry!._dimz / bsize.z
+                node.orderLineEntry!['_dimx'] / bsize.x,
+                node.orderLineEntry!['_dimy'] / bsize.y,
+                node.orderLineEntry!['_dimz'] / bsize.z
             )
         );
         objGrp.applyMatrix4(m4);
@@ -419,11 +422,12 @@ export async function orderObjectNodeToThreeObject3D(
             },
         );
     }
+    convertedNodesCollector.push(node);
 
 
 
     const childThreeObjects = await Promise.all(
-        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter))
+        node.children.map((childNode) => orderObjectNodeToThreeObject3D(childNode, drawingRenderSettings, filter, convertedNodesCollector))
     );
     childThreeObjects.forEach((childThreeObject) => {
         if (childThreeObject) {
@@ -512,19 +516,4 @@ function loadSvgShapesFromCacheOrParse(
     }
     _svgShapeCache.set(svg, shapes);
     return shapes;
-}
-
-function computeMinAndMaxFromShapes(svgString: string): { minX: number; minY: number; maxX: number; maxY: number } {
-    const shapes = loadSvgShapesFromCacheOrParse(svgString);
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    shapes.forEach(shape => {
-        const points = shape.getPoints();
-        points.forEach(p => {
-            minX = Math.min(minX, p.x);
-            minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x);
-            maxY = Math.max(maxY, p.y);
-        });
-    });
-    return { minX, minY, maxX, maxY };
 }

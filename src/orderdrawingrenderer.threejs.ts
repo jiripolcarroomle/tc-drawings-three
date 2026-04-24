@@ -21,7 +21,9 @@ export const renderScene: IRenderDrawing = async function (
 
     // Build a Three.js scene from the provided scene root and render settings
     // with filtered out nodes.
-    const threeScene: THREE.Scene = await sceneToThreeJsScene(sceneRoot, drawingSettings, filter);
+    const conversionResult = await sceneToThreeJsScene(sceneRoot, drawingSettings, filter);
+    const threeScene: THREE.Scene = conversionResult.scene;
+    const collectedNodes: IOrderSceneNode[] = conversionResult.nodesInScene;
 
     // Get the size of the scene. The camera will be set so that the whole scene fits into the view.
     const sceneBoundingBox = new THREE.Box3().setFromObject(threeScene);
@@ -116,19 +118,25 @@ export const renderScene: IRenderDrawing = async function (
         0, 0, 0.5, 0.5,
         0, 0, 0, 1,
     );
-    const worldToViewMatrix = imageSpaceMatrix
+    const worldToCameraMatrix = new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements);
+    const cameraToPixelMatrix = imageSpaceMatrix.clone().multiply(new TC.Matrix4().fromArray(camera.projectionMatrix.elements));
+    const worldToPixelMatrix = imageSpaceMatrix.clone()
         .multiply(new TC.Matrix4().fromArray(camera.projectionMatrix.elements))
-        .multiply(new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements));
+        .multiply(worldToCameraMatrix);
 
 
 
 
     return {
-        worldToViewMatrix,
-        image: { image: pngDataUrl },
+        worldToCameraMatrix,
+        worldToPixelMatrix,
+        cameraToPixelMatrix,
+        image: { dataUrl: pngDataUrl },
         renderedScene: threeScene,
         imageHeight: adjustedHeight,
         imageWidth: adjustedWidth,
+        cameraParameters: settings,
+        renderedNodes: collectedNodes,
     };
 
 }

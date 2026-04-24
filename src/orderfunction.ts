@@ -1,3 +1,6 @@
+import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationstable";
+import { Drawing } from "./drawing.implementation";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.theejs.helpers";
 import { renderScene } from "./orderdrawingrenderer.threejs";
@@ -7,18 +10,20 @@ import { filterNodesCloseToWall } from "./wall";
 
 export async function appOrderFunction(o: any, ol: any) {
 
-    const results: IRenderOrthoCameraResult[] = [];
+    const orthoCameraRenderResults: IRenderOrthoCameraResult[] = [];
 
     // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
     const orderScene = createScene(o, ol);
 
-    // settings
+    // =================
+    // 1. settings and preparations 
+    // =================
     const drawingSettings: IExtendedDrawingRenderSettings = {
         material: { color: 0xcccccc, },
         wireframeMaterial: { color: 0x000000, },
         wallsMaterial: {
             color: 0x555500,
-            transparent: true, opacity: 0.2,
+            transparent: true, opacity: 0.1,
 
         },
         wallsWireframeMaterial: { color: 0x000000, },
@@ -41,6 +46,22 @@ export async function appOrderFunction(o: any, ol: any) {
                     'hinge',
                     'hanger',
                     'drill',
+                ].some(x => node.id.toLowerCase().includes(x))
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
+    const frontsNameFilter = (node: IOrderSceneNode) => {
+        // filter out tiny parts that are not important for the overview drawings
+        if (node.kind === Object3DNodeKind.Part) {
+            if (
+                [
+                    'part_door',
+                    'part_drawer_',
+                    'part_handle',
+                    'part_hinge',
                 ].some(x => node.id.toLowerCase().includes(x))
             ) {
                 return false;
@@ -85,17 +106,29 @@ export async function appOrderFunction(o: any, ol: any) {
         ]
     });
 
+    // =================
+    // 2. collect relevant renderings
+    // =================
+
     const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
-    topView.data = {
-        modulesInDrawing: [...allModuleNodes],
-    }
-    results.push(topView);
+    orthoCameraRenderResults.push(topView);
 
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
         const modulesCloseToWall = filterNodesCloseToWall(allModuleNodes, wall.wallData!, side === 'rear', moduleCloseToWallDistanceThreshold)
         // nothing -> do not render
         if (!modulesCloseToWall.length) continue;
+
+        const isOwnedByModuleCloseToWall = (node: IOrderSceneNode) => {
+            let current: IOrderSceneNode | null = node;
+            while (current) {
+                if (modulesCloseToWall.includes(current)) {
+                    return true;
+                }
+                current = current.parent;
+            }
+            return false;
+        };
 
         const renderingFilter = (node: IOrderSceneNode) => {
             // filter by name
@@ -105,37 +138,76 @@ export async function appOrderFunction(o: any, ol: any) {
             if (node.kind === Object3DNodeKind.Wall) {
                 return getWallsFilter(wall)(node);
             }
-            if (node.kind === Object3DNodeKind.Part) {
-                // filter by owner module proximity to wall
-                let parent = node.parent
-                while (parent) {
-                    if (modulesCloseToWall.includes(parent)) {
-                        return true;
-                    }
-                    parent = parent.parent
-                }
+            if (node.kind === Object3DNodeKind.Part || node.kind === Object3DNodeKind.Module) {
+                return isOwnedByModuleCloseToWall(node);
+            }
+
+            return true;
+        }
+
+        const renderingFilterForFronts = (node: IOrderSceneNode) => {
+            // filter by name
+            if (!frontsNameFilter(node)) {
                 return false;
+            }
+            if (node.kind === Object3DNodeKind.Wall) {
+                return getWallsFilter(wall)(node);
+            }
+            if (node.kind === Object3DNodeKind.Part || node.kind === Object3DNodeKind.Module) {
+                return isOwnedByModuleCloseToWall(node);
             }
 
             return true;
         }
 
 
-        const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.copy().scale(-1);
+        const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.clone().multiply(-1);
 
         const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
-        if (!result.data) { result.data = {}; }
-        result.data.modulesInDrawing = modulesCloseToWall;
-        results.push(result);
+        orthoCameraRenderResults.push(result);
 
-        // do something with the result, e.g. display the rendered image
-        console.log(`Rendered image or wall ${wall.id} (${side} side) with ${modulesCloseToWall.length} close modules.`);
+        const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
+        orthoCameraRenderResults.push(resultWithoutFronts);
+
     }
 
+    // =================
+    // 3. make drawings from the renderings
+    // =================
+
+    const svgs: SVGElement[] = [];
+
+    orthoCameraRenderResults.forEach((renderResult, index) => {
+        const drawing = new Drawing(renderResult, { drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation });
+
+        renderResult.renderedNodes?.forEach((moduleNode: IOrderSceneNode) => {
+            const moduleData = moduleNode.orderLineEntry;
+            const nodeMatrix = moduleNode.worldTransform;
+            if (!moduleData) { return; }
+            const id = moduleData!.modId;
+            if (!id) { return; }
+            const annotations = filterAnnotationForModule(id, moduleData, drawing);
+            if (annotations.length > 0) {
+                annotations.forEach((annotation: I_tab_Annotation) => {
+                    annotation.out_SvgInjections?.(moduleData, drawing)?.forEach((injection: SvgInjectionData) => {
+                        drawing.addOverlay(nodeMatrix, injection);
+                    });
+                    annotation.out_Annotations?.(moduleData, drawing)?.forEach((annotation: Annotation) => {
+                        drawing.addAnnotation(nodeMatrix, annotation);
+                    });
+                    annotation.out_AnnotablePoints?.(moduleData, drawing)?.forEach((point: AnnotablePoint) => {
+                        drawing.addAnnotablePoint(nodeMatrix, { coordinate: point.coordinate });
+                    });
+
+                });
+            }
+        });
+
+        const svg = drawing.render();
+        svgs.push(svg);
+    });
 
 
 
-
-
-    return results;
+    return svgs;
 }

@@ -35,7 +35,6 @@ export interface IRenderOrthoCameraParams {
     drawingMaxWidth?: number;
     /** Output maximum image height in pixels. The actual size will depend on the content. */
     drawingMaxHeight?: number;
-
     /*
      * optional orthographic view volume parameters; if not provided, the camera will automatically fit the scene bounding box
      */
@@ -51,8 +50,12 @@ export interface IRenderOrthoCameraParams {
  * Result of the rendered drawing.
  */
 export interface IRenderOrthoCameraResult {
+    /** the rigid matrix transforming world coordinates to orthographic camera-space coordinates */
+    worldToCameraMatrix: TC.Matrix4;
     /** the matrix transforming world coordinates to output image pixel coordinates */
-    worldToViewMatrix: TC.Matrix4;
+    worldToPixelMatrix: TC.Matrix4;
+    /** the matrix transforming camera coordinates to output image pixel coordinates */
+    cameraToPixelMatrix: TC.Matrix4;
     /** the rendered data in any format */
     image: any;
     /** the scene that has been rendered; useful for debugging or further processing */
@@ -61,6 +64,11 @@ export interface IRenderOrthoCameraResult {
     imageWidth: number;
     /** the actual height of the rendered image in pixels or another unit */
     imageHeight: number;
+    /** list of nodes that have been rendered in the scene */
+    renderedNodes?: IOrderSceneNode[];
+    /** original drawing settings with which the rendering was performed */
+    cameraParameters?: IRenderOrthoCameraParams;
+
     /** additional metadata or information related to the rendered image */
     data?: any;
 }
