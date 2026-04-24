@@ -1,23 +1,21 @@
 import { Vector3 } from "./tc/base";
-import type { AnnotablePoint, Annotation, SvgInjectionData } from "./drawing.interface";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgInjectionData } from "./drawing.interface";
 
 
 
 export interface I_tab_Annotation {
     in_ModuleId: string;
-    in_ModuleCondition?: (moduleData: any) => boolean;
-    in_DrawingCondition?: (drawingData: any) => boolean;
-    out_AnnotablePoints?: (moduleData: any) => AnnotablePoint[];
-    out_SvgInjections?: (moduleData: any) => SvgInjectionData[];
-    out_Annotations?: (moduleData: any) => Annotation[];
+    in_ModuleCondition?: (m: any, drawingData: any) => boolean;
+    out_AnnotablePoints?: (m: any, drawingData: any) => AnnotablePoint[];
+    out_SvgInjections?: (m: any, drawingData: any) => SvgInjectionData[];
+    out_Annotations?: (m: any, drawingData: any) => Annotation[];
 }
 
 
 export function filterAnnotationForModule(moduleId: string, moduleData: any, drawingData: any): I_tab_Annotation[] {
     return tab_Annotations.filter(annotation => {
         return annotation.in_ModuleId === moduleId
-            && (annotation.in_ModuleCondition ? annotation.in_ModuleCondition(moduleData) : true)
-            && (annotation.in_DrawingCondition ? annotation.in_DrawingCondition(drawingData) : true);
+            && (annotation.in_ModuleCondition ? annotation.in_ModuleCondition(moduleData, drawingData) : true);
     });
 }
 
@@ -35,25 +33,33 @@ export const tab_Annotations: I_tab_Annotation[] = [
                 { coordinate: new Vector3(0, moduleData.mod_PlinthAreaHeight + moduleData.mod_Height, 0) }, // example point at the module pivot
             ]
         },
-        out_Annotations: (moduleData: any) => {
-            return [
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(moduleData.mod_Width, 0, 0),
-                    distance: 0.1 * moduleData._articlePos.y + 200,
-                }, {
-                    start: new Vector3(0.05 * moduleData._articlePos.y+50, 0, 0),
-                    end: new Vector3(0.05 * moduleData._articlePos.y+50, 0, moduleData.mod_Depth),
-                },
-            ];
+        out_Annotations: (moduleData: any, drawingData: any) => {
+            const top = drawingData.drawingDirection === DrawingDirection.Top;
+            return (top
+                ? ([
+                    {
+                        start: new Vector3(0, 0, 0),
+                        end: new Vector3(moduleData.mod_Width, 0, 0),
+                        distance: (0.1 * moduleData._articlePos.y + 200),
+                    }, {
+                        start: new Vector3(0.05 * moduleData._articlePos.y + 50, 0, 0),
+                        end: new Vector3(0.05 * moduleData._articlePos.y + 50, 0, moduleData.mod_Depth),
+                    },
+                ])
+                : ([
+                    {
+                        start: new Vector3(0, 0, 0),
+                        end: new Vector3(moduleData.mod_Width, 0, 0),
+                        distance: (- 50),
+                    },
+                ])
+            );
 
-        }
+        },
     },
-
     {
         in_ModuleId: 'mr_CornerunitStraight',
         in_ModuleCondition: (_moduleData: any) => true, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => true, // apply to all drawings
         out_AnnotablePoints: (moduleData: any) => {
             return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
@@ -69,7 +75,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
     {
         in_ModuleId: 'mc_Backsplash',
         in_ModuleCondition: (_moduleData: any) => true, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => true, // apply to all drawings
         out_AnnotablePoints: (moduleData: any) => {
             return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
@@ -85,7 +90,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
     {
         in_ModuleId: 'mc_Countertop01',
         in_ModuleCondition: (_moduleData: any) => true, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => true, // apply to all drawings
         out_AnnotablePoints: (moduleData: any) => {
             return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
@@ -100,8 +104,12 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        in_ModuleCondition: (moduleData: any) => { return moduleData.mod_CreateCountertop || moduleData.mod_CreatePaneltop }, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
+        in_ModuleCondition: (moduleData: any, drawingData: any) => {
+            return (
+                (moduleData.mod_CreateCountertop || moduleData.mod_CreatePaneltop)
+                && drawingData.drawingDirection === DrawingDirection.Top
+            );
+        }, // apply to all modules with the specified ID
         out_AnnotablePoints: (_moduleData: any) => { return []; },
         out_SvgInjections: (moduleData: any) => {
             return [
@@ -124,9 +132,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mf_Door',
-        in_ModuleCondition: (_moduleData: any) => { return true; }, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
-        out_AnnotablePoints: (_moduleData: any) => { return []; },
+        in_ModuleCondition: (_moduleData: any, drawingData: any) => { return drawingData.drawingDirection === DrawingDirection.Top; }, // apply to all modules with the specified ID
         out_SvgInjections: (moduleData: any) => {
             return [
                 {
@@ -149,8 +155,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mc_Leg01',
-        in_ModuleCondition: (_moduleData: any) => { return true; },
-        in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
+        in_ModuleCondition: (_moduleData: any, drawingData: any) => { return drawingData.drawingDirection === DrawingDirection.Top; },
         out_AnnotablePoints: (_moduleData: any) => { return []; },
         out_SvgInjections: (_moduleData: any) => {
             return [
@@ -175,7 +180,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
     {
         in_ModuleId: 'mr_CornerunitStraight',
         in_ModuleCondition: (moduleData: any) => { return moduleData.mod_CreateCountertop || moduleData.mod_CreatePaneltop }, // apply to all modules with the specified ID
-        in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
         out_AnnotablePoints: (_moduleData: any) => { return []; },
         out_SvgInjections: (moduleData: any) => {
             return [
@@ -199,9 +203,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        in_ModuleCondition: (moduleData: any) => { return moduleData._articlePos.y > 100 /** todo: base on mod_ElementType */ },
-        in_DrawingCondition: (_drawingData: any) => { return true; /** todo: top view only */ },
-        out_AnnotablePoints: (_moduleData: any) => { return []; },
+        in_ModuleCondition: (moduleData: any, drawingData: any) => { return moduleData._articlePos.y > 100 /** todo: base on mod_ElementType */ },
         out_SvgInjections: (moduleData: any) => {
             return [
                 {

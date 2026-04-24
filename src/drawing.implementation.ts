@@ -155,7 +155,7 @@ export class Drawing implements IPlanSvgDrawing {
 
             annotationsRoot.appendChild(annotationLine);
 
-            if (transformedDistanceFromFeature > 0) {
+            if (Math.abs(transformedDistanceFromFeature) > 2) {
                 const ticks = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 ticks.setAttribute("d", `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`);
                 ticks.setAttribute("stroke", "gray");

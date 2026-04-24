@@ -189,13 +189,13 @@ export async function appOrderFunction(o: any, ol: any) {
             const annotations = filterAnnotationForModule(id, moduleData, drawing);
             if (annotations.length > 0) {
                 annotations.forEach((annotation: I_tab_Annotation) => {
-                    annotation.out_SvgInjections?.(moduleData)?.forEach((injection: SvgInjectionData) => {
+                    annotation.out_SvgInjections?.(moduleData, drawing)?.forEach((injection: SvgInjectionData) => {
                         drawing.addOverlay(nodeMatrix, injection);
                     });
-                    annotation.out_Annotations?.(moduleData)?.forEach((annotation: Annotation) => {
+                    annotation.out_Annotations?.(moduleData, drawing)?.forEach((annotation: Annotation) => {
                         drawing.addAnnotation(nodeMatrix, annotation);
                     });
-                    annotation.out_AnnotablePoints?.(moduleData)?.forEach((point: AnnotablePoint) => {
+                    annotation.out_AnnotablePoints?.(moduleData, drawing)?.forEach((point: AnnotablePoint) => {
                         drawing.addAnnotablePoint(nodeMatrix, { coordinate: point.coordinate });
                     });
 
