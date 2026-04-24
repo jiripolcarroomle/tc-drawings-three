@@ -53,6 +53,22 @@ export async function appOrderFunction(o: any, ol: any) {
         }
         return true;
     }
+    const frontsNameFilter = (node: IOrderSceneNode) => {
+        // filter out tiny parts that are not important for the overview drawings
+        if (node.kind === Object3DNodeKind.Part) {
+            if (
+                [
+                    'part_door',
+                    'part_drawer_',
+                    'part_handle',
+                    'part_hinge',
+                ].some(x => node.id.toLowerCase().includes(x))
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }
     const getWallsFilter = (relevantWall: IOrderSceneNode | undefined) => {
         return (node: IOrderSceneNode) => {
             if (!relevantWall) {
@@ -129,11 +145,29 @@ export async function appOrderFunction(o: any, ol: any) {
             return true;
         }
 
+        const renderingFilterForFronts = (node: IOrderSceneNode) => {
+            // filter by name
+            if (!frontsNameFilter(node)) {
+                return false;
+            }
+            if (node.kind === Object3DNodeKind.Wall) {
+                return getWallsFilter(wall)(node);
+            }
+            if (node.kind === Object3DNodeKind.Part || node.kind === Object3DNodeKind.Module) {
+                return isOwnedByModuleCloseToWall(node);
+            }
+
+            return true;
+        }
+
 
         const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.clone().multiply(-1);
 
         const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
         orthoCameraRenderResults.push(result);
+
+        const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
+        orthoCameraRenderResults.push(resultWithoutFronts);
 
     }
 
