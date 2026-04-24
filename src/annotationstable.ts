@@ -38,11 +38,12 @@ export const tab_Annotations: I_tab_Annotation[] = [
         out_Annotations: (moduleData: any) => {
             return [
                 {
-                    start: new Vector3(0, 0, 100),
-                    end: new Vector3(moduleData.mod_Width, 0, 100),
+                    start: new Vector3(0, 0, 0),
+                    end: new Vector3(moduleData.mod_Width, 0, 0),
+                    distance: 0.1 * moduleData._articlePos.y + 200,
                 }, {
-                    start: new Vector3(100, 0, 0),
-                    end: new Vector3(100, 0, moduleData.mod_Depth),
+                    start: new Vector3(0.05 * moduleData._articlePos.y+50, 0, 0),
+                    end: new Vector3(0.05 * moduleData._articlePos.y+50, 0, moduleData.mod_Depth),
                 },
             ];
 
@@ -148,7 +149,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mc_Leg01',
-        in_ModuleCondition: (_moduleData: any) => { return false; },
+        in_ModuleCondition: (_moduleData: any) => { return true; },
         in_DrawingCondition: (_drawingData: any) => { return true; }, // apply to all drawings
         out_AnnotablePoints: (_moduleData: any) => { return []; },
         out_SvgInjections: (_moduleData: any) => {

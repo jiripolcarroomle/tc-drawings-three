@@ -118,15 +118,19 @@ export const renderScene: IRenderDrawing = async function (
         0, 0, 0.5, 0.5,
         0, 0, 0, 1,
     );
-    const worldToViewMatrix = imageSpaceMatrix
+    const worldToCameraMatrix = new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements);
+    const cameraToPixelMatrix = imageSpaceMatrix.clone().multiply(new TC.Matrix4().fromArray(camera.projectionMatrix.elements));
+    const worldToPixelMatrix = imageSpaceMatrix.clone()
         .multiply(new TC.Matrix4().fromArray(camera.projectionMatrix.elements))
-        .multiply(new TC.Matrix4().fromArray(camera.matrixWorldInverse.elements));
+        .multiply(worldToCameraMatrix);
 
 
 
 
     return {
-        worldToViewMatrix,
+        worldToCameraMatrix,
+        worldToPixelMatrix,
+        cameraToPixelMatrix,
         image: { dataUrl: pngDataUrl },
         renderedScene: threeScene,
         imageHeight: adjustedHeight,

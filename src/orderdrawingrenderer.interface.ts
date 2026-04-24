@@ -50,8 +50,12 @@ export interface IRenderOrthoCameraParams {
  * Result of the rendered drawing.
  */
 export interface IRenderOrthoCameraResult {
+    /** the rigid matrix transforming world coordinates to orthographic camera-space coordinates */
+    worldToCameraMatrix: TC.Matrix4;
     /** the matrix transforming world coordinates to output image pixel coordinates */
-    worldToViewMatrix: TC.Matrix4;
+    worldToPixelMatrix: TC.Matrix4;
+    /** the matrix transforming camera coordinates to output image pixel coordinates */
+    cameraToPixelMatrix: TC.Matrix4;
     /** the rendered data in any format */
     image: any;
     /** the scene that has been rendered; useful for debugging or further processing */
