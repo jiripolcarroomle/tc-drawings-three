@@ -232,73 +232,8 @@ export class Drawing implements IPlanSvgDrawing {
         const leftHalfYCoords = leftHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
         const rightHalfYCoords = rightHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
 
-        const svgLinesWithTicksAndAnnotations = (start: Vector3, end: Vector3, lineSpacing: number, annotablePoints: { transformedPoint: TransformedPoint, point: AnnotablePoint }[]) => {
-            const lineDir = end.clone().sub(start).normalize();
-            const projectPointToLine = (point: Vector3): { projectedPoint: Vector3, lineParameter: number, signedDistance: number } => {
-                const toPoint = point.clone().sub(start);
-                const lineParameter = toPoint.dot(lineDir);
-                const projectedPoint = start.clone().add(lineDir.clone().multiply(lineParameter));
-                const signedDistance = toPoint.clone().sub(lineDir.clone().multiply(lineParameter)).length();
-                return { projectedPoint, lineParameter, signedDistance };
-            };
-            const projectedAnnotablePoints = annotablePoints.map(p => {
-                const { projectedPoint, lineParameter, signedDistance } = projectPointToLine(p.transformedPoint.pixelCoordinate);
-                return { ...p, projectedPoint, lineParameter, signedDistance };
-            }).sort((a, b) => a.lineParameter - b.lineParameter);
 
-            const signedDistances = projectedAnnotablePoints.map(p => Math.round(p.signedDistance)).sort((a, b) => a - b).filter((value, index, self) => self.indexOf(value) === index); // unique sorted distances rounded to nearest 10
-            let currentLineNumber = 0;
-            const lineNormal = new Vector3(-lineDir._y, lineDir._x, 0);
-            signedDistances.forEach(distance => {
-                const pointsAtDistance = projectedAnnotablePoints.filter(p => Math.round(p.signedDistance) === distance).sort((a, b) => a.lineParameter - b.lineParameter).sort((a, b) => a.lineParameter - b.lineParameter);
-                if (pointsAtDistance.length === 0) {
-                    return;
-                }
-                const lineOffset = lineNormal.clone().multiply(lineSpacing * currentLineNumber++);
-                const lineStart = start.clone().add(lineOffset);
-                const lineEnd = end.clone().add(lineOffset);
-                const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
-
-                const proj = (projectedDistance: number) => start.clone().add(lineDir.clone().multiply(projectedDistance)).add(lineOffset);
-                lineElement.setAttribute("x1", lineStart._x.toString());
-                lineElement.setAttribute("y1", lineStart._y.toString());
-                lineElement.setAttribute("x2", lineEnd._x.toString());
-                lineElement.setAttribute("y2", lineEnd._y.toString());
-                lineElement.setAttribute("stroke", "green");
-                lineElement.setAttribute("stroke-width", "1");
-                annotationsRoot.appendChild(lineElement);
-
-                pointsAtDistance.forEach((p, index) => {
-                    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                    tick.setAttribute("x1", p.transformedPoint.pixelCoordinate._x.toString());
-                    tick.setAttribute("y1", p.transformedPoint.pixelCoordinate._y.toString());
-                    tick.setAttribute("x2", proj(p.lineParameter)._x.toString());
-                    tick.setAttribute("y2", proj(p.lineParameter)._y.toString());
-                    tick.setAttribute("stroke", "orange");
-                    tick.setAttribute("stroke-width", "1");
-                    annotationsRoot.appendChild(tick);
-                    if (index > 0) {
-                        const prev = pointsAtDistance[index - 1];
-                        const label = p.projectedPoint.distanceTo(prev.projectedPoint).toFixed(0);
-                        const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                        textElement.setAttribute("x", (p.projectedPoint._x + 5).toString());
-                        textElement.setAttribute("y", (p.projectedPoint._y - 5).toString());
-                        textElement.setAttribute("fill", "purple");
-                        textElement.setAttribute("font-size", "30");
-                        textElement.setAttribute("text-anchor", "start");
-                        textElement.setAttribute("alignment-baseline", "middle");
-                        textElement.textContent = label;
-                        annotationsRoot.appendChild(textElement);
-                    }
-                });
-
-
-                currentLineNumber++;
-            });
-        }
-
-        svgLinesWithTicksAndAnnotations(new Vector3(0, marginDown / 2, 0), new Vector3(this.sceneRender.imageWidth, marginDown / 2, 0), -20, topHalfAnnotablePoints);
-
+    
         // annotationsRoot - sort text so that texts are last to be rendered and therefore on top of all other elements
         const sortedAnnotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
         Array.from(annotationsRoot.childNodes).sort((a, b) => {
