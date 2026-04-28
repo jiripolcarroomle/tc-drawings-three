@@ -10,9 +10,17 @@ import { Matrix4, Vector3 } from "./tc/base";
  *    - pixel coordinates for rendering the SVG elements in the right place
  */
 interface TransformedPoint {
+    /** real world 3d scene coordinate */
     worldCoordinate: Vector3;
+    /** coordinate in camera space (x right, y up, z forward), not scaled against real world */
     cameraSpaceCoordinate: Vector3;
+    /** coordinate in pixel space (x right, y down) */
     pixelCoordinate: Vector3;
+}
+
+interface AnnotablePointTransformed {
+    point: AnnotablePoint;
+    transformedPoint: TransformedPoint;
 }
 
 export class Drawing implements IPlanSvgDrawing {
@@ -46,7 +54,7 @@ export class Drawing implements IPlanSvgDrawing {
 
     _svgOverlays: { transform: Matrix4, svgInjection: SvgInjectionData }[] = [];
     _annotations: { annotation: Annotation, startPoint: TransformedPoint, endPoint: TransformedPoint }[] = [];
-    _annotablePoints: { point: AnnotablePoint, transformedPoint: TransformedPoint }[] = [];
+    _annotablePoints: AnnotablePointTransformed[] = [];
 
     addAnnotation(worldTransform: Matrix4, annotation: Annotation): void {
         const startPoint = {
@@ -124,83 +132,85 @@ export class Drawing implements IPlanSvgDrawing {
 
         });
 
+        /*
         this._annotations.forEach(({ annotation, startPoint, endPoint }) => {
-            const drawingLength = startPoint.pixelCoordinate.distanceTo(endPoint.pixelCoordinate);
-            const projectedLength = new Vector3(startPoint.cameraSpaceCoordinate._x, startPoint.cameraSpaceCoordinate._y, 0).distanceTo(new Vector3(endPoint.cameraSpaceCoordinate._x, endPoint.cameraSpaceCoordinate._y, 0));
-            const realLength = startPoint.worldCoordinate.distanceTo(endPoint.worldCoordinate);
-
-            if (drawingLength < 1) {
-                console.log('annotation too small to render, skipping', { annotation, startPoint, endPoint });
-                return;
-            }
-            if (projectedLength < realLength * 0.01) {
-                console.log('annotation too foreshortened to render, skipping', { annotation, startPoint, endPoint });
-                return;
-            }
-
-
-            const distanceFromFeature = annotation.distance ?? 0;
-            const transformedDistanceFromFeature = distanceFromFeature * (drawingLength / realLength);
-
-            // compute azimuth of the annotation on the drawing to decide where to put the label and annotation line
-            const annotationDirection = new Vector3(endPoint.pixelCoordinate._x - startPoint.pixelCoordinate._x, endPoint.pixelCoordinate._y - startPoint.pixelCoordinate._y, 0).normalize();
-            const normalDirection = new Vector3(annotationDirection._y, -annotationDirection._x, 0);
-
-            const annotationLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-
-            const annotationLineDrawingStart = startPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
-            const annotationLineDrawingEnd = endPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
-
-            annotationLine.setAttribute("x1", annotationLineDrawingStart._x.toString());
-            annotationLine.setAttribute("y1", annotationLineDrawingStart._y.toString());
-            annotationLine.setAttribute("x2", annotationLineDrawingEnd._x.toString());
-            annotationLine.setAttribute("y2", annotationLineDrawingEnd._y.toString());
-            annotationLine.setAttribute("stroke", "black");
-            annotationLine.setAttribute("stroke-width", "2");
-
-            annotationsRoot.appendChild(annotationLine);
-
-            if (Math.abs(transformedDistanceFromFeature) > 2) {
-                const ticks = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                ticks.setAttribute("d", `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`);
-                ticks.setAttribute("stroke", "gray");
-                ticks.setAttribute("stroke-width", "1");
-                annotationsRoot.appendChild(ticks);
-            }
-
-            const label = annotation.label ?? realLength.toFixed(0);
-            const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            textElement.setAttribute("x", ((annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2).toString());
-            textElement.setAttribute("y", ((annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2).toString());
-            textElement.setAttribute("fill", "blue");
-            textElement.setAttribute("font-size", "24");
-            textElement.setAttribute("text-anchor", "middle");
-            textElement.setAttribute("fill", "blue");
-            textElement.setAttribute("stroke", "white");
-            textElement.setAttribute("stroke-width", "10");
-            textElement.setAttribute("stroke-linejoin", "round");
-            textElement.setAttribute("paint-order", "stroke");
-            textElement.setAttribute("alignment-baseline", "middle");
-            //rotate in a way that label is always readable when looking from the bottom edge or the right edge of the drawing
-            const angle = Math.atan2(annotationDirection._y, annotationDirection._x) * (180 / Math.PI);
-            //
-            const adjustedAngle = (angle > 45 || angle < -136) ? angle + 180 : angle;
-            textElement.setAttribute("transform", `rotate(${adjustedAngle}, ${(annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2}, ${(annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2})`);
-            textElement.textContent = label;
-            annotationsRoot.appendChild(textElement);
-
-        });
-
+                    const drawingLength = startPoint.pixelCoordinate.distanceTo(endPoint.pixelCoordinate);
+                    const projectedLength = new Vector3(startPoint.cameraSpaceCoordinate._x, startPoint.cameraSpaceCoordinate._y, 0).distanceTo(new Vector3(endPoint.cameraSpaceCoordinate._x, endPoint.cameraSpaceCoordinate._y, 0));
+                    const realLength = startPoint.worldCoordinate.distanceTo(endPoint.worldCoordinate);
+        
+                    if (drawingLength < 1) {
+                        console.log('annotation too small to render, skipping', { annotation, startPoint, endPoint });
+                        return;
+                    }
+                    if (projectedLength < realLength * 0.01) {
+                        console.log('annotation too foreshortened to render, skipping', { annotation, startPoint, endPoint });
+                        return;
+                    }
+        
+        
+                    const distanceFromFeature = annotation.distance ?? 0;
+                    const transformedDistanceFromFeature = distanceFromFeature * (drawingLength / realLength);
+        
+                    // compute azimuth of the annotation on the drawing to decide where to put the label and annotation line
+                    const annotationDirection = new Vector3(endPoint.pixelCoordinate._x - startPoint.pixelCoordinate._x, endPoint.pixelCoordinate._y - startPoint.pixelCoordinate._y, 0).normalize();
+                    const normalDirection = new Vector3(annotationDirection._y, -annotationDirection._x, 0);
+        
+                    const annotationLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        
+                    const annotationLineDrawingStart = startPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
+                    const annotationLineDrawingEnd = endPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
+        
+                    annotationLine.setAttribute("x1", annotationLineDrawingStart._x.toString());
+                    annotationLine.setAttribute("y1", annotationLineDrawingStart._y.toString());
+                    annotationLine.setAttribute("x2", annotationLineDrawingEnd._x.toString());
+                    annotationLine.setAttribute("y2", annotationLineDrawingEnd._y.toString());
+                    annotationLine.setAttribute("stroke", "black");
+                    annotationLine.setAttribute("stroke-width", "2");
+        
+                    annotationsRoot.appendChild(annotationLine);
+        
+                    if (Math.abs(transformedDistanceFromFeature) > 2) {
+                        const ticks = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                        ticks.setAttribute("d", `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`);
+                        ticks.setAttribute("stroke", "gray");
+                        ticks.setAttribute("stroke-width", "1");
+                        annotationsRoot.appendChild(ticks);
+                    }
+        
+                    const label = annotation.label ?? realLength.toFixed(0);
+                    const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    textElement.setAttribute("x", ((annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2).toString());
+                    textElement.setAttribute("y", ((annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2).toString());
+                    textElement.setAttribute("fill", "blue");
+                    textElement.setAttribute("font-size", "24");
+                    textElement.setAttribute("text-anchor", "middle");
+                    textElement.setAttribute("fill", "blue");
+                    textElement.setAttribute("stroke", "white");
+                    textElement.setAttribute("stroke-width", "10");
+                    textElement.setAttribute("stroke-linejoin", "round");
+                    textElement.setAttribute("paint-order", "stroke");
+                    textElement.setAttribute("alignment-baseline", "middle");
+                    //rotate in a way that label is always readable when looking from the bottom edge or the right edge of the drawing
+                    const angle = Math.atan2(annotationDirection._y, annotationDirection._x) * (180 / Math.PI);
+                    //
+                    const adjustedAngle = (angle > 45 || angle < -136) ? angle + 180 : angle;
+                    textElement.setAttribute("transform", `rotate(${adjustedAngle}, ${(annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2}, ${(annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2})`);
+                    textElement.textContent = label;
+                    annotationsRoot.appendChild(textElement);
+        
+                });
+        */
         this._annotablePoints.forEach(({ transformedPoint, point }) => {
             // add a circle
             const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
             circle.setAttribute("cx", transformedPoint.pixelCoordinate._x.toString());
             circle.setAttribute("cy", transformedPoint.pixelCoordinate._y.toString());
-            circle.setAttribute("r", "5");
+            circle.setAttribute("r", "10");
             circle.setAttribute("fill", "red");
             annotationsRoot.appendChild(circle);
         });
-        
+        /* */
+
         // split the AnnotablePoints into 4 quarants of the drawing based on the camera space coordinates to decide where to put the annotation points
         // 1. top right (x positive, y negative), 2. top left (x negative, y negative), 3. bottom left (x negative, y positive), 4. bottom right (x positive, y positive)
         // therefore top half = 1 and 2, left half = 2 and 3
@@ -221,19 +231,82 @@ export class Drawing implements IPlanSvgDrawing {
             }
         });
 
+        function drawAnnotablePointInAxis(axis: Vector3, annotablePoints: AnnotablePointTransformed[], debugColor: string = "green") {
+            const start = new Vector3(0, 0, 0);
+            const normal = new Vector3(-axis._y, axis._x, 0).normalize();
 
-        const topHalfAnnotablePoints = [...quadrants[0], ...quadrants[1]];
-        const leftHalfAnnotablePoints = [...quadrants[1], ...quadrants[2]];
-        const bottomHalfAnnotablePoints = [...quadrants[2], ...quadrants[3]];
-        const rightHalfAnnotablePoints = [...quadrants[0], ...quadrants[3]];
+            // compute coordinates of the annotable points in a coordinate system where the start of the axis is the origin and the axis direction is the x-axis, 
+            // therefore we get the distance of the annotable point from the axis (y-coordinate) and the parameter on the axis (x-coordinate)
+            const annotablePointsWithSignedDistancesAndParametersOfLineSegments = annotablePoints.map(ap => {
+                const pointDirection = ap.transformedPoint.pixelCoordinate.clone().sub(start);
+                // y-coordinate (perpendicular) from the axis
+                const signedDistance = pointDirection.dot(normal);
+                // x-coordinate (parallel) on the axis
+                const lineSegmentParameter = pointDirection.dot(axis) / axis.length();
+                const roundTo = 1;
+                return {
+                    ...ap,
+                    lineCoord: new Vector3(lineSegmentParameter, signedDistance, 0),
+                    lineCoordRounded: new Vector3(Math.round(lineSegmentParameter / roundTo) * roundTo, Math.round(signedDistance / roundTo) * roundTo, 0),
+                };
+            }).sort((a, b) => a.lineCoord._y - b.lineCoord._y);
+            const roundedDistancesSet = new Set(annotablePointsWithSignedDistancesAndParametersOfLineSegments.map(ap => ap.lineCoordRounded._y));
 
-        const topHalfXCoords = topHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._x);
-        const bottomHalfXCoords = bottomHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._x);
-        const leftHalfYCoords = leftHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
-        const rightHalfYCoords = rightHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
+            // split them by their rounded distance to show the levels of the annotable lines
+            roundedDistancesSet.forEach(rd => {
+                const pointsWithSameRoundedDistance = annotablePointsWithSignedDistancesAndParametersOfLineSegments.filter(ap => ap.lineCoordRounded._y === rd).sort((a, b) => a.lineCoord._x - b.lineCoord._x);
+
+                const axialCoordsUnique = pointsWithSameRoundedDistance
+                    .map(ap => { return { x: ap.lineCoord._x, realX: ap.transformedPoint.cameraSpaceCoordinate._x, roundedX: ap.lineCoordRounded._x } })
+                    .sort((a, b) => a.x - b.x)
+                    .filter((coord, index, self) => index === 0 || coord.x !== self[index - 1].x); // filter out points that have the same rounded x coordinate to avoid overlapping annotation points on the same axis position
+
+                if (axialCoordsUnique.length < 2) {
+                    return;
+                }
+                const minX = axialCoordsUnique[0].x;
+                const maxX = axialCoordsUnique[axialCoordsUnique.length - 1].x;
+
+                // line from minX to maxX at the distance rd from the axis
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                const startPoint = start.clone().add(axis.clone().normalize().multiply(minX)).add(normal.clone().multiply(rd));
+                const endPoint = start.clone().add(axis.clone().normalize().multiply(maxX)).add(normal.clone().multiply(rd));
+                line.setAttribute("x1", startPoint._x.toString());
+                line.setAttribute("y1", startPoint._y.toString());
+                line.setAttribute("x2", endPoint._x.toString());
+                line.setAttribute("y2", endPoint._y.toString());
+                line.setAttribute("stroke", debugColor);
+                line.setAttribute("stroke-width", "5");
+                annotationsRoot.appendChild(line);
+
+                if (axialCoordsUnique.length > 2) {
+                    axialCoordsUnique.forEach((xCoord, index) => {
+                        if (index === 0) { return; }
+                        const prev = axialCoordsUnique[index - 1];
+                        const realLength = xCoord.realX - prev.realX;
+                        const textPos = startPoint.clone().add(axis.clone().normalize().multiply((xCoord.x + prev.x) / 2 - minX));
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", textPos._x.toString());
+                        text.setAttribute("y", textPos._y.toString());
+                        text.setAttribute("fill", debugColor);
+                        text.setAttribute("font-size", "24");
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("alignment-baseline", "middle");
+                        text.textContent = realLength.toFixed(0);
+                        annotationsRoot.appendChild(text);
+                    });
+                }
+
+            });
+
+        }
 
 
-    
+        drawAnnotablePointInAxis(new Vector3(1, 0, 0), this._annotablePoints, "orange");
+        drawAnnotablePointInAxis(new Vector3(0, 1, 0), this._annotablePoints, "magenta");
+
+
+
         // annotationsRoot - sort text so that texts are last to be rendered and therefore on top of all other elements
         const sortedAnnotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
         Array.from(annotationsRoot.childNodes).sort((a, b) => {
