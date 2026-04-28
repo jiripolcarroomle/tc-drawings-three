@@ -46,7 +46,7 @@ export class Drawing implements IPlanSvgDrawing {
 
     _svgOverlays: { transform: Matrix4, svgInjection: SvgInjectionData }[] = [];
     _annotations: { annotation: Annotation, startPoint: TransformedPoint, endPoint: TransformedPoint }[] = [];
-    _annotablePoints: { transform: Matrix4, point: AnnotablePoint }[] = [];
+    _annotablePoints: { point: AnnotablePoint, transformedPoint: TransformedPoint }[] = [];
 
     addAnnotation(worldTransform: Matrix4, annotation: Annotation): void {
         const startPoint = {
@@ -69,14 +69,19 @@ export class Drawing implements IPlanSvgDrawing {
 
     addAnnotablePoint(worldTransform: Matrix4, point: AnnotablePoint): void {
         const copy = { ...point };
-        this._annotablePoints.push({ transform: worldTransform, point: copy });
+        const transformedPoint = {
+            worldCoordinate: copy.coordinate.clone().applyMatrix4(worldTransform),
+            cameraSpaceCoordinate: copy.coordinate.clone().applyMatrix4(worldTransform).applyMatrix4(this._renderResult.worldToCameraMatrix),
+            pixelCoordinate: copy.coordinate.clone().applyMatrix4(worldTransform).applyMatrix4(this._renderResult.worldToPixelMatrix),
+        };
+        this._annotablePoints.push({ point: copy, transformedPoint });
     }
 
     render(): SVGElement {
         // Implementation for rendering the final SVG element
         const svgRoot = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 
-        const baseMargin = 400;
+        const baseMargin = 300;
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // add the image
@@ -88,7 +93,7 @@ export class Drawing implements IPlanSvgDrawing {
 
         const annotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
-        this._svgOverlays.forEach(({ transform, svgInjection }) => { 
+        this._svgOverlays.forEach(({ transform, svgInjection }) => {
             const pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
             const pathData = svgInjection.path.map(cmd => {
                 if (cmd.command === 'Z') {
@@ -186,8 +191,116 @@ export class Drawing implements IPlanSvgDrawing {
 
         });
 
+        this._annotablePoints.forEach(({ transformedPoint, point }) => {
+            // add a circle
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", transformedPoint.pixelCoordinate._x.toString());
+            circle.setAttribute("cy", transformedPoint.pixelCoordinate._y.toString());
+            circle.setAttribute("r", "5");
+            circle.setAttribute("fill", "red");
+            annotationsRoot.appendChild(circle);
+        });
+        
+        // split the AnnotablePoints into 4 quarants of the drawing based on the camera space coordinates to decide where to put the annotation points
+        // 1. top right (x positive, y negative), 2. top left (x negative, y negative), 3. bottom left (x negative, y positive), 4. bottom right (x positive, y positive)
+        // therefore top half = 1 and 2, left half = 2 and 3
+        const quadrants = [[], [], [], []] as { transformedPoint: TransformedPoint, point: AnnotablePoint }[][];
+        const drawingCenterX = this.sceneRender.imageWidth / 2;
+        const drawingCenterY = this.sceneRender.imageHeight / 2;
+        this._annotablePoints.forEach(({ transformedPoint, point }) => {
+            const xPositive = transformedPoint.cameraSpaceCoordinate._x - drawingCenterX > 0;
+            const yPositive = transformedPoint.cameraSpaceCoordinate._y - drawingCenterY > 0;
+            if (xPositive && !yPositive) {
+                quadrants[0].push({ transformedPoint, point });
+            } else if (!xPositive && !yPositive) {
+                quadrants[1].push({ transformedPoint, point });
+            } else if (!xPositive && yPositive) {
+                quadrants[2].push({ transformedPoint, point });
+            } else {
+                quadrants[3].push({ transformedPoint, point });
+            }
+        });
+
+
+        const topHalfAnnotablePoints = [...quadrants[0], ...quadrants[1]];
+        const leftHalfAnnotablePoints = [...quadrants[1], ...quadrants[2]];
+        const bottomHalfAnnotablePoints = [...quadrants[2], ...quadrants[3]];
+        const rightHalfAnnotablePoints = [...quadrants[0], ...quadrants[3]];
+
+        const topHalfXCoords = topHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._x);
+        const bottomHalfXCoords = bottomHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._x);
+        const leftHalfYCoords = leftHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
+        const rightHalfYCoords = rightHalfAnnotablePoints.map(p => p.transformedPoint.pixelCoordinate._y);
+
+        const svgLinesWithTicksAndAnnotations = (start: Vector3, end: Vector3, lineSpacing: number, annotablePoints: { transformedPoint: TransformedPoint, point: AnnotablePoint }[]) => {
+            const lineDir = end.clone().sub(start).normalize();
+            const projectPointToLine = (point: Vector3): { projectedPoint: Vector3, lineParameter: number, signedDistance: number } => {
+                const toPoint = point.clone().sub(start);
+                const lineParameter = toPoint.dot(lineDir);
+                const projectedPoint = start.clone().add(lineDir.clone().multiply(lineParameter));
+                const signedDistance = toPoint.clone().sub(lineDir.clone().multiply(lineParameter)).length();
+                return { projectedPoint, lineParameter, signedDistance };
+            };
+            const projectedAnnotablePoints = annotablePoints.map(p => {
+                const { projectedPoint, lineParameter, signedDistance } = projectPointToLine(p.transformedPoint.pixelCoordinate);
+                return { ...p, projectedPoint, lineParameter, signedDistance };
+            }).sort((a, b) => a.lineParameter - b.lineParameter);
+
+            const signedDistances = projectedAnnotablePoints.map(p => Math.round(p.signedDistance)).sort((a, b) => a - b).filter((value, index, self) => self.indexOf(value) === index); // unique sorted distances rounded to nearest 10
+            let currentLineNumber = 0;
+            const lineNormal = new Vector3(-lineDir._y, lineDir._x, 0);
+            signedDistances.forEach(distance => {
+                const pointsAtDistance = projectedAnnotablePoints.filter(p => Math.round(p.signedDistance) === distance).sort((a, b) => a.lineParameter - b.lineParameter).sort((a, b) => a.lineParameter - b.lineParameter);
+                if (pointsAtDistance.length === 0) {
+                    return;
+                }
+                const lineOffset = lineNormal.clone().multiply(lineSpacing * currentLineNumber++);
+                const lineStart = start.clone().add(lineOffset);
+                const lineEnd = end.clone().add(lineOffset);
+                const lineElement = document.createElementNS("http://www.w3.org/2000/svg", "line");
+
+                const proj = (projectedDistance: number) => start.clone().add(lineDir.clone().multiply(projectedDistance)).add(lineOffset);
+                lineElement.setAttribute("x1", lineStart._x.toString());
+                lineElement.setAttribute("y1", lineStart._y.toString());
+                lineElement.setAttribute("x2", lineEnd._x.toString());
+                lineElement.setAttribute("y2", lineEnd._y.toString());
+                lineElement.setAttribute("stroke", "green");
+                lineElement.setAttribute("stroke-width", "1");
+                annotationsRoot.appendChild(lineElement);
+
+                pointsAtDistance.forEach((p, index) => {
+                    const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    tick.setAttribute("x1", p.transformedPoint.pixelCoordinate._x.toString());
+                    tick.setAttribute("y1", p.transformedPoint.pixelCoordinate._y.toString());
+                    tick.setAttribute("x2", proj(p.lineParameter)._x.toString());
+                    tick.setAttribute("y2", proj(p.lineParameter)._y.toString());
+                    tick.setAttribute("stroke", "orange");
+                    tick.setAttribute("stroke-width", "1");
+                    annotationsRoot.appendChild(tick);
+                    if (index > 0) {
+                        const prev = pointsAtDistance[index - 1];
+                        const label = p.projectedPoint.distanceTo(prev.projectedPoint).toFixed(0);
+                        const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        textElement.setAttribute("x", (p.projectedPoint._x + 5).toString());
+                        textElement.setAttribute("y", (p.projectedPoint._y - 5).toString());
+                        textElement.setAttribute("fill", "purple");
+                        textElement.setAttribute("font-size", "30");
+                        textElement.setAttribute("text-anchor", "start");
+                        textElement.setAttribute("alignment-baseline", "middle");
+                        textElement.textContent = label;
+                        annotationsRoot.appendChild(textElement);
+                    }
+                });
+
+
+                currentLineNumber++;
+            });
+        }
+
+        svgLinesWithTicksAndAnnotations(new Vector3(0, marginDown / 2, 0), new Vector3(this.sceneRender.imageWidth, marginDown / 2, 0), -20, topHalfAnnotablePoints);
+
+        // annotationsRoot - sort text so that texts are last to be rendered and therefore on top of all other elements
         const sortedAnnotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        // annotationsRoot - sort text so that texts are last
         Array.from(annotationsRoot.childNodes).sort((a, b) => {
             if (a.nodeName === 'text' && b.nodeName !== 'text') {
                 return 1;

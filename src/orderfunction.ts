@@ -6,6 +6,7 @@ import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.thee
 import { renderScene } from "./orderdrawingrenderer.threejs";
 import { createScene } from "./scene.implementation";
 import { Object3DNodeKind, type IOrderSceneNode } from "./scene.interface";
+import { Vector3 } from "./tc/base";
 import { filterNodesCloseToWall } from "./wall";
 
 export async function appOrderFunction(o: any, ol: any) {
@@ -179,6 +180,26 @@ export async function appOrderFunction(o: any, ol: any) {
 
     orthoCameraRenderResults.forEach((renderResult, index) => {
         const drawing = new Drawing(renderResult, { drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation });
+
+        // get the walls in the drawing
+        const walls = renderResult.renderedNodes?.filter(node => node.kind === Object3DNodeKind.Wall) ?? [];
+        walls.forEach(wall => {
+            const wallData = wall.wallData;
+            if (!wallData) {
+                return;
+            }
+            [
+                wallData.segmentStart,
+                wallData.segmentEnd,
+                wallData.segmentStart.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+                wallData.segmentEnd.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+            ].forEach((wallEndPoint) => {
+                const annotablePoint: AnnotablePoint = {
+                    coordinate: wallEndPoint,
+                }
+                drawing.addAnnotablePoint(wall.worldTransform, annotablePoint);
+            });
+        });
 
         renderResult.renderedNodes?.forEach((moduleNode: IOrderSceneNode) => {
             const moduleData = moduleNode.orderLineEntry;
