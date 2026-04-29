@@ -204,9 +204,9 @@ export function createSvgImageElement(parent: SVGElement, href: string, width: n
     return imageElement;
 }
 
-export function createSvgPathElement(parent: SVGElement, pathData: string, properties?: SVGPathProperties): SVGPathElement {
+export function createSvgPathElement(parent: SVGElement, d: string, properties?: SVGPathProperties): SVGPathElement {
     const pathElement = createSvgElement("path") as SVGPathElement;
-    pathElement.setAttribute("d", pathData);
+    pathElement.setAttribute("d", d);
     applySvgProperties(pathElement, properties);
     parent.appendChild(pathElement);
     return pathElement;

@@ -1,4 +1,4 @@
-import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgInjectionData } from "./drawing.interface";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import { Matrix4, Vector3 } from "./tc/base";
 import * as SVGHelper from "./svghelper";
@@ -56,7 +56,7 @@ export class Drawing implements IPlanSvgDrawing {
 
 
 
-    _svgOverlays: { transform: Matrix4, svgInjection: SvgInjectionData }[] = [];
+    _svgOverlays: { transform: Matrix4, svgInjection: SvgPathInjectionData }[] = [];
     _annotations: { annotation: Annotation, startPoint: TransformedPoint, endPoint: TransformedPoint }[] = [];
     _annotablePoints: AnnotablePointTransformed[] = [];
 
@@ -74,7 +74,7 @@ export class Drawing implements IPlanSvgDrawing {
         this._annotations.push({ annotation, startPoint, endPoint });
     }
 
-    addOverlay(worldTransform: Matrix4, svgInjection: SvgInjectionData): void {
+    addOverlay(worldTransform: Matrix4, svgInjection: SvgPathInjectionData): void {
         const copy = { ...svgInjection };
         this._svgOverlays.unshift({ transform: worldTransform, svgInjection: copy });
     }
@@ -103,7 +103,7 @@ export class Drawing implements IPlanSvgDrawing {
 
         // render svg overlays on top of the rendered image
         this._svgOverlays.forEach(({ transform, svgInjection }) => {
-            const pathD = svgInjection.path.map(cmd => {
+            const pathD = svgInjection.d.map(cmd => {
                 if (cmd.command === 'Z') {
                     return 'Z';
                 } else if (cmd.coordinate3d) {
@@ -113,12 +113,9 @@ export class Drawing implements IPlanSvgDrawing {
                     return '';
                 }
             }).join(' ');
-            SVGHelper.createSvgPathElement(svgRoot, pathD, {
-                fill: svgInjection.fill,
-                stroke: svgInjection.stroke,
-                strokeWidth: svgInjection['stroke-width'],
-                strokeDasharray: svgInjection['stroke-dasharray'],
-            });
+            const options = { ...svgInjection } as any;
+            delete options.d;
+            SVGHelper.createSvgPathElement(svgRoot, pathD, options);
         });
 
         // render annotations on top of the rendered image and svg overlays

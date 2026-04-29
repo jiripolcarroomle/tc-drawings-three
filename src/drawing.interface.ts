@@ -26,7 +26,7 @@ export interface IPlanSvgDrawing {
     /** Add an annotable point to the drawing */
     addAnnotation(worldTransform: TC.Matrix4, annotation: Annotation): void;
     /** Add an overlay SVG object to the drawing at the specified world position */
-    addOverlay(worldTransform: TC.Matrix4, svgInjection: SvgInjectionData): void;
+    addOverlay(worldTransform: TC.Matrix4, svgInjection: SvgPathInjectionData): void;
     /**
      * Add an annotable point to the drawing. The point will be rendered as a circle and can be used for example to mark important points in the drawing.
       */
@@ -91,10 +91,30 @@ export interface SvgPathCommandData {
  * The path is defined by a list of commands, where each command has a type (e.g. MoveTo, LineTo, ClosePath) and a world coordinate (for MoveTo and LineTo) in the scene relative to the module pivot.
  * If necessary, add more fields to the SvgInjectionData interface to allow the content creator to define more styles or properties for the injected SVG element.
  */
-export interface SvgInjectionData {
+export interface SvgPathInjectionData {
+    id?: string;
+    class?: string;
     fill?: string;
+    fillOpacity?: string;
+    opacity?: string;
     stroke?: string;
-    'stroke-dasharray'?: string;
-    'stroke-width'?: string;
-    path: SvgPathCommandData[];
-}
+    strokeDasharray?: string;
+    strokeDashoffset?: string;
+    strokeLinecap?: 'butt' | 'round' | 'square';
+    strokeLinejoin?: 'arcs' | 'bevel' | 'miter' | 'miter-clip' | 'round';
+    strokeMiterlimit?: string;
+    strokeOpacity?: string;
+    strokeWidth?: string;
+    paintOrder?: string;
+    vectorEffect?: 'none' | 'non-scaling-stroke' | 'non-scaling-size' | 'non-rotation' | 'fixed-position';
+    transform?: string;
+    display?: string;
+    visibility?: string;
+    pointerEvents?: string;
+    shapeRendering?: 'auto' | 'crispEdges' | 'geometricPrecision' | 'optimizeSpeed';
+    markerStart?: string;
+    markerMid?: string;
+    markerEnd?: string;
+    pathLength?: string;
+    d: SvgPathCommandData[];
+}   

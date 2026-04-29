@@ -1,6 +1,6 @@
 import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationstable";
 import { Drawing } from "./drawing.implementation";
-import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgInjectionData } from "./drawing.interface";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.theejs.helpers";
 import { renderScene } from "./orderdrawingrenderer.threejs";
@@ -210,7 +210,7 @@ export async function appOrderFunction(o: any, ol: any) {
             const annotations = filterAnnotationForModule(id, moduleData, drawing);
             if (annotations.length > 0) {
                 annotations.forEach((annotation: I_tab_Annotation) => {
-                    annotation.out_SvgInjections?.(moduleData, drawing)?.forEach((injection: SvgInjectionData) => {
+                    annotation.out_SvgPathOverlays?.(moduleData, drawing)?.forEach((injection: SvgPathInjectionData) => {
                         drawing.addOverlay(nodeMatrix, injection);
                     });
                     annotation.out_Annotations?.(moduleData, drawing)?.forEach((annotation: Annotation) => {
