@@ -1,6 +1,7 @@
 import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgInjectionData } from "./drawing.interface";
 import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import { Matrix4, Vector3 } from "./tc/base";
+import * as SVGHelper from "./svghelper";
 
 /**
  * Upon pushing data into the drawing, the coordinates are transformed into world, camera and pixel coodinates.
@@ -90,24 +91,19 @@ export class Drawing implements IPlanSvgDrawing {
 
     render(): SVGElement {
         // Implementation for rendering the final SVG element
-        const svgRoot = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        const svgRoot = SVGHelper.createSvgRootElement(this.sceneRender.imageWidth / 2, this.sceneRender.imageHeight / 2);
 
         const baseMargin = 300;
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // add the image
-        const imageElement = document.createElementNS("http://www.w3.org/2000/svg", "image");
-        imageElement.setAttribute("href", this.sceneRender.image.dataUrl);
-        imageElement.setAttribute("width", this.sceneRender.imageWidth.toString());
-        imageElement.setAttribute("height", this.sceneRender.imageHeight.toString());
-        svgRoot.appendChild(imageElement);
+        SVGHelper.createSvgImageElement(svgRoot, this.sceneRender.image.dataUrl, this.sceneRender.imageWidth, this.sceneRender.imageHeight);
 
-        const annotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        const annotationsRoot = SVGHelper.createSvgGroupElement(svgRoot);
 
         // render svg overlays on top of the rendered image
         this._svgOverlays.forEach(({ transform, svgInjection }) => {
-            const pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            const pathData = svgInjection.path.map(cmd => {
+            const pathD = svgInjection.path.map(cmd => {
                 if (cmd.command === 'Z') {
                     return 'Z';
                 } else if (cmd.coordinate3d) {
@@ -117,23 +113,12 @@ export class Drawing implements IPlanSvgDrawing {
                     return '';
                 }
             }).join(' ');
-            pathElement.setAttribute("d", pathData);
-            if (svgInjection.fill) {
-                pathElement.setAttribute("fill", svgInjection.fill);
-            } else {
-                pathElement.setAttribute("fill", "none");
-            }
-            if (svgInjection.stroke) {
-                pathElement.setAttribute("stroke", svgInjection.stroke);
-            }
-            if (svgInjection['stroke-dasharray']) {
-                pathElement.setAttribute("stroke-dasharray", svgInjection['stroke-dasharray']);
-            }
-            if (svgInjection['stroke-width']) {
-                pathElement.setAttribute("stroke-width", svgInjection['stroke-width']);
-            }
-            annotationsRoot.appendChild(pathElement);
-
+            SVGHelper.createSvgPathElement(svgRoot, pathD, {
+                fill: svgInjection.fill,
+                stroke: svgInjection.stroke,
+                strokeWidth: svgInjection['stroke-width'],
+                strokeDasharray: svgInjection['stroke-dasharray'],
+            });
         });
 
         // render annotations on top of the rendered image and svg overlays
@@ -159,59 +144,40 @@ export class Drawing implements IPlanSvgDrawing {
             const annotationDirection = new Vector3(endPoint.pixelCoordinate._x - startPoint.pixelCoordinate._x, endPoint.pixelCoordinate._y - startPoint.pixelCoordinate._y, 0).normalize();
             const normalDirection = new Vector3(annotationDirection._y, -annotationDirection._x, 0);
 
-            const annotationLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
 
             const annotationLineDrawingStart = startPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
             const annotationLineDrawingEnd = endPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
 
-            annotationLine.setAttribute("x1", annotationLineDrawingStart._x.toString());
-            annotationLine.setAttribute("y1", annotationLineDrawingStart._y.toString());
-            annotationLine.setAttribute("x2", annotationLineDrawingEnd._x.toString());
-            annotationLine.setAttribute("y2", annotationLineDrawingEnd._y.toString());
-            annotationLine.setAttribute("stroke", "green");
-            annotationLine.setAttribute("stroke-width", "2");
 
-            annotationsRoot.appendChild(annotationLine);
+            const annotationLine = SVGHelper.createSvgLineElementWithText(
+                annotationsRoot,
+                annotationLineDrawingStart._x, annotationLineDrawingStart._y,
+                annotationLineDrawingEnd._x, annotationLineDrawingEnd._y,
+                annotation.label ?? realLength.toFixed(0),
+                { stroke: "green", strokeWidth: 2, },
+                {
+                    fill: "green",
+                    fontSize: 24,
+                    fontFamily: "Arial",
+                    textAnchor: "middle",
+                    stroke: "white",
+                    strokeWidth: 10,
+                    strokeLinejoin: "round",
+                    paintOrder: "stroke",
+                    alignmentBaseline: "middle",
+                    flipIfUpsideDown: true,
+                },
+            );
+
 
             if (Math.abs(transformedDistanceFromFeature) > 2) {
-                const ticks = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                ticks.setAttribute("d", `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`);
-                ticks.setAttribute("stroke", "lightgreen");
-                ticks.setAttribute("stroke-width", "1");
-                annotationsRoot.appendChild(ticks);
+                const ticks = SVGHelper.createSvgPathElement(annotationsRoot, `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`, { stroke: "lightgreen", strokeWidth: 1 });
             }
-
-            const label = annotation.label ?? realLength.toFixed(0);
-            const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            textElement.setAttribute("x", ((annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2).toString());
-            textElement.setAttribute("y", ((annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2).toString());
-            textElement.setAttribute("fill", "blue");
-            textElement.setAttribute("font-size", "24");
-            textElement.setAttribute("text-anchor", "middle");
-            textElement.setAttribute("fill", "green");
-            textElement.setAttribute("stroke", "white");
-            textElement.setAttribute("stroke-width", "10");
-            textElement.setAttribute("stroke-linejoin", "round");
-            textElement.setAttribute("paint-order", "stroke");
-            textElement.setAttribute("alignment-baseline", "middle");
-            //rotate in a way that label is always readable when looking from the bottom edge or the right edge of the drawing
-            const angle = Math.atan2(annotationDirection._y, annotationDirection._x) * (180 / Math.PI);
-            //
-            const adjustedAngle = (angle > 45 || angle < -136) ? angle + 180 : angle;
-            textElement.setAttribute("transform", `rotate(${adjustedAngle}, ${(annotationLineDrawingStart._x + annotationLineDrawingEnd._x) / 2}, ${(annotationLineDrawingStart._y + annotationLineDrawingEnd._y) / 2})`);
-            textElement.textContent = label;
-            annotationsRoot.appendChild(textElement);
 
         });
 
         this._annotablePoints.forEach(({ transformedPoint, point }) => {
-            // add a circle
-            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            circle.setAttribute("cx", transformedPoint.pixelCoordinate._x.toString());
-            circle.setAttribute("cy", transformedPoint.pixelCoordinate._y.toString());
-            circle.setAttribute("r", "15");
-            circle.setAttribute("fill", "red");
-            annotationsRoot.appendChild(circle);
+            SVGHelper.createSvgCircleElement(annotationsRoot, transformedPoint.pixelCoordinate._x, transformedPoint.pixelCoordinate._y, 15, { fill: "red" });
         });
         /* */
 
@@ -278,16 +244,11 @@ export class Drawing implements IPlanSvgDrawing {
                 const maxX = axialCoordsUnique[axialCoordsUnique.length - 1].x;
 
                 // line from minX to maxX at the distance rd from the axis
-                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+
                 const startPoint = start.clone().add(normalizedAxis.clone().multiply(minX)).add(normal.clone().multiply(rd));
                 const endPoint = start.clone().add(normalizedAxis.clone().multiply(maxX)).add(normal.clone().multiply(rd));
-                line.setAttribute("x1", startPoint._x.toString());
-                line.setAttribute("y1", startPoint._y.toString());
-                line.setAttribute("x2", endPoint._x.toString());
-                line.setAttribute("y2", endPoint._y.toString());
-                line.setAttribute("stroke", debugColor);
-                line.setAttribute("stroke-width", "5");
-                annotationsRoot.appendChild(line);
+
+                SVGHelper.createSvgLineElement(annotationsRoot, startPoint._x, startPoint._y, endPoint._x, endPoint._y, { stroke: debugColor, strokeWidth: 5 });
 
                 if (axialCoordsUnique.length > 1) {
                     axialCoordsUnique.forEach((xCoord, index) => {
@@ -295,19 +256,18 @@ export class Drawing implements IPlanSvgDrawing {
                         const prev = axialCoordsUnique[index - 1];
                         const realLength = Math.abs(xCoord.realX - prev.realX);
                         const textPos = startPoint.clone().add(normalizedAxis.clone().multiply((xCoord.x + prev.x) / 2 - minX));
-                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                        text.setAttribute("x", textPos._x.toString());
-                        text.setAttribute("y", textPos._y.toString());
-                        text.setAttribute("fill", debugColor);
-                        text.setAttribute("font-size", "24");
-                        text.setAttribute("text-anchor", "middle");
-                        text.setAttribute("alignment-baseline", "middle");
-                        text.setAttribute("stroke", "white");
-                        text.setAttribute("stroke-width", "10");
-                        text.setAttribute("stroke-linejoin", "round");
-                        text.setAttribute("paint-order", "stroke");
-                        text.textContent = realLength.toFixed(0);
-                        annotationsRoot.appendChild(text);
+                        SVGHelper.createSvgTextElement(annotationsRoot, textPos._x, textPos._y, realLength.toFixed(0), {
+                            fill: debugColor,
+                            fontSize: 24,
+                            textAnchor: "middle",
+                            alignmentBaseline: "middle",
+                            stroke: "white",
+                            strokeWidth: 10,
+                            strokeLinejoin: "round",
+                            paintOrder: "stroke",
+                            rotationAngle: Math.atan2(endPoint._y - startPoint._y, endPoint._x - startPoint._x) * 180 / Math.PI, // rotate the text to be parallel with the axis
+                            flipIfUpsideDown: true, // flip the text if it would be upside down
+                        });
                     });
                 }
 
@@ -322,7 +282,7 @@ export class Drawing implements IPlanSvgDrawing {
 
 
         // annotationsRoot - sort text so that texts are last to be rendered and therefore on top of all other elements
-        const sortedAnnotationsRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        const sortedAnnotationsRoot = SVGHelper.createSvgGroupElement(svgRoot);
         Array.from(annotationsRoot.childNodes).sort((a, b) => {
             if (a.nodeName === 'text' && b.nodeName !== 'text') {
                 return 1;
@@ -336,8 +296,6 @@ export class Drawing implements IPlanSvgDrawing {
         svgRoot.appendChild(sortedAnnotationsRoot);
 
 
-        svgRoot.setAttribute("width", (this.sceneRender.imageWidth / 2).toString());
-        svgRoot.setAttribute("height", (this.sceneRender.imageHeight / 2).toString());
         svgRoot.setAttribute("viewBox", `${-marginLeft} ${-marginUp} ${this.sceneRender.imageWidth + marginLeft + marginRight} ${this.sceneRender.imageHeight + marginDown + marginUp}`); // Default, or you can use actual image size if available
         return svgRoot;
     }
