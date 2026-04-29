@@ -90,6 +90,17 @@ export interface SVGPathProperties extends SVGPresentationProperties {
     pathLength?: number | string | undefined;
 }
 
+export interface SVGMarkerProperties extends SVGPresentationProperties {
+    markerWidth?: number | string | undefined;
+    markerHeight?: number | string | undefined;
+    refX?: number | string | undefined;
+    refY?: number | string | undefined;
+    orient?: string | undefined;
+    markerUnits?: string | undefined;
+    viewBox?: string | undefined;
+    d?: string | undefined;
+}
+
 export interface SVGLineProperties extends SVGPathProperties {
 }
 
@@ -137,10 +148,15 @@ const svgAttributeNameOverrides: Record<string, string> = {
     markerEnd: "marker-end",
     markerMid: "marker-mid",
     markerStart: "marker-start",
+    markerHeight: "markerHeight",
+    markerUnits: "markerUnits",
+    markerWidth: "markerWidth",
     paintOrder: "paint-order",
     pathLength: "pathLength",
     pointerEvents: "pointer-events",
     preserveAspectRatio: "preserveAspectRatio",
+    refX: "refX",
+    refY: "refY",
     shapeRendering: "shape-rendering",
     strokeDasharray: "stroke-dasharray",
     strokeDashoffset: "stroke-dashoffset",
@@ -192,6 +208,45 @@ export function createSvgRootElement(width: number, height: number, properties?:
     svg.setAttribute("height", height.toString());
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     return applySvgProperties(svg, properties);
+}
+
+export function createSvgDefsForArrowMarkers(parent: SVGSVGElement, properties: SVGMarkerProperties): void {
+    if (parent.querySelector("#arrowStart, #arrowEnd")) {
+        return;
+    }
+
+    const defs = createSvgElement("defs") as SVGDefsElement;
+    const markerProperties = {
+        markerWidth: properties?.markerWidth ?? 10,
+        markerHeight: properties?.markerHeight ?? 10,
+        markerUnits: properties?.markerUnits ?? "strokeWidth",
+        orient: properties?.orient ?? "auto",
+        refY: properties?.refY ?? 5,
+        viewBox: properties?.viewBox ?? "0 0 10 10",
+    };
+    const markerPathFill = properties?.fill ?? "context-stroke";
+    const markerPathD = properties?.d ?? "M 0 0 L 10 5 L 0 10 z";
+
+    const refX = properties?.refX ?? properties?.markerWidth ?? 10;
+    const refY = properties?.refY ?? (typeof properties?.markerHeight === "number" ? (properties.markerHeight / 2) : 5);
+
+    const endMarker = createSvgElement("marker") as SVGMarkerElement;
+    applySvgProperties(endMarker, { ...markerProperties, id: "arrowEnd", refX, refY, orient: properties?.orient ?? "auto" });
+    const endMarkerPath = createSvgElement("path") as SVGPathElement;
+    endMarkerPath.setAttribute("d", markerPathD);
+    endMarkerPath.setAttribute("fill", markerPathFill);
+    endMarker.appendChild(endMarkerPath);
+
+    const startMarker = createSvgElement("marker") as SVGMarkerElement;
+    applySvgProperties(startMarker, { ...markerProperties, id: "arrowStart", orient: "auto-start-reverse", refX, refY });
+    const startMarkerPath = createSvgElement("path") as SVGPathElement;
+    startMarkerPath.setAttribute("d", markerPathD);
+    startMarkerPath.setAttribute("fill", markerPathFill);
+    startMarker.appendChild(startMarkerPath);
+
+    defs.appendChild(startMarker);
+    defs.appendChild(endMarker);
+    parent.appendChild(defs);
 }
 
 export function createSvgImageElement(parent: SVGElement, href: string, width: number, height: number, properties?: SVGImageProperties): SVGImageElement {
@@ -266,13 +321,14 @@ export function createSvgLineElementWithText(
     startY: number,
     endX: number,
     endY: number,
+    textYOffset: number,
     textContent: string,
     lineProperties: SVGLineProperties,
     textProperties: SVGTextProperties,
 ): { line: SVGLineElement, text: SVGTextElement } {
     const line = createSvgLineElement(parent, startX, startY, endX, endY, lineProperties);
     const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI; // Angle in degrees
-    const text = createSvgTextElement(parent, (startX + endX) / 2, (startY + endY) / 2, textContent, { ...textProperties, rotationAngle: angle });
+    const text = createSvgTextElement(parent, (startX + endX) / 2, (startY + endY) / 2 - textYOffset, textContent, { ...textProperties, rotationAngle: angle });
     return { line, text };
 }
 
