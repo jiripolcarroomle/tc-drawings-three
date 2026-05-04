@@ -321,14 +321,14 @@ export function createSvgLineElementWithText(
     startY: number,
     endX: number,
     endY: number,
-    textYOffset: number,
+    textOffset: { _x: number, _y: number },
     textContent: string,
     lineProperties: SVGLineProperties,
     textProperties: SVGTextProperties,
 ): { line: SVGLineElement, text: SVGTextElement } {
     const line = createSvgLineElement(parent, startX, startY, endX, endY, lineProperties);
     const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI; // Angle in degrees
-    const text = createSvgTextElement(parent, (startX + endX) / 2, (startY + endY) / 2 - textYOffset, textContent, { ...textProperties, rotationAngle: angle });
+    const text = createSvgTextElement(parent, (startX + endX) / 2 + textOffset._x, (startY + endY) / 2 + textOffset._y, textContent, { ...textProperties, rotationAngle: angle });
     return { line, text };
 }
 

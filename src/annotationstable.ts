@@ -24,39 +24,52 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        out_AnnotablePoints: (m: any) => {
-            return [
+        out_AnnotablePoints: (m: any, drawingData: any) => {
+            const top = drawingData.drawingDirection === DrawingDirection.Top;
+            const result: AnnotablePoint[] = [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
                 { coordinate: new Vector3(m.mod_Width, 0, 0) }, // example point at the module pivot
                 { coordinate: new Vector3(0, 0, m.mod_Depth) }, // example point at the module pivot
-                { coordinate: new Vector3(0, m.mod_PlinthAreaHeight, 0), notHorizontal: true, }, // example point at the module pivot
-                { coordinate: new Vector3(0, m.mod_PlinthAreaHeight + m.mod_Height, 0), notHorizontal: true }, // example point at the module pivot
+                { coordinate: new Vector3(m.mod_Width, 0, m.mod_Depth) }, // example point at the module pivot
             ]
+            const plinthAreaHeight = m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? m.mod_PlinthAreaHeight : 0;
+
+            if (top) {
+            }
+            else {
+                result.push({ coordinate: new Vector3(0, plinthAreaHeight + m.mod_Height, 0), notHorizontal: true }); // example point at the module pivot
+                if (plinthAreaHeight > 0) {
+                    result.push({ coordinate: new Vector3(0, plinthAreaHeight, 0), notHorizontal: true, }); // example point at the module pivot
+                }
+            }
+            return result;
         },
         out_Annotations: (m: any, drawingData: any) => {
-            const top = drawingData.drawingDirection === DrawingDirection.Top;
-            return (top
-                ? ([
-                    {
-                        start: new Vector3(0, 0, 0),
-                        end: new Vector3(m.mod_Width, 0, 0),
-                        distance: (0.1 * m._articlePos.y + 200),
-                    }, {
-                        start: new Vector3(0.05 * m._articlePos.y + 50, 0, 0),
-                        end: new Vector3(0.05 * m._articlePos.y + 50, 0, m.mod_Depth),
-                    },
-                ])
-                : ([
-                    {
-                        start: new Vector3(0, 0, 0),
-                        end: new Vector3(m.mod_Width, 0, 0),
-                        distance: (- 50),
-                    },
-                ])
-            );
+            return [];
+            //const top = drawingData.drawingDirection === DrawingDirection.Top;
+            //return (top
+            //    ? ([
+            //        {
+            //            start: new Vector3(0, 0, 0),
+            //            end: new Vector3(m.mod_Width, 0, 0),
+            //            distance: (0.1 * m._articlePos.y + 200),
+            //        }, {
+            //            start: new Vector3(0.05 * m._articlePos.y + 50, 0, 0),
+            //            end: new Vector3(0.05 * m._articlePos.y + 50, 0, m.mod_Depth),
+            //        },
+            //    ])
+            //    : ([
+            //        {
+            //            start: new Vector3(0, 0, 0),
+            //            end: new Vector3(m.mod_Width, 0, 0),
+            //            distance: (- 50),
+            //        },
+            //    ])
+            //);
 
         },
     },
+    
     {
         in_ModuleId: 'mr_CornerunitStraight',
         in_ModuleCondition: (_m: any) => true, // apply to all modules with the specified ID
@@ -94,8 +107,8 @@ export const tab_Annotations: I_tab_Annotation[] = [
             return [
                 { coordinate: new Vector3(0, 0, 0) }, // example point at the module pivot
                 { coordinate: new Vector3(m.mod_CountertopWidth, 0, 0) }, // example point at the module pivot
-                { coordinate: new Vector3(0, 0, m.mod_CountertopDepth) }, // example point at the module pivot
-                { coordinate: new Vector3(0, m.mod_CountertopThk, 0), notHorizontal: true, }, // example point at the module pivot
+                { coordinate: new Vector3(0, 0, m.mod_CountertopDepth ?? 580) }, // example point at the module pivot
+                { coordinate: new Vector3(0, m.mod_CountertopThk ?? 38, 0), notHorizontal: true, }, // example point at the module pivot
             ]
         },
 
@@ -121,54 +134,8 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'Z' }
                     ],
                     fill: 'none',
-                    stroke: '#ff0000',
+                    stroke: '#000000',
                     strokeDasharray: '10,10',
-                    strokeWidth: '2',
-                }
-            ];
-        }
-    },
-
-    {
-        in_ModuleId: 'mf_Door',
-        in_ModuleCondition: (_m: any, drawingData: any) => { return drawingData.drawingDirection === DrawingDirection.Top; }, // apply to all modules with the specified ID
-        out_SvgPathOverlays: (m: any) => {
-            return [
-                {
-                    d: [
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_FrontWidth ?? 200, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_FrontWidth ?? 200, 0, m.mod_FrontThk ?? 50) },
-                        { command: 'L', coordinate3d: new Vector3(0, 0, m.mod_FrontThk ?? 50) },
-                        { command: 'Z' }
-                    ],
-                    fill: 'none',
-                    stroke: '#ff0000',
-                    strokeDasharray: '10,5',
-                    strokeWidth: '2',
-                }
-            ];
-        }
-    },
-
-
-    {
-        in_ModuleId: 'mc_Leg01',
-        in_ModuleCondition: (_m: any, drawingData: any) => { return drawingData.drawingDirection === DrawingDirection.Top; },
-        out_SvgPathOverlays: (_m: any) => {
-            return [
-                {
-                    d: [
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(50, 0, 50) },
-                        { command: 'Z' },
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 50) },
-                        { command: 'L', coordinate3d: new Vector3(50, 0, 0) },
-                        { command: 'Z' },
-                    ],
-                    fill: 'none',
-                    stroke: '#0000ff',
-                    strokeDasharray: '10,5',
                     strokeWidth: '2',
                 }
             ];
@@ -217,9 +184,9 @@ export const tab_Annotations: I_tab_Annotation[] = [
                         { command: 'L', coordinate3d: new Vector3(0, 0, m.mod_Depth) },
                         { command: 'Z' },
                     ],
-                    stroke: '#2600ff',
+                    stroke: '#000000',
                     strokeWidth: '2',
-                    fill: 'rgba(217, 255, 0, 1)'
+                    fill: 'rgb(112, 112, 112)'
                 }
             ];
         }

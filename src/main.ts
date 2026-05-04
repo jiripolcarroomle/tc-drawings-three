@@ -1,11 +1,13 @@
 import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
+import './style.css';
 
 
 // 
-// import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
 // 
 //import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
 // 
+//
 import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
@@ -33,10 +35,11 @@ run();
 
 async function run() {
   const orderCallResults = await appOrderFunction(orderJson.o, orderJson.ol);
+  const appRoot = document.querySelector<HTMLElement>('#app') ?? document.body;
 
   orderCallResults.forEach(svg => {
 
-    addSvgToDocument(document.body, svg);
+    addSvgToDocument(appRoot, svg);
 
   });
 }

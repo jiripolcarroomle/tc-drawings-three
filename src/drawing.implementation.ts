@@ -134,7 +134,7 @@ export class Drawing implements IPlanSvgDrawing {
         const svgRoot = SVGHelper.createSvgRootElement(this.sceneRender.imageWidth / 2, this.sceneRender.imageHeight / 2);
         SVGHelper.createSvgDefsForArrowMarkers(svgRoot, linesArrowMarkerStyle);
 
-        const baseMargin = 300;
+        const baseMargin = 400;
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // add the image
@@ -191,7 +191,7 @@ export class Drawing implements IPlanSvgDrawing {
                 annotationsRoot,
                 annotationLineDrawingStart._x, annotationLineDrawingStart._y,
                 annotationLineDrawingEnd._x, annotationLineDrawingEnd._y,
-                0,
+                normalDirection.clone().multiply(0),
                 annotation.label ?? realLength.toFixed(0),
                 { ...thickLineStyle, ...arrowLineStyle },
                 { ...textStyle },
@@ -205,7 +205,7 @@ export class Drawing implements IPlanSvgDrawing {
         });
 
         this._annotablePoints.forEach(({ transformedPoint }) => {
-            SVGHelper.createSvgCircleElement(annotationsRoot, transformedPoint.pixelCoordinate._x, transformedPoint.pixelCoordinate._y, 15, { fill: "red" });
+            SVGHelper.createSvgCircleElement(annotationsRoot, transformedPoint.pixelCoordinate._x, transformedPoint.pixelCoordinate._y, 5, { fill: "red" });
         });
         /* */
 
@@ -215,21 +215,21 @@ export class Drawing implements IPlanSvgDrawing {
         const quadrants = [[], [], [], []] as { transformedPoint: TransformedPoint, point: AnnotablePoint }[][];
         const drawingCenterX = this.sceneRender.imageWidth / 2;
         const drawingCenterY = this.sceneRender.imageHeight / 2;
-        this._annotablePoints.forEach(({ transformedPoint, point }) => {
-            const xPositive = transformedPoint.cameraSpaceCoordinate._x - drawingCenterX > 0;
-            const yPositive = transformedPoint.cameraSpaceCoordinate._y - drawingCenterY > 0;
+        this._annotablePoints.forEach((ap) => {
+            const xPositive = ap.transformedPoint.cameraSpaceCoordinate._x - drawingCenterX > 0;
+            const yPositive = ap.transformedPoint.cameraSpaceCoordinate._y - drawingCenterY > 0;
             if (xPositive && !yPositive) {
-                quadrants[0].push({ transformedPoint, point });
+                quadrants[0].push(ap);
             } else if (!xPositive && !yPositive) {
-                quadrants[1].push({ transformedPoint, point });
+                quadrants[1].push(ap);
             } else if (!xPositive && yPositive) {
-                quadrants[2].push({ transformedPoint, point });
+                quadrants[2].push(ap);
             } else {
-                quadrants[3].push({ transformedPoint, point });
+                quadrants[3].push(ap);
             }
         });
 
-        function drawAnnotablePointInAxis(start: Vector3, axis: Vector3, normal: Vector3, annotablePoints: AnnotablePointTransformed[], transformToEdge: boolean = true) {
+        function drawAnnotablePointInAxis(start: Vector3, axis: Vector3, normal: Vector3, annotablePoints: AnnotablePointTransformed[], transformToEdge: boolean = true, alreadyUsedSignatures: string[] | undefined = []) {
             axis = axis.clone().normalize();
             normal = normal.clone().normalize();
 
@@ -251,7 +251,7 @@ export class Drawing implements IPlanSvgDrawing {
             }).sort((a, b) => a.lineCoord._y - b.lineCoord._y);
             const roundedDistancesSet = new Set(annotablePointsWithSignedDistancesAndParametersOfLineSegments.map(ap => ap.lineCoordRounded._y));
 
-            const alreadyUsed: string[] = [];
+            const alreadyUsed: string[] = alreadyUsedSignatures || [];
             let lineIndex = 0;
             const lineSpacing = 50;
             // split them by their rounded distance to show the levels of the annotable lines
@@ -261,13 +261,18 @@ export class Drawing implements IPlanSvgDrawing {
                 const axialCoordsUnique = pointsWithSameRoundedDistance
                     .map(ap => { return { x: ap.lineCoord._x, realX: ap.axisCoordinate, roundedX: ap.lineCoordRounded._x } })
                     .sort((a, b) => a.x - b.x)
-                    .filter((coord, index, self) => index === 0 || coord.x !== self[index - 1].x); // filter out points that have the same rounded x coordinate to avoid overlapping annotation points on the same axis position
+                    .filter((coord, index, self) => index === 0 || (Math.abs(coord.x - self[index - 1].x) > 0.1)); // filter out points that have the same rounded x coordinate to avoid overlapping annotation points on the same axis position
 
                 const signature = axialCoordsUnique.map(c => c.x.toFixed(1)).join(',');
 
                 if (axialCoordsUnique.length < 2 || alreadyUsed.includes(signature)) {
                     return;
                 }
+                const signatureSupersets = alreadyUsed.filter(s => s.includes(signature));
+                if (signatureSupersets.length > 0) {
+                    return;
+                }
+
                 alreadyUsed.push(signature);
                 const minX = axialCoordsUnique[0].x;
                 const maxX = axialCoordsUnique[axialCoordsUnique.length - 1].x;
@@ -291,7 +296,7 @@ export class Drawing implements IPlanSvgDrawing {
                         SVGHelper.createSvgLineElementWithText(
                             annotationsRoot,
                             segmentStart._x, segmentStart._y, segmentEnd._x, segmentEnd._y,
-                            20,
+                            normal.clone().multiply(0),
                             realLength.toFixed(0),
                             {
                                 ...thinLineStyle,
@@ -310,9 +315,15 @@ export class Drawing implements IPlanSvgDrawing {
 
         }
 
+        const usedHorizontalSignatures: string[] = [], usedVerticalSignatures: string[] = [];
+        drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0), [...quadrants[2], ...quadrants[3]], true, usedHorizontalSignatures);
+        drawAnnotablePointInAxis(new Vector3(0, this.sceneRender.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), [...quadrants[0], ...quadrants[1]], true, usedHorizontalSignatures);
+        drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0), [...quadrants[1], ...quadrants[2]], true, usedHorizontalSignatures);
+        drawAnnotablePointInAxis(new Vector3(this.sceneRender.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0), [...quadrants[3], ...quadrants[0]], true, usedHorizontalSignatures);
 
-        drawAnnotablePointInAxis(new Vector3(0, this.sceneRender.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), this._annotablePoints, true);
-        drawAnnotablePointInAxis(new Vector3(-200, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0), this._annotablePoints, true);
+
+
+        //drawAnnotablePointInAxis(new Vector3(-100, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0), this._annotablePoints, true, usedVerticalSignatures);
 
 
 
