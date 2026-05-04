@@ -168,7 +168,7 @@ export async function appOrderFunction(o: any, ol: any) {
         orthoCameraRenderResults.push(result);
 
         const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
-      //  orthoCameraRenderResults.push(resultWithoutFronts);
+        //  orthoCameraRenderResults.push(resultWithoutFronts);
 
     }
 
