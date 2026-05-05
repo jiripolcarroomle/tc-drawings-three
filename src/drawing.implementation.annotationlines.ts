@@ -70,6 +70,11 @@ export function drawAnnotationsWithAnnotationLines(
 
     class LineWithAnnotations {
         usedIntervals: { start: number, end: number, annotations: AnnotationTransformedToDirection[], realLength: number }[] = [];
+
+        private sortUsedIntervals(): void {
+            this.usedIntervals.sort((a, b) => a.start - b.start || a.end - b.end || a.realLength - b.realLength);
+        }
+
         /**
          * Adds an annotation to the line if it does not overlap with existing annotations.
          * @param annotation The annotation to add
@@ -97,8 +102,8 @@ export function drawAnnotationsWithAnnotationLines(
             return false;
         }
         isIntervalFree(start: number, end: number): boolean {
-            const startRound = Math.round(start);
-            const endRound = Math.round(end);
+            const startRound = Math.round(Math.min(start, end));
+            const endRound = Math.round(Math.max(start, end));
             return !this.usedIntervals.some(i => i.start < endRound && i.end > startRound);
         }
         getMinMax(): { min: number, max: number } {
@@ -113,8 +118,8 @@ export function drawAnnotationsWithAnnotationLines(
          * Gets an existing interval that overlaps with the given start and end, or creates a new one if create is true and there is free space.
          */
         getOrCreateInterval(start: number, end: number, realLength: number, create: boolean = true): undefined | { start: number, end: number, annotations: AnnotationTransformedToDirection[], realLength: number } {
-            const startRound = Math.round(start);
-            const endRound = Math.round(end);
+            const startRound = Math.round(Math.min(start, end));
+            const endRound = Math.round(Math.max(start, end));
             let interval = this.usedIntervals.find(i => i.start === startRound && i.end === endRound);
             if (!interval && create) {
                 const hasFreeSpace = this.isIntervalFree(start, end);
@@ -123,7 +128,7 @@ export function drawAnnotationsWithAnnotationLines(
                 }
                 interval = { start: startRound, end: endRound, annotations: [], realLength: realLength };
                 this.usedIntervals.push(interval);
-                this.usedIntervals = this.usedIntervals.sort((a, b) => (a.end - a.start) - (b.end - b.start));
+                this.sortUsedIntervals();
             }
             return interval;
         }
@@ -154,6 +159,7 @@ export function drawAnnotationsWithAnnotationLines(
                         this.usedIntervals.push(otherInterval);
                     }
                 });
+                this.sortUsedIntervals();
             }
             return result;
         }
@@ -323,9 +329,9 @@ export function drawAnnotationsWithAnnotationLines(
     //     }
     // }
 
-    linesWithAnnotations.forEach((line, index) => {
+    linesWithAnnotations.forEach((line, finalIndex) => {
         line.print();
-        const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(index * lineSpacing));
+        const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
         line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection);
     });
 
