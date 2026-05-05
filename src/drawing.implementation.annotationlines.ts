@@ -52,12 +52,11 @@ export function drawAnnotationsWithAnnotationLines(
             const depth = (annotation.startPoint.cameraSpaceCoordinate._z + annotation.endPoint.cameraSpaceCoordinate._z) / 2;
             const startAlongLine = projectPointOnLine(annotation.startPoint.pixelCoordinate, lineStart, lineDirection);
             const endAlongLine = projectPointOnLine(annotation.endPoint.pixelCoordinate, lineStart, lineDirection);
-            const alongLine = (startAlongLine + endAlongLine) / 2;
             const backwards = startAlongLine > endAlongLine;
 
             return (backwards
-                ? { ...annotation, distanceY: distanceToLine, distanceZ: depth, distanceStartX: endAlongLine, distanceEndX: startAlongLine, startPoint: annotation.endPoint, endPoint: annotation.startPoint }
-                : { ...annotation, distanceY: distanceToLine, distanceZ: depth, distanceStartX: startAlongLine, distanceEndX: endAlongLine });
+                ? { ...annotation, distanceY: distanceToLine, distanceZ: Math.round(depth), distanceStartX: endAlongLine, distanceEndX: startAlongLine, startPoint: annotation.endPoint, endPoint: annotation.startPoint }
+                : { ...annotation, distanceY: distanceToLine, distanceZ: Math.round(depth), distanceStartX: startAlongLine, distanceEndX: endAlongLine });
         })
         .sort((a, b) => {
             if (a.distanceY !== b.distanceY) {
@@ -81,6 +80,12 @@ export function drawAnnotationsWithAnnotationLines(
             const intervalEnd = annotation.distanceEndX;
             const availableInterval = this.getOrCreateInterval(intervalStart, intervalEnd, true);
             if (availableInterval) {
+                const firstAnnotation = availableInterval.annotations[0];
+                if (firstAnnotation) {
+                    if (annotation.distanceZ !== firstAnnotation.distanceZ) {
+                        return false;
+                    }
+                }
                 availableInterval.annotations.push(annotation);
                 return true;
             }
@@ -128,20 +133,53 @@ export function drawAnnotationsWithAnnotationLines(
             const lineStart = offsetPixels.clone().add(direction.clone().multiply(min));
             const lineEnd = offsetPixels.clone().add(direction.clone().multiply(max));
             // helper line
-            SVGHelper.createSvgLineElement(parent, lineStart._x, lineStart._y, lineEnd._x, lineEnd._y, SVGHelper.thinLineStyle);
+            SVGHelper.createSvgLineElement({
+                parent,
+                startX: lineStart._x,
+                startY: lineStart._y,
+                endX: lineEnd._x,
+                endY: lineEnd._y,
+                properties: SVGHelper.thinLineStyle,
+            });
 
             this.usedIntervals.forEach(interval => {
                 const intervalStart = offsetPixels.clone().add(direction.clone().multiply(interval.start));
                 const intervalEnd = offsetPixels.clone().add(direction.clone().multiply(interval.end));
-                SVGHelper.createSvgLineElementWithText(
+                SVGHelper.createSvgLineElementWithText({
                     parent,
-                    intervalStart._x, intervalStart._y,
-                    intervalEnd._x, intervalEnd._y,
-                    { _x: 0, _y: 0 },
-                    interval.annotations[0].realLength.toFixed(0) ,
-                    { ...SVGHelper.thickLineStyle, ...SVGHelper.arrowLineStyle },
-                    SVGHelper.textStyle,
-                )
+                    startX: intervalStart._x,
+                    startY: intervalStart._y,
+                    endX: intervalEnd._x,
+                    endY: intervalEnd._y,
+                    textOffset: { _x: 0, _y: 0 },
+                    textContent: interval.annotations[0].realLength.toFixed(0),
+                    lineProperties: {
+                        ...SVGHelper.thickLineStyle,
+                        ...SVGHelper.arrowLineStyle,
+                        ticksAtEndsLength: 25,
+                        ticksStyle: SVGHelper.thinLineStyle,
+                    },
+                    textProperties: SVGHelper.textStyle,
+                });
+
+                // drag helper lines to the farthest annotation
+                const farthestAnnotation = interval.annotations.reduce((prev, current) => (current.distanceY > prev.distanceY ? current : prev));
+                SVGHelper.createSvgLineElement({
+                    parent,
+                    startX: intervalStart._x,
+                    startY: intervalStart._y,
+                    endX: farthestAnnotation.startPoint.pixelCoordinate._x,
+                    endY: farthestAnnotation.startPoint.pixelCoordinate._y,
+                    properties: SVGHelper.thinDashedLineStyle,
+                });
+                SVGHelper.createSvgLineElement({
+                    parent,
+                    startX: intervalEnd._x,
+                    startY: intervalEnd._y,
+                    endX: farthestAnnotation.endPoint.pixelCoordinate._x,
+                    endY: farthestAnnotation.endPoint.pixelCoordinate._y,
+                    properties: SVGHelper.thinDashedLineStyle,
+                });
             });
 
         }

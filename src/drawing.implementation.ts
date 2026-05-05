@@ -108,20 +108,28 @@ export class Drawing implements IPlanSvgDrawing {
      */
     render(): SVGElement {
         // Implementation for rendering the final SVG element
-        const svgRoot = SVGHelper.createSvgRootElement(this.sceneRender.imageWidth / 2, this.sceneRender.imageHeight / 2);
-        SVGHelper.createSvgDefsForArrowMarkers(svgRoot, linesArrowMarkerStyle);
+        const svgRoot = SVGHelper.createSvgRootElement({
+            width: this.sceneRender.imageWidth / 2,
+            height: this.sceneRender.imageHeight / 2,
+        });
+        SVGHelper.createSvgDefsForArrowMarkers({ parent: svgRoot, properties: linesArrowMarkerStyle });
 
         const baseMargin = 400;
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // add the image
-        SVGHelper.createSvgImageElement(svgRoot, this.sceneRender.image.dataUrl, this.sceneRender.imageWidth, this.sceneRender.imageHeight);
+        SVGHelper.createSvgImageElement({
+            parent: svgRoot,
+            href: this.sceneRender.image.dataUrl,
+            width: this.sceneRender.imageWidth,
+            height: this.sceneRender.imageHeight,
+        });
 
         // group for overlays
-        const overlaysRoot = SVGHelper.createSvgGroupElement(svgRoot);
+        SVGHelper.createSvgGroupElement({ parent: svgRoot });
         // group for annotations to be on top of overlays
         // text elements must be on top, therefore the annotations go into one group separate from everything else
-        const annotationsRoot = SVGHelper.createSvgGroupElement(svgRoot);
+        const annotationsRoot = SVGHelper.createSvgGroupElement({ parent: svgRoot });
 
         // render svg overlays on top of the rendered image
         this._svgOverlays.forEach(({ transform, svgInjection }) => {
@@ -136,7 +144,7 @@ export class Drawing implements IPlanSvgDrawing {
                 }
             }).join(' ');
             const options = { ...svgInjection, d: pathD } as any;
-            SVGHelper.createSvgPathElement(svgRoot, pathD, { ...overlayStyle, ...options });
+            SVGHelper.createSvgPathElement({ parent: svgRoot, d: pathD, properties: { ...overlayStyle, ...options } });
         });
 
         const annotationLayers = new Map<string, typeof this._annotations>();
@@ -166,15 +174,17 @@ export class Drawing implements IPlanSvgDrawing {
                 const azimuth = Math.round(Math.atan2(annotation.endPoint.cameraSpaceCoordinate._y - annotation.startPoint.cameraSpaceCoordinate._y, annotation.endPoint.cameraSpaceCoordinate._x - annotation.startPoint.cameraSpaceCoordinate._x) * 180 / Math.PI);
                 const isRightAngle = [-180, -90, 0, 90, 180].indexOf(azimuth) >= 0; // you can adjust the angles that are considered right angles as needed
                 if (!isRightAngle || annotation.annotation.displayAtPosition) {
-                    SVGHelper.createSvgLineElementWithText(
-                        annotationsRoot,
-                        annotation.startPoint.pixelCoordinate._x, annotation.startPoint.pixelCoordinate._y,
-                        annotation.endPoint.pixelCoordinate._x, annotation.endPoint.pixelCoordinate._y,
-                        new Vector3(0, 0, 0),
-                        annotation.annotation.label ?? annotation.realLength.toFixed(0),
-                        { ...thickLineStyle, ...arrowLineStyle },
-                        { ...textStyle, flipIfUpsideDown: true },
-                    );
+                    SVGHelper.createSvgLineElementWithText({
+                        parent: annotationsRoot,
+                        startX: annotation.startPoint.pixelCoordinate._x,
+                        startY: annotation.startPoint.pixelCoordinate._y,
+                        endX: annotation.endPoint.pixelCoordinate._x,
+                        endY: annotation.endPoint.pixelCoordinate._y,
+                        textOffset: new Vector3(0, 0, 0),
+                        textContent: annotation.annotation.label ?? annotation.realLength.toFixed(0),
+                        lineProperties: { ...thickLineStyle, ...arrowLineStyle },
+                        textProperties: { ...textStyle, flipIfUpsideDown: true },
+                    });
                 }
                 else {
                     const isVertical = Math.abs(azimuth) === 90;
@@ -187,17 +197,23 @@ export class Drawing implements IPlanSvgDrawing {
                 }
             });
 
-            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0));
+            // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0));
             drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, this._renderResult.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0));
 
-            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
+            // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
             drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(this._renderResult.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
 
         });
 
 
         this._annotablePoints.forEach(({ transformedPoint }) => {
-            SVGHelper.createSvgCircleElement(annotationsRoot, transformedPoint.pixelCoordinate._x, transformedPoint.pixelCoordinate._y, 5, { fill: "red" });
+            SVGHelper.createSvgCircleElement({
+                parent: annotationsRoot,
+                cx: transformedPoint.pixelCoordinate._x,
+                cy: transformedPoint.pixelCoordinate._y,
+                r: 5,
+                properties: { fill: "red" },
+            });
         });
         /* */
 
@@ -274,7 +290,14 @@ export class Drawing implements IPlanSvgDrawing {
                 const startPoint = start.clone().add(axis.clone().multiply(minX)).add(normal.clone().multiply(lineDistance));
                 const endPoint = start.clone().add(axis.clone().multiply(maxX)).add(normal.clone().multiply(lineDistance));
 
-                SVGHelper.createSvgLineElement(annotationsRoot, startPoint._x, startPoint._y, endPoint._x, endPoint._y, { ...thickLineStyle });
+                SVGHelper.createSvgLineElement({
+                    parent: annotationsRoot,
+                    startX: startPoint._x,
+                    startY: startPoint._y,
+                    endX: endPoint._x,
+                    endY: endPoint._y,
+                    properties: { ...thickLineStyle },
+                });
 
                 if (axialCoordsUnique.length > 1) {
                     axialCoordsUnique.forEach((xCoord, index) => {
@@ -285,29 +308,36 @@ export class Drawing implements IPlanSvgDrawing {
 
                         const segmentStart = start.clone().add(axis.clone().multiply(prev.x)).add(normal.clone().multiply(lineDistance));
                         const segmentEnd = start.clone().add(axis.clone().multiply(xCoord.x)).add(normal.clone().multiply(lineDistance));
-                        SVGHelper.createSvgLineElementWithText(
-                            annotationsRoot,
-                            segmentStart._x, segmentStart._y, segmentEnd._x, segmentEnd._y,
-                            normal.clone().multiply(0),
-                            realLength.toFixed(0),
-                            {
+                        SVGHelper.createSvgLineElementWithText({
+                            parent: annotationsRoot,
+                            startX: segmentStart._x,
+                            startY: segmentStart._y,
+                            endX: segmentEnd._x,
+                            endY: segmentEnd._y,
+                            textOffset: normal.clone().multiply(0),
+                            textContent: realLength.toFixed(0),
+                            lineProperties: {
                                 ...thinLineStyle,
                                 ...arrowLineStyle,
                                 stroke: 'green',
                             },
-                            {
+                            textProperties: {
                                 ...textStyle,
                                 flipIfUpsideDown: true, // flip the text if it would be upside down
                                 fill: 'green',
-                            });
+                            },
+                        });
                     });
                 }
 
             });
 
         }
+        void drawAnnotablePointInAxis;
 
         const usedHorizontalSignatures: string[] = [], usedVerticalSignatures: string[] = [];
+        void usedHorizontalSignatures;
+        void usedVerticalSignatures;
         // drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0), [...quadrants[2], ...quadrants[3]], true, usedHorizontalSignatures);
         // drawAnnotablePointInAxis(new Vector3(0, this.sceneRender.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), [...quadrants[0], ...quadrants[1]], true, usedHorizontalSignatures);
         // drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0), [...quadrants[1], ...quadrants[2]], true, usedHorizontalSignatures);
@@ -320,7 +350,7 @@ export class Drawing implements IPlanSvgDrawing {
 
 
         // annotationsRoot - sort text so that texts are last to be rendered and therefore on top of all other elements
-        const sortedAnnotationsRoot = SVGHelper.createSvgGroupElement(svgRoot);
+        const sortedAnnotationsRoot = SVGHelper.createSvgGroupElement({ parent: svgRoot });
         Array.from(annotationsRoot.childNodes).sort((a, b) => {
             if (a.nodeName === 'text' && b.nodeName !== 'text') {
                 return 1;

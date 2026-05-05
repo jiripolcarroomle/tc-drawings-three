@@ -2,10 +2,8 @@ export function createSvgElement(tagName: string): SVGElement {
     return document.createElementNS("http://www.w3.org/2000/svg", tagName);
 }
 
-type SVGPropertyValue = string | number | boolean | null | undefined;
-
 export interface SVGElementProperties {
-    [attributeName: string]: SVGPropertyValue;
+    [attributeName: string]: any;
     id?: string | undefined;
     class?: string | undefined;
     className?: string | undefined;
@@ -102,6 +100,8 @@ export interface SVGMarkerProperties extends SVGPresentationProperties {
 }
 
 export interface SVGLineProperties extends SVGPathProperties {
+    ticksAtEndsLength?: number,
+    ticksStyle: SVGPathProperties,
 }
 
 export interface SVGGroupProperties extends SVGPresentationProperties {
@@ -202,7 +202,15 @@ function applySvgProperties<TElement extends SVGElement>(
     return element;
 }
 
-export function createSvgRootElement(width: number, height: number, properties?: SVGRootProperties): SVGSVGElement {
+export function createSvgRootElement({
+    width,
+    height,
+    properties,
+}: {
+    width: number,
+    height: number,
+    properties?: SVGRootProperties,
+}): SVGSVGElement {
     const svg = createSvgElement("svg") as SVGSVGElement;
     svg.setAttribute("width", width.toString());
     svg.setAttribute("height", height.toString());
@@ -210,7 +218,13 @@ export function createSvgRootElement(width: number, height: number, properties?:
     return applySvgProperties(svg, properties);
 }
 
-export function createSvgDefsForArrowMarkers(parent: SVGSVGElement, properties: SVGMarkerProperties): void {
+export function createSvgDefsForArrowMarkers({
+    parent,
+    properties,
+}: {
+    parent: SVGSVGElement,
+    properties: SVGMarkerProperties,
+}): void {
     if (parent.querySelector("#arrowStart, #arrowEnd")) {
         return;
     }
@@ -249,7 +263,19 @@ export function createSvgDefsForArrowMarkers(parent: SVGSVGElement, properties: 
     parent.appendChild(defs);
 }
 
-export function createSvgImageElement(parent: SVGElement, href: string, width: number, height: number, properties?: SVGImageProperties): SVGImageElement {
+export function createSvgImageElement({
+    parent,
+    href,
+    width,
+    height,
+    properties,
+}: {
+    parent: SVGElement,
+    href: string,
+    width: number,
+    height: number,
+    properties?: SVGImageProperties,
+}): SVGImageElement {
     const imageElement = createSvgElement("image") as SVGImageElement;
     imageElement.setAttribute("href", href);
     imageElement.setAttribute("width", width.toString());
@@ -259,7 +285,15 @@ export function createSvgImageElement(parent: SVGElement, href: string, width: n
     return imageElement;
 }
 
-export function createSvgPathElement(parent: SVGElement, d: string, properties?: SVGPathProperties): SVGPathElement {
+export function createSvgPathElement({
+    parent,
+    d,
+    properties,
+}: {
+    parent: SVGElement,
+    d: string,
+    properties?: SVGPathProperties,
+}): SVGPathElement {
     const pathElement = createSvgElement("path") as SVGPathElement;
     pathElement.setAttribute("d", d);
     applySvgProperties(pathElement, properties);
@@ -268,11 +302,21 @@ export function createSvgPathElement(parent: SVGElement, d: string, properties?:
 }
 
 export function createSvgLineElement(
-    parent: SVGGElement,
-    startX: number,
-    startY: number, endX: number,
-    endY: number,
-    properties: SVGLineProperties,
+    {
+        parent,
+        startX,
+        startY,
+        endX,
+        endY,
+        properties,
+    }: {
+        parent: SVGGElement,
+        startX: number,
+        startY: number,
+        endX: number,
+        endY: number,
+        properties: SVGLineProperties | SVGPathProperties,
+    },
 ): SVGLineElement {
     const line = createSvgElement("line") as SVGLineElement;
     line.setAttribute("x1", startX.toString());
@@ -281,10 +325,47 @@ export function createSvgLineElement(
     line.setAttribute("y2", endY.toString());
     applySvgProperties(line, properties);
     parent.appendChild(line);
+    if (properties.ticksAtEndsLength) {
+        const normalX = endY - startY;
+        const normalY = startX - endX;
+        const normalLength = Math.sqrt(normalX * normalX + normalY * normalY);
+        if (normalLength > 0) {
+            const unitNormalX = normalX / normalLength;
+            const unitNormalY = normalY / normalLength;
+            const tickXOffset = unitNormalX * properties.ticksAtEndsLength / 2;
+            const tickYOffset = unitNormalY * properties.ticksAtEndsLength / 2;
+
+            // Start tick
+            createSvgLineElement({
+                parent,
+                startX: startX - tickXOffset,
+                startY: startY - tickYOffset,
+                endX: startX + tickXOffset,
+                endY: startY + tickYOffset,
+                properties: properties.ticksStyle || properties,
+            });
+
+            // End tick
+            createSvgLineElement({
+                parent,
+                startX: endX - tickXOffset,
+                startY: endY - tickYOffset,
+                endX: endX + tickXOffset,
+                endY: endY + tickYOffset,
+                properties: properties.ticksStyle || properties,
+            });
+        }
+    }
     return line;
 }
 
-export function createSvgGroupElement(parent: SVGElement, properties?: SVGGroupProperties): SVGGElement {
+export function createSvgGroupElement({
+    parent,
+    properties,
+}: {
+    parent: SVGElement,
+    properties?: SVGGroupProperties,
+}): SVGGElement {
     const group = createSvgElement("g") as SVGGElement;
     applySvgProperties(group, properties);
     parent.appendChild(group);
@@ -292,11 +373,19 @@ export function createSvgGroupElement(parent: SVGElement, properties?: SVGGroupP
 }
 
 export function createSvgTextElement(
-    parent: SVGGElement,
-    x: number,
-    y: number,
-    textContent: string,
-    properties: SVGTextProperties,
+    {
+        parent,
+        x,
+        y,
+        textContent,
+        properties,
+    }: {
+        parent: SVGGElement,
+        x: number,
+        y: number,
+        textContent: string,
+        properties: SVGTextProperties,
+    },
 ): SVGTextElement {
     const text = createSvgElement("text") as SVGTextElement;
     text.setAttribute("x", x.toString());
@@ -316,24 +405,53 @@ export function createSvgTextElement(
 }
 
 export function createSvgLineElementWithText(
-    parent: SVGGElement,
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number,
-    textOffset: { _x: number, _y: number },
-    textContent: string,
-    lineProperties: SVGLineProperties,
-    textProperties: SVGTextProperties,
-
-): { line: SVGLineElement, text: SVGTextElement } {
-    const line = createSvgLineElement(parent, startX, startY, endX, endY, lineProperties);
+    {
+        parent,
+        startX,
+        startY,
+        endX,
+        endY,
+        textOffset,
+        textContent,
+        lineProperties,
+        textProperties,
+    }: {
+        parent: SVGGElement,
+        startX: number,
+        startY: number,
+        endX: number,
+        endY: number,
+        textOffset: { _x: number, _y: number },
+        textContent: string,
+        lineProperties: SVGLineProperties | SVGPathProperties,
+        textProperties: SVGTextProperties,
+    },
+): { line: SVGLineElement | SVGPathElement, text: SVGTextElement } {
+    const line = createSvgLineElement({ parent, startX, startY, endX, endY, properties: lineProperties });
     const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI; // Angle in degrees
-    const text = createSvgTextElement(parent, (startX + endX) / 2 + textOffset._x, (startY + endY) / 2 + textOffset._y, textContent, { ...textProperties, rotationAngle: angle });
+    const text = createSvgTextElement({
+        parent,
+        x: (startX + endX) / 2 + textOffset._x,
+        y: (startY + endY) / 2 + textOffset._y,
+        textContent,
+        properties: { ...textProperties, rotationAngle: angle },
+    });
     return { line, text };
 }
 
-export function createSvgCircleElement(parent: SVGGElement, cx: number, cy: number, r: number, properties?: SVGCircleProperties): SVGCircleElement {
+export function createSvgCircleElement({
+    parent,
+    cx,
+    cy,
+    r,
+    properties,
+}: {
+    parent: SVGGElement,
+    cx: number,
+    cy: number,
+    r: number,
+    properties?: SVGCircleProperties,
+}): SVGCircleElement {
     const circle = createSvgElement("circle") as SVGCircleElement;
     circle.setAttribute("cx", cx.toString());
     circle.setAttribute("cy", cy.toString());
@@ -379,4 +497,9 @@ export const linesArrowMarkerStyle = {
     orient: "auto",
     d: "M0,0 L0,10 L20,5 z",
     fill: "context-stroke",
+};
+export const thinDashedLineStyle = {
+    stroke: "gray",
+    strokeWidth: 1,
+    strokeDasharray: "5,5",
 };
