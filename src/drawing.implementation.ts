@@ -207,6 +207,7 @@ export class Drawing implements IPlanSvgDrawing {
 
 
         this._annotablePoints.forEach(({ transformedPoint }) => {
+            return;
             SVGHelper.createSvgCircleElement({
                 parent: annotationsRoot,
                 cx: transformedPoint.pixelCoordinate._x,

@@ -1,5 +1,5 @@
 import { type AnnotationTransformed } from "./drawing.implementation";
-import type { Vector3 } from "./tc/base";
+import { Vector3 } from "./tc/base";
 import * as SVGHelper from "./svghelper";
 
 /**
@@ -35,7 +35,7 @@ export function drawAnnotationsWithAnnotationLines(
     lineStart: Vector3,
     lineDirection: Vector3,
     lineNormalDirection: Vector3,
-    lineSpacing: number = 30,
+    lineSpacing: number = 50,
 ) {
     void annotationsParent;
     console.warn(`--- ${layerName} ---`);
@@ -48,15 +48,15 @@ export function drawAnnotationsWithAnnotationLines(
         .map(annotation => {
             const startToLine = distancePointToLine(annotation.startPoint.pixelCoordinate, lineStart, lineDirection);
             const endToLine = distancePointToLine(annotation.endPoint.pixelCoordinate, lineStart, lineDirection);
-            const distanceToLine = Math.min(startToLine, endToLine);
-            const depth = (annotation.startPoint.cameraSpaceCoordinate._z + annotation.endPoint.cameraSpaceCoordinate._z) / 2;
-            const startAlongLine = projectPointOnLine(annotation.startPoint.pixelCoordinate, lineStart, lineDirection);
-            const endAlongLine = projectPointOnLine(annotation.endPoint.pixelCoordinate, lineStart, lineDirection);
+            const distanceToLine = Math.round(Math.min(startToLine, endToLine));
+            const depth = Math.round((annotation.startPoint.cameraSpaceCoordinate._z + annotation.endPoint.cameraSpaceCoordinate._z) / 2);
+            const startAlongLine = Math.round(projectPointOnLine(annotation.startPoint.pixelCoordinate, lineStart, lineDirection));
+            const endAlongLine = Math.round(projectPointOnLine(annotation.endPoint.pixelCoordinate, lineStart, lineDirection));
             const backwards = startAlongLine > endAlongLine;
 
             return (backwards
-                ? { ...annotation, distanceY: distanceToLine, distanceZ: Math.round(depth), distanceStartX: endAlongLine, distanceEndX: startAlongLine, startPoint: annotation.endPoint, endPoint: annotation.startPoint }
-                : { ...annotation, distanceY: distanceToLine, distanceZ: Math.round(depth), distanceStartX: startAlongLine, distanceEndX: endAlongLine });
+                ? { ...annotation, distanceY: distanceToLine, distanceZ: depth, distanceStartX: endAlongLine, distanceEndX: startAlongLine, startPoint: annotation.endPoint, endPoint: annotation.startPoint }
+                : { ...annotation, distanceY: distanceToLine, distanceZ: depth, distanceStartX: startAlongLine, distanceEndX: endAlongLine });
         })
         .sort((a, b) => {
             if (a.distanceY !== b.distanceY) {
@@ -69,24 +69,29 @@ export function drawAnnotationsWithAnnotationLines(
         });
 
     class LineWithAnnotations {
-        usedIntervals: { start: number, end: number, annotations: AnnotationTransformedToDirection[] }[] = [];
+        usedIntervals: { start: number, end: number, annotations: AnnotationTransformedToDirection[], realLength: number }[] = [];
         /**
          * Adds an annotation to the line if it does not overlap with existing annotations.
          * @param annotation The annotation to add
          * @returns true if the annotation was added
          */
         addAnnotation(annotation: AnnotationTransformedToDirection): boolean {
+            const firstAnnotation = this.usedIntervals.length > 0 ? this.usedIntervals[0].annotations[0] : undefined;
+            if (
+                firstAnnotation
+                && (
+                    annotation.distanceZ !== firstAnnotation.distanceZ
+                    || annotation.distanceY !== firstAnnotation.distanceY
+                )
+            ) {
+                return false;
+            }
             const intervalStart = annotation.distanceStartX;
             const intervalEnd = annotation.distanceEndX;
-            const availableInterval = this.getOrCreateInterval(intervalStart, intervalEnd, true);
-            if (availableInterval) {
-                const firstAnnotation = availableInterval.annotations[0];
-                if (firstAnnotation) {
-                    if (annotation.distanceZ !== firstAnnotation.distanceZ) {
-                        return false;
-                    }
-                }
+            const availableInterval = this.getOrCreateInterval(intervalStart, intervalEnd, annotation.realLength, true);
+            if (availableInterval && Math.abs(availableInterval.realLength - annotation.realLength) < Vector3.EPS) {
                 availableInterval.annotations.push(annotation);
+                availableInterval.realLength = annotation.realLength;
                 return true;
             }
             return false;
@@ -107,7 +112,7 @@ export function drawAnnotationsWithAnnotationLines(
         /**
          * Gets an existing interval that overlaps with the given start and end, or creates a new one if create is true and there is free space.
          */
-        getOrCreateInterval(start: number, end: number, create: boolean = true): undefined | { start: number, end: number, annotations: AnnotationTransformedToDirection[] } {
+        getOrCreateInterval(start: number, end: number, realLength: number, create: boolean = true): undefined | { start: number, end: number, annotations: AnnotationTransformedToDirection[], realLength: number } {
             const startRound = Math.round(start);
             const endRound = Math.round(end);
             let interval = this.usedIntervals.find(i => i.start === startRound && i.end === endRound);
@@ -116,17 +121,83 @@ export function drawAnnotationsWithAnnotationLines(
                 if (!hasFreeSpace) {
                     return undefined;
                 }
-                interval = { start: startRound, end: endRound, annotations: [] };
+                interval = { start: startRound, end: endRound, annotations: [], realLength: realLength };
                 this.usedIntervals.push(interval);
-                this.usedIntervals.sort((a, b) => a.start - b.start || a.end - b.end);
+                this.usedIntervals = this.usedIntervals.sort((a, b) => (a.end - a.start) - (b.end - b.start));
             }
             return interval;
         }
         print(): void {
-            console.log(
-                'LineWithAnnotations: intervals: ',
-                this.usedIntervals.map(i => `<${i.start}, ${i.end}>`).join(', ')
-            );
+            console.log(this.getSignature());
+        }
+        merge(other: LineWithAnnotations): boolean {
+            // check if there is no conflict in the intervals
+            let result = true;
+            other.usedIntervals.forEach(otherInterval => {
+                // pass if intervals are free
+                if (this.isIntervalFree(otherInterval.start, otherInterval.end)) {
+                    return;
+                }
+                // pass if the intervals are the same
+                if (this.usedIntervals.some(i => i.start === otherInterval.start && i.end === otherInterval.end)) {
+                    return;
+                }
+
+                // no pass if the intervals overlap but are not the same
+                if (this.usedIntervals.some(i => i.start < otherInterval.end && i.end > otherInterval.start)) {
+                    result = false;
+                }
+            });
+            if (result) {
+                other.usedIntervals.forEach(otherInterval => {
+                    if (!this.usedIntervals.some(i => i.start === otherInterval.start && i.end === otherInterval.end)) {
+                        this.usedIntervals.push(otherInterval);
+                    }
+                });
+            }
+            return result;
+        }
+        getSignature(): string {
+            return this.usedIntervals.map(i => `S${i.start} E${i.end} L${i.realLength}`).join(' - ');
+        }
+        /**
+         * sums up all continuous intervals into one and merges their annotations
+         * @returns a new LineWithAnnotations with summed intervals if the result is different, otherwise undefined
+         */
+        makeCopyWithSumedIntervals(): LineWithAnnotations | undefined {
+            const copy = new LineWithAnnotations();
+            let previousStart: number = this.usedIntervals[0].start;
+            let previousEnd: number = this.usedIntervals[0].end;
+            let realLength = this.usedIntervals[0].realLength;
+            let steps = 1;
+            let annotations = [...this.usedIntervals[0].annotations];
+            for (let i = 1; i < this.usedIntervals.length; i++) {
+                const currentStart = this.usedIntervals[i].start;
+                const currentEnd = this.usedIntervals[i].end;
+                if (currentStart !== previousEnd) {
+                    if (steps > 1) {
+                        const interval = copy.getOrCreateInterval(previousStart, previousEnd, realLength);
+                        interval?.annotations.push(...annotations);
+                    }
+                    annotations = [];
+                    previousStart = currentStart;
+                    realLength = 0;
+                    steps = 0;
+                }
+                realLength += this.usedIntervals[i].realLength;
+                steps++;
+                previousEnd = currentEnd;
+                annotations.push(...this.usedIntervals[i].annotations);
+            }
+            if (steps > 1) {
+                const interval = copy.getOrCreateInterval(previousStart, previousEnd, realLength);
+                interval?.annotations.push(...annotations);
+            }
+
+            if (!copy.usedIntervals.length || copy.getSignature() === this.getSignature()) {
+                return undefined;
+            }
+            return copy;
         }
         toSvg(parent: SVGGElement, offsetPixels: Vector3, direction: Vector3): void {
             const { min, max } = this.getMinMax();
@@ -143,6 +214,21 @@ export function drawAnnotationsWithAnnotationLines(
             });
 
             this.usedIntervals.forEach(interval => {
+                const selectAnnotationForIntervalEdge = (
+                    edgeCoordinate: number,
+                    distanceKey: "distanceStartX" | "distanceEndX",
+                ): AnnotationTransformedToDirection => interval.annotations.reduce((best, current) => {
+                    const bestEdgeDistance = Math.abs(best[distanceKey] - edgeCoordinate);
+                    const currentEdgeDistance = Math.abs(current[distanceKey] - edgeCoordinate);
+                    if (currentEdgeDistance !== bestEdgeDistance) {
+                        return currentEdgeDistance < bestEdgeDistance ? current : best;
+                    }
+                    if (current.distanceY !== best.distanceY) {
+                        return current.distanceY > best.distanceY ? current : best;
+                    }
+                    return current;
+                });
+
                 const intervalStart = offsetPixels.clone().add(direction.clone().multiply(interval.start));
                 const intervalEnd = offsetPixels.clone().add(direction.clone().multiply(interval.end));
                 SVGHelper.createSvgLineElementWithText({
@@ -152,7 +238,7 @@ export function drawAnnotationsWithAnnotationLines(
                     endX: intervalEnd._x,
                     endY: intervalEnd._y,
                     textOffset: { _x: 0, _y: 0 },
-                    textContent: interval.annotations[0].realLength.toFixed(0),
+                    textContent: interval.realLength.toFixed(0),
                     lineProperties: {
                         ...SVGHelper.thickLineStyle,
                         ...SVGHelper.arrowLineStyle,
@@ -163,21 +249,22 @@ export function drawAnnotationsWithAnnotationLines(
                 });
 
                 // drag helper lines to the farthest annotation
-                const farthestAnnotation = interval.annotations.reduce((prev, current) => (current.distanceY > prev.distanceY ? current : prev));
+                const farthestStartAnnotation = selectAnnotationForIntervalEdge(interval.start, "distanceStartX");
+                const farthestEndAnnotation = selectAnnotationForIntervalEdge(interval.end, "distanceEndX");
                 SVGHelper.createSvgLineElement({
                     parent,
                     startX: intervalStart._x,
                     startY: intervalStart._y,
-                    endX: farthestAnnotation.startPoint.pixelCoordinate._x,
-                    endY: farthestAnnotation.startPoint.pixelCoordinate._y,
+                    endX: farthestStartAnnotation.startPoint.pixelCoordinate._x,
+                    endY: farthestStartAnnotation.startPoint.pixelCoordinate._y,
                     properties: SVGHelper.thinDashedLineStyle,
                 });
                 SVGHelper.createSvgLineElement({
                     parent,
                     startX: intervalEnd._x,
                     startY: intervalEnd._y,
-                    endX: farthestAnnotation.endPoint.pixelCoordinate._x,
-                    endY: farthestAnnotation.endPoint.pixelCoordinate._y,
+                    endX: farthestEndAnnotation.endPoint.pixelCoordinate._x,
+                    endY: farthestEndAnnotation.endPoint.pixelCoordinate._y,
                     properties: SVGHelper.thinDashedLineStyle,
                 });
             });
@@ -197,10 +284,44 @@ export function drawAnnotationsWithAnnotationLines(
         }
     }
 
+    // group annotations first to lines based on their distance from the line and depth in view
+    // this will create a lot of duplicate annotations, but we merge them later
+    // more importantly, this step ensures that annotation of object that are close to each other
+    // will have much higher probability to share one annotation line, which makes the final result more clear and less cluttered
     const linesWithAnnotations: LineWithAnnotations[] = [];
     for (const annotation of sortedAnnotations) {
         LineWithAnnotations.AddAnnotationToLines(annotation, linesWithAnnotations);
     }
+
+    // compare each with each other and merge them into one if possible (to minimize the number of lines)
+    for (let i = 0; i < linesWithAnnotations.length; i++) {
+        for (let j = i + 1; j < linesWithAnnotations.length; j++) {
+            if (linesWithAnnotations[i].merge(linesWithAnnotations[j])) {
+                linesWithAnnotations.splice(j, 1);
+                j--;
+            }
+        }
+    }
+
+    // add sums of continuous intervals to the lines
+    for (let i = 0; i < linesWithAnnotations.length; i++) {
+        const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals();
+        if (copyWithSummedIntervals) {
+            // push it behind the current line
+            linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
+            i++; // skip the copy in the next iteration
+        }
+    }
+
+    // OPTIONAL: merge them again, because the summed intervals can free up some space on the annotation lines
+    // for (let i = 0; i < linesWithAnnotations.length; i++) {
+    //     for (let j = i + 1; j < linesWithAnnotations.length; j++) {
+    //         if (linesWithAnnotations[i].merge(linesWithAnnotations[j])) {
+    //             linesWithAnnotations.splice(j, 1);
+    //             j--;
+    //         }
+    //     }
+    // }
 
     linesWithAnnotations.forEach((line, index) => {
         line.print();

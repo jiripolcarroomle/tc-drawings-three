@@ -93,6 +93,14 @@ export const tab_Annotations: I_tab_Annotation[] = [
     {
         in_ModuleId: 'mc_Countertop01',
         in_ModuleCondition: (_m: any) => true,
+        out_Annotations: (m: any, _drawingData: IPlanSvgDrawing) => {
+            return [{
+                start: new Vector3(0, 0, 0),
+                end: new Vector3(0, m.mod_CountertopThk ?? 50, 0),
+                layer: 'carcase-dimension-vertical',
+                tags: ['overall', 'carcase'],
+            }];
+        }
     },
 
     {
