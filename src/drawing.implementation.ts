@@ -2,6 +2,7 @@ import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDr
 import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import { Matrix4, Vector3 } from "./tc/base";
 import * as SVGHelper from "./svghelper";
+import { drawAnnotationsWithAnnotationLines } from "./drawing.implementation.annotationlines";
 
 /**
  * Upon pushing data into the drawing, the coordinates are transformed into world, camera and pixel coodinates.
@@ -66,6 +67,14 @@ interface AnnotablePointTransformed {
     point: AnnotablePoint;
     transformedPoint: TransformedPoint;
 }
+export interface AnnotationTransformed {
+    annotation: Annotation,
+    startPoint: TransformedPoint,
+    endPoint: TransformedPoint,
+    realLength: number,
+    projectedLength: number,
+    pixelLength: number,
+}
 
 export class Drawing implements IPlanSvgDrawing {
 
@@ -97,7 +106,7 @@ export class Drawing implements IPlanSvgDrawing {
 
 
     _svgOverlays: { transform: Matrix4, svgInjection: SvgPathInjectionData }[] = [];
-    _annotations: { annotation: Annotation, startPoint: TransformedPoint, endPoint: TransformedPoint }[] = [];
+    _annotations: AnnotationTransformed[] = [];
     _annotablePoints: AnnotablePointTransformed[] = [];
 
     addAnnotation(worldTransform: Matrix4, annotation: Annotation): void {
@@ -111,7 +120,11 @@ export class Drawing implements IPlanSvgDrawing {
             cameraSpaceCoordinate: annotation.end.clone().applyMatrix4(worldTransform).applyMatrix4(this._renderResult.worldToCameraMatrix),
             pixelCoordinate: annotation.end.clone().applyMatrix4(worldTransform).applyMatrix4(this._renderResult.worldToPixelMatrix),
         }
-        this._annotations.push({ annotation, startPoint, endPoint });
+        const realLength = startPoint.worldCoordinate.distanceTo(endPoint.worldCoordinate);
+        const projectedLength = new Vector3(startPoint.cameraSpaceCoordinate._x, startPoint.cameraSpaceCoordinate._y, 0).distanceTo(new Vector3(endPoint.cameraSpaceCoordinate._x, endPoint.cameraSpaceCoordinate._y, 0));
+        const pixelLength = startPoint.pixelCoordinate.distanceTo(endPoint.pixelCoordinate);
+        // unlink the original object, this implementation will mutate it
+        this._annotations.push({ annotation: { ...annotation }, startPoint, endPoint, realLength, projectedLength, pixelLength });
     }
 
     addOverlay(worldTransform: Matrix4, svgInjection: SvgPathInjectionData): void {
@@ -129,6 +142,10 @@ export class Drawing implements IPlanSvgDrawing {
         this._annotablePoints.push({ point: copy, transformedPoint });
     }
 
+    /**
+     * Compute the final SVG element by combining the rendered image from the order drawing renderer, the svg overlays and the annotations.
+     * @returns root object of a SVG DOM tree representing the drawing with all annotations and svg overlays
+     */
     render(): SVGElement {
         // Implementation for rendering the final SVG element
         const svgRoot = SVGHelper.createSvgRootElement(this.sceneRender.imageWidth / 2, this.sceneRender.imageHeight / 2);
@@ -140,6 +157,10 @@ export class Drawing implements IPlanSvgDrawing {
         // add the image
         SVGHelper.createSvgImageElement(svgRoot, this.sceneRender.image.dataUrl, this.sceneRender.imageWidth, this.sceneRender.imageHeight);
 
+        // group for overlays
+        const overlaysRoot = SVGHelper.createSvgGroupElement(svgRoot);
+        // group for annotations to be on top of overlays
+        // text elements must be on top, therefore the annotations go into one group separate from everything else
         const annotationsRoot = SVGHelper.createSvgGroupElement(svgRoot);
 
         // render svg overlays on top of the rendered image
@@ -154,55 +175,62 @@ export class Drawing implements IPlanSvgDrawing {
                     return '';
                 }
             }).join(' ');
-            const options = { ...svgInjection } as any;
-            delete options.d;
+            const options = { ...svgInjection, d: pathD } as any;
             SVGHelper.createSvgPathElement(svgRoot, pathD, { ...overlayStyle, ...options });
         });
 
-        // render annotations on top of the rendered image and svg overlays
-        this._annotations.forEach(({ annotation, startPoint, endPoint }) => {
-            const drawingLength = startPoint.pixelCoordinate.distanceTo(endPoint.pixelCoordinate);
-            const projectedLength = new Vector3(startPoint.cameraSpaceCoordinate._x, startPoint.cameraSpaceCoordinate._y, 0).distanceTo(new Vector3(endPoint.cameraSpaceCoordinate._x, endPoint.cameraSpaceCoordinate._y, 0));
-            const realLength = startPoint.worldCoordinate.distanceTo(endPoint.worldCoordinate);
-
-            if (drawingLength < 1) {
-                console.log('annotation too small to render, skipping', { annotation, startPoint, endPoint });
-                return;
-            }
-            if (projectedLength < realLength * 0.01) {
-                console.log('annotation too foreshortened to render, skipping', { annotation, startPoint, endPoint });
-                return;
+        const annotationLayers = new Map<string, typeof this._annotations>();
+        for (const annotation of this._annotations) {
+            // ignore annotations that are not projected perpendicular to the view
+            // such annotation has a different projected length than the real length
+            const lengthDifference = Math.abs(annotation.projectedLength - annotation.realLength);
+            if (lengthDifference > Vector3.EPS || annotation.projectedLength < 1) {
+                continue;
             }
 
-
-            const distanceFromFeature = annotation.distance ?? 0;
-            const transformedDistanceFromFeature = distanceFromFeature * (drawingLength / realLength);
-
-            // compute azimuth of the annotation on the drawing to decide where to put the label and annotation line
-            const annotationDirection = new Vector3(endPoint.pixelCoordinate._x - startPoint.pixelCoordinate._x, endPoint.pixelCoordinate._y - startPoint.pixelCoordinate._y, 0).normalize();
-            const normalDirection = new Vector3(annotationDirection._y, -annotationDirection._x, 0);
-
-
-            const annotationLineDrawingStart = startPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
-            const annotationLineDrawingEnd = endPoint.pixelCoordinate.clone().add(normalDirection.clone().multiply(transformedDistanceFromFeature));
-
-
-            SVGHelper.createSvgLineElementWithText(
-                annotationsRoot,
-                annotationLineDrawingStart._x, annotationLineDrawingStart._y,
-                annotationLineDrawingEnd._x, annotationLineDrawingEnd._y,
-                normalDirection.clone().multiply(0),
-                annotation.label ?? realLength.toFixed(0),
-                { ...thickLineStyle, ...arrowLineStyle },
-                { ...textStyle },
-            );
-
-            // annotation lines to actual points
-            if (Math.abs(transformedDistanceFromFeature) > 2) {
-                SVGHelper.createSvgPathElement(annotationsRoot, `M ${startPoint.pixelCoordinate._x} ${startPoint.pixelCoordinate._y} L ${annotationLineDrawingStart._x} ${annotationLineDrawingStart._y} M ${endPoint.pixelCoordinate._x} ${endPoint.pixelCoordinate._y} L ${annotationLineDrawingEnd._x} ${annotationLineDrawingEnd._y}`, { ...thinLineStyle });
+            const layer = annotation.annotation.layer;
+            if (!annotationLayers.has(layer)) {
+                annotationLayers.set(layer, []);
             }
+            annotationLayers.get(layer)!.push(annotation);
+        }
 
+        const allLayers = Array.from(annotationLayers.keys()).sort();
+        allLayers.forEach(layer => {
+            const annotationsInLayer = annotationLayers.get(layer)!;
+            const horizontalAnnotations: AnnotationTransformed[] = [];
+            const verticalAnnotations: AnnotationTransformed[] = [];
+
+            annotationsInLayer.forEach((annotation) => {
+                // calculate the azimuth, it only make sense to show the annotation on the aggregate lines if the annotation is rectangular to the drawing view
+                const azimuth = Math.round(Math.atan2(annotation.endPoint.cameraSpaceCoordinate._y - annotation.startPoint.cameraSpaceCoordinate._y, annotation.endPoint.cameraSpaceCoordinate._x - annotation.startPoint.cameraSpaceCoordinate._x) * 180 / Math.PI);
+                const isRightAngle = [-180, -90, 0, 90, 180].indexOf(azimuth) >= 0; // you can adjust the angles that are considered right angles as needed
+                if (!isRightAngle || annotation.annotation.displayAtPosition) {
+                    SVGHelper.createSvgLineElementWithText(
+                        annotationsRoot,
+                        annotation.startPoint.pixelCoordinate._x, annotation.startPoint.pixelCoordinate._y,
+                        annotation.endPoint.pixelCoordinate._x, annotation.endPoint.pixelCoordinate._y,
+                        new Vector3(0, 0, 0),
+                        annotation.annotation.label ?? annotation.realLength.toFixed(0),
+                        { ...thickLineStyle, ...arrowLineStyle },
+                        { ...textStyle, flipIfUpsideDown: true },
+                    );
+                }
+                else {
+                    const isVertical = Math.abs(azimuth) === 90;
+                    const isHorizontal = Math.abs(azimuth) === 0 || Math.abs(azimuth) === 180;
+                    if (isVertical) {
+                        verticalAnnotations.push(annotation);
+                    } else if (isHorizontal) {
+                        horizontalAnnotations.push(annotation);
+                    }
+                }
+            });
+
+            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0));
+        //    drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 1, 0), new Vector3(1, 0, 0));
         });
+
 
         this._annotablePoints.forEach(({ transformedPoint }) => {
             SVGHelper.createSvgCircleElement(annotationsRoot, transformedPoint.pixelCoordinate._x, transformedPoint.pixelCoordinate._y, 5, { fill: "red" });

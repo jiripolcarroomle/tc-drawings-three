@@ -2,7 +2,6 @@ import { Vector3 } from "./tc/base";
 import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "./drawing.interface";
 
 
-
 export interface I_tab_Annotation {
     in_ModuleId: string;
     in_ModuleCondition?: (m: any, drawingData: IPlanSvgDrawing) => boolean;
@@ -14,7 +13,8 @@ export interface I_tab_Annotation {
 
 export function filterAnnotationForModule(moduleId: string, m: any, drawingData: IPlanSvgDrawing): I_tab_Annotation[] {
     return tab_Annotations.filter(annotation => {
-        return annotation.in_ModuleId === moduleId
+        const ids = annotation.in_ModuleId.split(',').map(id => id.trim());
+        return ids.includes(moduleId)
             && (annotation.in_ModuleCondition ? annotation.in_ModuleCondition(m, drawingData) : true);
     });
 }
@@ -23,96 +23,63 @@ export function filterAnnotationForModule(moduleId: string, m: any, drawingData:
 export const tab_Annotations: I_tab_Annotation[] = [
 
     {
-        in_ModuleId: 'mr_StorageunitSingle',
-        out_AnnotablePoints: (m: any, drawingData: IPlanSvgDrawing) => {
-            const top = drawingData.drawingDirection === DrawingDirection.Top;
-            const result: AnnotablePoint[] = [
-                { coordinate: new Vector3(0, 0, 0) },
-                { coordinate: new Vector3(m.mod_Width, 0, 0) },
-                { coordinate: new Vector3(0, 0, m.mod_Depth) },
-                { coordinate: new Vector3(m.mod_Width, 0, m.mod_Depth) },
-            ]
+        in_ModuleId: 'mr_StorageunitSingle,mr_CornerunitStraight',
+        out_Annotations: (m: any, _drawingData: IPlanSvgDrawing) => {
             const plinthAreaHeight = m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? m.mod_PlinthAreaHeight : 0;
+            const result = [];
 
-            if (top) {
+            result.push({
+                start: new Vector3(0, 0, 0),
+                end: new Vector3(m.mod_Width, 0, 0),
+                layer: 'carcase-dimension-horizontal',
+                tags: ['overall', 'carcase'],
+            });
+            result.push({
+                start: new Vector3(0, 0, 0),
+                end: new Vector3(0, 0, m.mod_Depth),
+                layer: 'carcase-dimension-horizontal',
+                tags: ['overall', 'carcase'],
+            });
+
+            if (plinthAreaHeight > 0) {
+                result.push({
+                    start: new Vector3(0, 0, 0),
+                    end: new Vector3(0, plinthAreaHeight, 0),
+                    layer: 'carcase-dimension-vertical',
+                    tags: ['plinth', 'carcase'],
+                });
+                result.push({
+                    start: new Vector3(0, plinthAreaHeight, 0),
+                    end: new Vector3(0, plinthAreaHeight + m.mod_Height, 0),
+                    layer: 'carcase-dimension-vertical',
+                    tags: ['plinth', 'carcase'],
+                });
             }
             else {
-                result.push({ coordinate: new Vector3(0, plinthAreaHeight + m.mod_Height, 0), notHorizontal: true });
-                if (plinthAreaHeight > 0) {
-                    result.push({ coordinate: new Vector3(0, plinthAreaHeight, 0), notHorizontal: true, });
-                }
+                result.push({
+                    start: new Vector3(0, 0, 0),
+                    end: new Vector3(0, m.mod_Height, 0),
+                    layer: 'carcase-dimension-vertical',
+                    tags: ['overall', 'carcase'],
+                });
             }
             return result;
-        },
-        out_Annotations: (m: any, drawingData: IPlanSvgDrawing) => {
-            return [];
-            //const top = drawingData.drawingDirection === DrawingDirection.Top;
-            //return (top
-            //    ? ([
-            //        {
-            //            start: new Vector3(0, 0, 0),
-            //            end: new Vector3(m.mod_Width, 0, 0),
-            //            distance: (0.1 * m._articlePos.y + 200),
-            //        }, {
-            //            start: new Vector3(0.05 * m._articlePos.y + 50, 0, 0),
-            //            end: new Vector3(0.05 * m._articlePos.y + 50, 0, m.mod_Depth),
-            //        },
-            //    ])
-            //    : ([
-            //        {
-            //            start: new Vector3(0, 0, 0),
-            //            end: new Vector3(m.mod_Width, 0, 0),
-            //            distance: (- 50),
-            //        },
-            //    ])
-            //);
-
         },
     },
 
     {
         in_ModuleId: 'mr_CornerunitStraight',
-        in_ModuleCondition: (_m: any) => true, // apply to all modules with the specified ID
-        out_AnnotablePoints: (m: any) => {
-            return [
-                { coordinate: new Vector3(0, 0, 0) },
-                { coordinate: new Vector3(m.mod_Width, 0, 0) },
-                { coordinate: new Vector3(0, 0, m.mod_Depth) },
-                { coordinate: new Vector3(0, m.mod_PlinthAreaHeight, 0), notHorizontal: true },
-                { coordinate: new Vector3(0, m.mod_PlinthAreaHeight + m.mod_Height, 0), notHorizontal: true },
-            ]
-        },
-        out_SvgPathOverlays: (_m: any) => { return []; }
+        in_ModuleCondition: (_m: any) => true,
     },
 
     {
         in_ModuleId: 'mc_Backsplash',
-        in_ModuleCondition: (_m: any) => true, // apply to all modules with the specified ID
-        out_AnnotablePoints: (m: any) => {
-            return [
-                { coordinate: new Vector3(0, 0, 0) },
-                { coordinate: new Vector3(m.mod_BacksplashWidth, 0, 0) },
-                { coordinate: new Vector3(0, 0, m.mod_BacksplashThk), notVertical: true },
-                { coordinate: new Vector3(0, m.mod_BacksplashHeight, 0), notHorizontal: true },
-            ]
-        },
-
-        out_SvgPathOverlays: (_m: any) => { return []; }
+        in_ModuleCondition: (_m: any) => true,
     },
 
     {
         in_ModuleId: 'mc_Countertop01',
-        in_ModuleCondition: (_m: any) => true, // apply to all modules with the specified ID
-        out_AnnotablePoints: (m: any) => {
-            return [
-                { coordinate: new Vector3(0, 0, 0) },
-                { coordinate: new Vector3(m.mod_CountertopWidth, 0, 0) },
-                { coordinate: new Vector3(0, 0, m.mod_CountertopDepth ?? 580) },
-                { coordinate: new Vector3(0, m.mod_CountertopThk ?? 38, 0), notHorizontal: true, },
-            ]
-        },
-
-        out_SvgPathOverlays: (_m: any) => { return []; }
+        in_ModuleCondition: (_m: any) => true,
     },
 
     {
@@ -139,7 +106,18 @@ export const tab_Annotations: I_tab_Annotation[] = [
                     strokeWidth: '2',
                 }
             ];
-        }
+        },
+        out_Annotations(m, _drawingData) {
+            return [{
+                start: new Vector3(0, 0, 0),
+                end: new Vector3(m.mod_Width, 0, m.mod_Depth),
+                label: m.modId,
+                layer: 'carcase-dimension-diagonal',
+                tags: ['overall', 'carcase'],
+                displayAtPosition: true,
+            }];
+        },
+
     },
 
     {

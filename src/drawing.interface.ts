@@ -56,25 +56,22 @@ export interface AnnotablePoint {
  * Defined in the module coordinate system.
  */
 export interface Annotation {
-    /** Scene coordinate where the annotation starts */
     start: TC.Vector3;
-    /** Scene coordinate where the annotation ends */
     end: TC.Vector3;
-    /** The label the annotation should have. If not provided, the length of the annotation line will be used as the label */
+    /** The ID of the owner of the annotation. This can be used to group annotations by their owner. */
+    ownerId?: string;
+    /** The main meaning of the annotation. Layered annotation will go to a common line. */
+    layer: string;
+    /** Whether to show segments, only sum, or both */
+    aggregate?: 'segments' | 'sum' | 'segmentsAndSum';
+    /** General categorization useful for filtering the annotations for the drawings. */
+    tags?: string[];
+    /** if true, the dimension stays at its projected position; if false (or undefined), it is dragged to an annotation line */
+    displayAtPosition?: boolean;
+    /** The text to show on the annotation. If not provided, the real length will be shown. */
     label?: string;
-    /** Whether the annotation line should be at the annotated points (false) or if it will be on a common annotation line on the edge of the drawing (true) */
-    shouldGoToAnnotationLine?: boolean;
-    /**
-     * If !shouldGoToAnnotationLine, this applies. Defines the distance of the annotation line from the annotated points.
-     * Distance is given in the SVG drawing units.
-     * If distance is given and is long enough, helper lines are drawn.
-     * From start to end, positive distance lifts the annotation line to left (e.g. start 9 o'clock, end 3 o'clock, annotation line above if distance positive).
-     * The text might be flipped to always be legible (e.g. not upside-down etc.)
-     */
-    distance?: number;
-
-
 }
+
 
 
 export interface SvgPathCommandData {
