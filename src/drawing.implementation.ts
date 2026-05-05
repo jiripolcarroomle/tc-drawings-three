@@ -3,6 +3,7 @@ import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface"
 import { Matrix4, Vector3 } from "./tc/base";
 import * as SVGHelper from "./svghelper";
 import { drawAnnotationsWithAnnotationLines } from "./drawing.implementation.annotationlines";
+import { arrowLineStyle, linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "./svghelper";
 
 /**
  * Upon pushing data into the drawing, the coordinates are transformed into world, camera and pixel coodinates.
@@ -19,47 +20,6 @@ interface TransformedPoint {
     /** coordinate in pixel space (x right, y down, z unused)
     ) */
     pixelCoordinate: Vector3;
-}
-
-
-const textStyle = {
-    fill: "black",
-    fontSize: 24,
-    fontFamily: "Arial",
-    stroke: "white",
-    strokeWidth: 10,
-    paintOrder: "stroke",
-    textAnchor: "middle",
-    strokeLinejoin: "round",
-    alignmentBaseline: "middle",
-    flipIfUpsideDown: true,
-}
-const thickLineStyle = {
-    stroke: "black",
-    strokeWidth: 2,
-}
-const thinLineStyle = {
-    stroke: "gray",
-    strokeWidth: 1,
-}
-const arrowLineStyle = {
-    markerStart: "url(#arrowStart)",
-    markerEnd: "url(#arrowEnd)",
-}
-const overlayStyle = {
-    fill: "rgba(255,255,0,0.5)",
-    stroke: "orange",
-    strokeWidth: 2,
-}
-const linesArrowMarkerStyle = {
-    refX: 18,
-    refY: 5,
-    markerWidth: 20,
-    markerHeight: 10,
-    markerUnits: "userSpaceOnUse",
-    orient: "auto",
-    d: "M0,0 L0,10 L20,5 z",
-    fill: "context-stroke",
 }
 
 
@@ -227,8 +187,12 @@ export class Drawing implements IPlanSvgDrawing {
                 }
             });
 
-            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0));
-        //    drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0));
+            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, this._renderResult.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0));
+
+            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
+            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(this._renderResult.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+
         });
 
 
@@ -344,10 +308,10 @@ export class Drawing implements IPlanSvgDrawing {
         }
 
         const usedHorizontalSignatures: string[] = [], usedVerticalSignatures: string[] = [];
-        drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0), [...quadrants[2], ...quadrants[3]], true, usedHorizontalSignatures);
-        drawAnnotablePointInAxis(new Vector3(0, this.sceneRender.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), [...quadrants[0], ...quadrants[1]], true, usedHorizontalSignatures);
-        drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0), [...quadrants[1], ...quadrants[2]], true, usedHorizontalSignatures);
-        drawAnnotablePointInAxis(new Vector3(this.sceneRender.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0), [...quadrants[3], ...quadrants[0]], true, usedHorizontalSignatures);
+        // drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0), [...quadrants[2], ...quadrants[3]], true, usedHorizontalSignatures);
+        // drawAnnotablePointInAxis(new Vector3(0, this.sceneRender.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0), [...quadrants[0], ...quadrants[1]], true, usedHorizontalSignatures);
+        // drawAnnotablePointInAxis(new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0), [...quadrants[1], ...quadrants[2]], true, usedHorizontalSignatures);
+        // drawAnnotablePointInAxis(new Vector3(this.sceneRender.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0), [...quadrants[3], ...quadrants[0]], true, usedHorizontalSignatures);
 
 
 

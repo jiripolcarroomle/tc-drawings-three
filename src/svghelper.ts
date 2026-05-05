@@ -325,6 +325,7 @@ export function createSvgLineElementWithText(
     textContent: string,
     lineProperties: SVGLineProperties,
     textProperties: SVGTextProperties,
+
 ): { line: SVGLineElement, text: SVGTextElement } {
     const line = createSvgLineElement(parent, startX, startY, endX, endY, lineProperties);
     const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI; // Angle in degrees
@@ -340,4 +341,42 @@ export function createSvgCircleElement(parent: SVGGElement, cx: number, cy: numb
     applySvgProperties(circle, properties);
     parent.appendChild(circle);
     return circle;
-}   
+} export const textStyle = {
+    fill: "black",
+    fontSize: 24,
+    fontFamily: "Arial",
+    stroke: "white",
+    strokeWidth: 10,
+    paintOrder: "stroke",
+    textAnchor: "middle",
+    strokeLinejoin: "round",
+    alignmentBaseline: "middle",
+    flipIfUpsideDown: true,
+};
+export const thickLineStyle = {
+    stroke: "black",
+    strokeWidth: 2,
+};
+export const thinLineStyle = {
+    stroke: "gray",
+    strokeWidth: 1,
+};
+export const arrowLineStyle = {
+    markerStart: "url(#arrowStart)",
+    markerEnd: "url(#arrowEnd)",
+};
+export const overlayStyle = {
+    fill: "rgba(255,255,0,0.5)",
+    stroke: "orange",
+    strokeWidth: 2,
+};
+export const linesArrowMarkerStyle = {
+    refX: 18,
+    refY: 5,
+    markerWidth: 20,
+    markerHeight: 10,
+    markerUnits: "userSpaceOnUse",
+    orient: "auto",
+    d: "M0,0 L0,10 L20,5 z",
+    fill: "context-stroke",
+};

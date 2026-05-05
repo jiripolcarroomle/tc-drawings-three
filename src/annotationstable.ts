@@ -63,6 +63,19 @@ export const tab_Annotations: I_tab_Annotation[] = [
                     tags: ['overall', 'carcase'],
                 });
             }
+
+
+
+
+            result.push({
+                start: new Vector3(m.mod_Width / 4, 0, m.mod_Depth / 4),
+                end: new Vector3(3 * m.mod_Width / 4, 0, 3 * m.mod_Depth / 4),
+                label: m.modId,
+                layer: 'carcase-dimension-diagonal',
+                tags: ['overall', 'carcase'],
+                displayAtPosition: true,
+            });
+
             return result;
         },
     },
@@ -107,17 +120,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
                 }
             ];
         },
-        out_Annotations(m, _drawingData) {
-            return [{
-                start: new Vector3(0, 0, 0),
-                end: new Vector3(m.mod_Width, 0, m.mod_Depth),
-                label: m.modId,
-                layer: 'carcase-dimension-diagonal',
-                tags: ['overall', 'carcase'],
-                displayAtPosition: true,
-            }];
-        },
-
     },
 
     {
