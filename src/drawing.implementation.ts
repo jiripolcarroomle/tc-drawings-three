@@ -118,6 +118,16 @@ export class Drawing implements IPlanSvgDrawing {
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // add the image
+        const m = 3;
+        SVGHelper.createSvgRectElement({
+            parent: svgRoot,
+            x: -m / 2,
+            y: -m / 2,
+            width: this.sceneRender.imageWidth + m,
+            height: this.sceneRender.imageHeight + m,
+            properties: { fill: 'none', stroke: 'magenta', strokeWidth: m },
+        });
+
         SVGHelper.createSvgImageElement({
             parent: svgRoot,
             href: this.sceneRender.image.dataUrl,
@@ -198,10 +208,26 @@ export class Drawing implements IPlanSvgDrawing {
             });
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0));
-            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, this._renderResult.imageHeight, 0), new Vector3(1, 0, 0), new Vector3(0, 1, 0));
+            drawAnnotationsWithAnnotationLines({
+                annotationsParent: annotationsRoot,
+                layerName: layer,
+                annotations: horizontalAnnotations,
+                lineStart: new Vector3(0, this._renderResult.imageHeight, 0),
+                lineDirection: new Vector3(1, 0, 0),
+                lineNormalDirection: new Vector3(0, 1, 0),
+                lineSpacing: 50
+            });
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
-            drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(this._renderResult.imageWidth, 0, 0), new Vector3(0, 1, 0), new Vector3(1, 0, 0));
+            drawAnnotationsWithAnnotationLines({
+                annotationsParent: annotationsRoot,
+                layerName: layer,
+                annotations: verticalAnnotations,
+                lineStart: new Vector3(this._renderResult.imageWidth, 0, 0),
+                lineDirection: new Vector3(0, 1, 0),
+                lineNormalDirection: new Vector3(1, 0, 0),
+                lineSpacing: 50
+            });
 
         });
 

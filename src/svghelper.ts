@@ -439,6 +439,31 @@ export function createSvgLineElementWithText(
     return { line, text };
 }
 
+export function createSvgRectElement({
+    parent,
+    x,
+    y,
+    width,
+    height,
+    properties,
+}: {
+    parent: SVGGElement,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    properties?: SVGPathProperties,
+}): SVGRectElement {
+    const rect = createSvgElement("rect") as SVGRectElement;
+    rect.setAttribute("x", x.toString());
+    rect.setAttribute("y", y.toString());
+    rect.setAttribute("width", width.toString());
+    rect.setAttribute("height", height.toString());
+    applySvgProperties(rect, properties);
+    parent.appendChild(rect);
+    return rect;
+}
+
 export function createSvgCircleElement({
     parent,
     cx,

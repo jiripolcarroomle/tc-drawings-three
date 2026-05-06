@@ -28,16 +28,17 @@ function projectPointOnLine(point: Vector3, linePoint: Vector3, lineDirection: V
     const lineDirectionNormalized = lineDirection.clone().normalize();
     return pointToLinePoint.dot(lineDirectionNormalized);
 }
-export function drawAnnotationsWithAnnotationLines(
+export function drawAnnotationsWithAnnotationLines(args: {
     annotationsParent: SVGElement,
     layerName: string,
     annotations: AnnotationTransformed[],
     lineStart: Vector3,
     lineDirection: Vector3,
     lineNormalDirection: Vector3,
-    lineSpacing: number = 50,
-) {
-    void annotationsParent;
+    lineSpacing: number,
+}) {
+    const { annotationsParent, layerName, annotations, lineStart, lineDirection, lineNormalDirection, lineSpacing = 50 } = args;
+
     console.warn(`--- ${layerName} ---`);
     // sort the annotations by:
     // 1. distance from the line

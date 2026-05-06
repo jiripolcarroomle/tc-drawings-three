@@ -74,7 +74,7 @@ export const renderScene: IRenderDrawing = async function (
         maxZ = Math.max(maxZ, p.z);
     }
 
-    const extentPadding = Math.max(1e-4, Math.max(maxX - minX, maxY - minY) * 0.01);
+    const extentPadding = 0;//Math.max(1e-4, Math.max(maxX - minX, maxY - minY) * 0.00);
     const nearFarPadding = Math.max(1e-4, (maxZ - minZ) * 0.01);
 
     const computedLeft = minX - extentPadding;
