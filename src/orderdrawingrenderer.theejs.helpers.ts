@@ -155,6 +155,77 @@ function _createEdgesWireframe(
     );
 }
 
+function _createSvgBoxPlanesAndWireframe(
+    size: { _x: number; _y: number; _z: number },
+    materialBase: any | undefined,
+    wireframeMaterialBase: any | undefined,
+    drawingRenderSettings: IExtendedDrawingRenderSettings,
+): THREE.Object3D {
+    const group = new THREE.Group();
+    const halfX = size._x / 2;
+    const halfY = size._y / 2;
+    const halfZ = size._z / 2;
+
+    const surfaceMaterial = _createSurfaceMaterial(materialBase);
+    if (surfaceMaterial) {
+        // Keep faces visible from either side in orthographic SVG output.
+        surfaceMaterial.side = THREE.DoubleSide;
+
+        const faceDefinitions: Array<{
+            geometry: THREE.PlaneGeometry;
+            position: THREE.Vector3;
+            rotation: THREE.Euler;
+        }> = [
+                {
+                    geometry: new THREE.PlaneGeometry(size._z, size._y),
+                    position: new THREE.Vector3(halfX, 0, 0),
+                    rotation: new THREE.Euler(0, Math.PI / 2, 0),
+                },
+                {
+                    geometry: new THREE.PlaneGeometry(size._z, size._y),
+                    position: new THREE.Vector3(-halfX, 0, 0),
+                    rotation: new THREE.Euler(0, -Math.PI / 2, 0),
+                },
+                {
+                    geometry: new THREE.PlaneGeometry(size._x, size._z),
+                    position: new THREE.Vector3(0, halfY, 0),
+                    rotation: new THREE.Euler(-Math.PI / 2, 0, 0),
+                },
+                {
+                    geometry: new THREE.PlaneGeometry(size._x, size._z),
+                    position: new THREE.Vector3(0, -halfY, 0),
+                    rotation: new THREE.Euler(Math.PI / 2, 0, 0),
+                },
+                {
+                    geometry: new THREE.PlaneGeometry(size._x, size._y),
+                    position: new THREE.Vector3(0, 0, halfZ),
+                    rotation: new THREE.Euler(0, 0, 0),
+                },
+                {
+                    geometry: new THREE.PlaneGeometry(size._x, size._y),
+                    position: new THREE.Vector3(0, 0, -halfZ),
+                    rotation: new THREE.Euler(0, Math.PI, 0),
+                },
+            ];
+
+        for (const face of faceDefinitions) {
+            const mesh = new THREE.Mesh(face.geometry, surfaceMaterial);
+            mesh.position.copy(face.position);
+            mesh.rotation.copy(face.rotation);
+            group.add(mesh);
+        }
+    }
+
+    const wireframeMaterial = _createWireframeMaterial(wireframeMaterialBase);
+    if (wireframeMaterial) {
+        const boxGeometry = new THREE.BoxGeometry(size._x, size._y, size._z);
+        const wireframe = _createEdgesWireframe(boxGeometry, wireframeMaterial, drawingRenderSettings);
+        group.add(wireframe);
+    }
+
+    return group;
+}
+
 function _collectMeshChildren(objectGroup: THREE.Object3D): THREE.Mesh[] {
     const meshChildren: THREE.Mesh[] = [];
     objectGroup.traverse((child) => {
@@ -406,21 +477,36 @@ export async function orderObjectNodeToThreeObject3D(
         _addRenderableWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
     }
     else if (geom.size) {
-        const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
-        _addRenderableWithOptionalWireframe(
-            threeObject,
-            geometry,
-            mainMaterial,
-            wireframeMaterial,
-            drawingRenderSettings,
-            (object) => {
-                object.position.copy(new THREE.Vector3(
-                    geom.origin.elements[12] + geom.size!._x / 2,
-                    geom.origin.elements[13] + geom.size!._y / 2,
-                    geom.origin.elements[14] + geom.size!._z / 2,
-                ));
-            },
+        const boxPosition = new THREE.Vector3(
+            geom.origin.elements[12] + geom.size._x / 2,
+            geom.origin.elements[13] + geom.size._y / 2,
+            geom.origin.elements[14] + geom.size._z / 2,
         );
+
+        if (drawingRenderSettings.format === 'svg') {
+            const boxGroup = _createSvgBoxPlanesAndWireframe(
+                geom.size,
+                mainMaterial,
+                wireframeMaterial,
+                drawingRenderSettings,
+            );
+            _addConfiguredRenderable(threeObject, boxGroup, (object) => {
+                object.position.copy(boxPosition);
+            });
+        }
+        else {
+            const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
+            _addRenderableWithOptionalWireframe(
+                threeObject,
+                geometry,
+                mainMaterial,
+                wireframeMaterial,
+                drawingRenderSettings,
+                (object) => {
+                    object.position.copy(boxPosition);
+                },
+            );
+        }
     }
     convertedNodesCollector.push(node);
 
@@ -459,7 +545,7 @@ export function _resolveUpVector(direction: THREE.Vector3): THREE.Vector3 {
     return new THREE.Vector3(0, 0, 1);
 }
 
-export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): string {
+export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): { dataUrl: string } {
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(outputWidth, outputHeight, false);
     renderer.setPixelRatio(1);
@@ -468,16 +554,16 @@ export function rasterRenderer(threeScene: THREE.Scene, camera: THREE.Camera, ou
 
     const pngDataUrl = renderer.domElement.toDataURL('image/png');
     renderer.dispose();
-    return pngDataUrl;
+    return { dataUrl: pngDataUrl };
 }
 
-function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): SVGSVGElement {
+export function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outputWidth = 1200, outputHeight = 800): { svg: SVGSVGElement } {
     const renderer = new SVGRenderer();
     renderer.setSize(outputWidth, outputHeight);
     renderer.render(threeScene, camera);
     const svg = renderer.domElement as SVGSVGElement;
     svg.classList.add('preview-image');
-    return svg;
+    return { svg };
 }
 
 

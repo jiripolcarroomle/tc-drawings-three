@@ -32,6 +32,7 @@ export async function appOrderFunction(o: any, ol: any) {
         doNotFetchMeshes: true,
         // three.js renderer property - angle in degrees between adjacent faces above which an edge will be rendered
         edgesGeometryThresholdAngle: 10,
+        format: 'png',
     }
     const moduleCloseToWallDistanceThreshold = 300; // in mm
     const orthoCameraRenderSettings: IRenderOrthoCameraParams = {

@@ -26,6 +26,10 @@ export interface ISceneGeometryConversionSettings {
     wallsWireframeMaterial?: any;
     /** Whether to fetch and use actual meshes or use just their bounding boxes. */
     doNotFetchMeshes?: boolean;
+    /**
+     * Defines output format of the drawing.
+     */
+    format: 'png' | 'svg';
 }
 
 export interface IRenderOrthoCameraParams {
@@ -57,7 +61,10 @@ export interface IRenderOrthoCameraResult {
     /** the matrix transforming camera coordinates to output image pixel coordinates */
     cameraToPixelMatrix: TC.Matrix4;
     /** the rendered data in any format */
-    image: any;
+    image: {
+        dataUrl?: string; // for raster renderings
+        svg?: SVGSVGElement; // for SVG renderings
+    };
     /** the scene that has been rendered; useful for debugging or further processing */
     renderedScene?: any;
     /** the actual width of the rendered image in pixels or another unit */

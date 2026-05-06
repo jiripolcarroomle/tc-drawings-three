@@ -4,7 +4,7 @@ import * as THREE from "three";
 import * as TC from "./tc/base";
 import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
 import type { IOrderSceneNode } from "./scene.interface";
-import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer } from "./orderdrawingrenderer.theejs.helpers";
+import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer, svgRenderer } from "./orderdrawingrenderer.theejs.helpers";
 
 /**
  * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.
@@ -110,7 +110,7 @@ export const renderScene: IRenderDrawing = async function (
 
 
 
-    const pngDataUrl = rasterRenderer(threeScene, camera, adjustedWidth, adjustedHeight);
+    const imageData = drawingSettings.format === 'svg' ? svgRenderer(threeScene, camera, adjustedWidth, adjustedHeight) : rasterRenderer(threeScene, camera, adjustedWidth, adjustedHeight);
 
     const imageSpaceMatrix = new TC.Matrix4().set(
         adjustedWidth / 2, 0, 0, adjustedWidth / 2,
@@ -131,7 +131,7 @@ export const renderScene: IRenderDrawing = async function (
         worldToCameraMatrix,
         worldToPixelMatrix,
         cameraToPixelMatrix,
-        image: { dataUrl: pngDataUrl },
+        image: imageData,
         renderedScene: threeScene,
         imageHeight: adjustedHeight,
         imageWidth: adjustedWidth,

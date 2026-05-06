@@ -117,7 +117,7 @@ export class Drawing implements IPlanSvgDrawing {
         const baseMargin = 400;
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
-        // add the image
+        // rect around the image
         const m = 3;
         SVGHelper.createSvgRectElement({
             parent: svgRoot,
@@ -128,12 +128,21 @@ export class Drawing implements IPlanSvgDrawing {
             properties: { fill: 'none', stroke: 'magenta', strokeWidth: m },
         });
 
-        SVGHelper.createSvgImageElement({
-            parent: svgRoot,
-            href: this.sceneRender.image.dataUrl,
-            width: this.sceneRender.imageWidth,
-            height: this.sceneRender.imageHeight,
-        });
+        // add the image
+        if (this.sceneRender.image.dataUrl) {
+            SVGHelper.createSvgImageElement({
+                parent: svgRoot,
+                href: this.sceneRender.image.dataUrl,
+                width: this.sceneRender.imageWidth,
+                height: this.sceneRender.imageHeight,
+            });
+        }
+        else if (this.sceneRender.image.svg) {
+            const svgElement = this.sceneRender.image.svg;
+            svgRoot.appendChild(svgElement);
+        }
+
+
 
         // group for overlays
         SVGHelper.createSvgGroupElement({ parent: svgRoot });
