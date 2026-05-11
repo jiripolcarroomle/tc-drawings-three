@@ -1,9 +1,9 @@
-import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "./drawing.interface";
-import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
-import { Matrix4, Vector3 } from "./tc/base";
-import * as SVGHelper from "./svghelper";
-import { drawAnnotationsWithAnnotationLines } from "./drawing.implementation.annotationlines";
-import { arrowLineStyle, linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "./svghelper";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "../interfaces/drawing";
+import type { IRenderOrthoCameraResult } from "../interfaces/orderdrawingrenderer";
+import { Matrix4, Vector3 } from "../../tc/base";
+import * as SVGHelper from "../utils/svghelper";
+import { drawAnnotationsWithAnnotationLines } from "./drawing.annotationlines";
+import { arrowLineStyle, linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "../utils/svghelper";
 
 /**
  * Upon pushing data into the drawing, the coordinates are transformed into world, camera and pixel coodinates.

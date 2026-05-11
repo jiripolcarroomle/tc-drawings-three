@@ -1,23 +1,7 @@
-import { OrderSceneNode } from "./scene.implementation";
-import { type IOrderSceneNode } from "./scene.interface";
-import { IdsMap } from "./idsmap";
-import { Vector3 } from "./tc/base";
-
-/**
- * Geometric description of a wall segment derived from a room contour.
- */
-export interface IWallSegment {
-    readonly segmentStart: Vector3;
-    readonly segmentEnd: Vector3;
-    readonly segmentBackStart: Vector3;
-    readonly segmentBackEnd: Vector3;
-    readonly direction: Vector3;
-    readonly wallLength: number;
-    readonly wallThickness: number;
-    readonly wallHeight: number;
-    readonly rotationY: number;
-    readonly normalToWall: Vector3;
-}
+import { OrderSceneNode } from "./scene";
+import { type IWallSegment, type IOrderSceneNode } from "../interfaces/scene";
+import { IdsMap } from "../interfaces/idsmap";
+import { Vector3 } from "../../tc/base";
 
 const DEFAULT_WALL_HEIGHT = 3000;
 const DEFAULT_WALL_THICKNESS = 200;

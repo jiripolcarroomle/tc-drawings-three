@@ -1,5 +1,5 @@
 import { Vector3 } from "./tc/base";
-import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "./drawing.interface";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "./drawingapi/interfaces/drawing";
 
 
 export interface I_tab_Annotation {

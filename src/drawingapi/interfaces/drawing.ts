@@ -1,5 +1,5 @@
-import * as TC from "./tc/base";
-import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
+import * as TC from "../../tc/base";
+import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer";
 
 /*
  * Interface for the drawings.

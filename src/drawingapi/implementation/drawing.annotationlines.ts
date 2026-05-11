@@ -1,6 +1,6 @@
-import { type AnnotationTransformed } from "./drawing.implementation";
-import { Vector3 } from "./tc/base";
-import * as SVGHelper from "./svghelper";
+import { type AnnotationTransformed } from "./drawing";
+import { Vector3 } from "../../tc/base";
+import * as SVGHelper from "../utils/svghelper";
 
 /**
  * Annotation projected to a direction of an annotation line.

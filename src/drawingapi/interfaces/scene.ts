@@ -1,7 +1,6 @@
 import { IdsMap } from "./idsmap";
-import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
-import { Matrix4, Vector3 } from "./tc/base";
-import { type IWallSegment } from "./wall";
+import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer";
+import { Matrix4, Vector3 } from "../../tc/base";
 
 
 /**
@@ -173,3 +172,19 @@ export interface IGeometryData {
  * A filter function that takes a scene node and returns a boolean indicating whether the node should be included in the rendering or interaction logic.
  */
 export type IOrderSceneNodeFilter = (node: IOrderSceneNode) => boolean;
+/**
+ * Geometric description of a wall segment derived from a room contour.
+ */
+
+export interface IWallSegment {
+    readonly segmentStart: Vector3;
+    readonly segmentEnd: Vector3;
+    readonly segmentBackStart: Vector3;
+    readonly segmentBackEnd: Vector3;
+    readonly direction: Vector3;
+    readonly wallLength: number;
+    readonly wallThickness: number;
+    readonly wallHeight: number;
+    readonly rotationY: number;
+    readonly normalToWall: Vector3;
+}

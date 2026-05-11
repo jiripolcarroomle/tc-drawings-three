@@ -1,4 +1,4 @@
-import type { IOrderSceneNode } from "./scene.interface";
+import type { IOrderSceneNode } from "./scene";
 
 /**
  * Registry of scene nodes keyed by their stable string ID.

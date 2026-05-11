@@ -1,5 +1,5 @@
-import type { IOrderSceneNode, IOrderSceneNodeFilter } from "./scene.interface";
-import * as TC from "./tc/base";
+import type { IOrderSceneNode, IOrderSceneNodeFilter } from "./scene";
+import * as TC from "../../tc/base";
 
 /**
  * A renderer function that takes a scene root node, an optional filter function, render settings, and returns a promise that resolves to the rendered result.
@@ -29,7 +29,7 @@ export interface ISceneGeometryConversionSettings {
     /**
      * Defines output format of the drawing.
      */
-    format: 'png' | 'svg';
+    format?: 'png' | 'svg';
 }
 
 export interface IRenderOrthoCameraParams {

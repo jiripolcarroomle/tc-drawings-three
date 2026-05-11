@@ -1,9 +1,10 @@
 
-import { logWarning, Matrix4, Vector3 } from "./tc/base";
-import { createWallsGroupFromOrderData, type IWallSegment } from "./wall";
-import { IdsMap } from "./idsmap";
-import { type IGeometryData, Object3DNodeKind, type IOrderLineEntry, type IOrderSceneNode } from "./scene.interface";
-import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
+import { logWarning, Matrix4, Vector3 } from "../../tc/base";
+import { createWallsGroupFromOrderData } from "./scene-wall";
+import { type IWallSegment } from "../interfaces/scene";
+import { IdsMap } from "../interfaces/idsmap";
+import { type IGeometryData, Object3DNodeKind, type IOrderLineEntry, type IOrderSceneNode } from "../interfaces/scene";
+import { type ISceneGeometryConversionSettings } from "../interfaces/orderdrawingrenderer";
 
 /**
  * Builds the project's technology-agnostic scene graph from raw order data.

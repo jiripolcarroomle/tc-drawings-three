@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import { OBJLoader, SVGLoader, type SVGResultPaths } from "three/examples/jsm/Addons.js";
-import { type ISceneGeometryConversionSettings } from "./orderdrawingrenderer.interface";
-import { Object3DNodeKind } from "./scene.interface";
-import { type IOrderSceneNode } from "./scene.interface";
-import * as TC from "./tc/base";
-import { logError, logWarning, logInfo } from "./tc/base";
+import { type ISceneGeometryConversionSettings } from "../interfaces/orderdrawingrenderer";
+import { Object3DNodeKind } from "../interfaces/scene";
+import { type IOrderSceneNode } from "../interfaces/scene";
+import * as TC from "../../tc/base";
+import { logError, logWarning, logInfo } from "../../tc/base";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
 export interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
@@ -312,7 +312,7 @@ function _addRenderableWithOptionalWireframe(
  */
 export async function sceneToThreeJsScene(
     rootObject3DNode: IOrderSceneNode,
-    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
+    drawingRenderSettings: IExtendedDrawingRenderSettings = {} as IExtendedDrawingRenderSettings,
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<{ scene: THREE.Scene, nodesInScene: IOrderSceneNode[] }> {
     const scene = new THREE.Scene();

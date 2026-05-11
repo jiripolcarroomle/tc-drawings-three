@@ -1,10 +1,10 @@
 // Both TC and THREE have a Matrix4 and Vector3 class, maybe also further overlapping types in the future.
 // Keep the *-as imports for legibility.
 import * as THREE from "three";
-import * as TC from "./tc/base";
-import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
-import type { IOrderSceneNode } from "./scene.interface";
-import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer, svgRenderer } from "./orderdrawingrenderer.theejs.helpers";
+import * as TC from "../../tc/base";
+import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "../interfaces/orderdrawingrenderer";
+import type { IOrderSceneNode } from "../interfaces/scene";
+import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer, svgRenderer } from "../implementation/orderdrawingrenderer.theejs.helpers";
 
 /**
  * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.

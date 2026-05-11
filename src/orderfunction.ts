@@ -1,13 +1,13 @@
 import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationstable";
-import { Drawing } from "./drawing.implementation";
-import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawing.interface";
-import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./orderdrawingrenderer.interface";
-import type { IExtendedDrawingRenderSettings } from "./orderdrawingrenderer.theejs.helpers";
-import { renderScene } from "./orderdrawingrenderer.threejs";
-import { createScene } from "./scene.implementation";
-import { Object3DNodeKind, type IOrderSceneNode } from "./scene.interface";
+import { Drawing } from "./drawingapi/implementation/drawing";
+import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawingapi/interfaces/drawing";
+import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingapi/interfaces/orderdrawingrenderer";
+import type { IExtendedDrawingRenderSettings } from "./drawingapi/implementation/orderdrawingrenderer.theejs.helpers";
+import { renderScene } from "./drawingapi/implementation/orderdrawingrenderer.threejs";
+import { createScene } from "./drawingapi/implementation/scene";
+import { Object3DNodeKind, type IOrderSceneNode } from "./drawingapi/interfaces/scene";
 import { Vector3 } from "./tc/base";
-import { filterNodesCloseToWall } from "./wall";
+import { filterNodesCloseToWall } from "./drawingapi/implementation/scene-wall";
 
 export async function appOrderFunction(o: any, ol: any) {
 
@@ -169,7 +169,7 @@ export async function appOrderFunction(o: any, ol: any) {
         orthoCameraRenderResults.push(result);
 
         const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
-        //  orthoCameraRenderResults.push(resultWithoutFronts);
+        orthoCameraRenderResults.push(resultWithoutFronts);
 
     }
 

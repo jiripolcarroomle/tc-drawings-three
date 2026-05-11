@@ -1,4 +1,4 @@
-import { type IOrderSceneNode } from "./scene.interface";
+import { type IOrderSceneNode } from "./drawingapi/interfaces/scene";
 import { logInfo } from "./tc/base";
 import { parse as parseFlatted, stringify as stringifyFlatted } from "flatted";
 
