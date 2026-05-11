@@ -152,7 +152,7 @@ export class OrderSceneNode implements IOrderSceneNode {
     private constructor(idsMap: IdsMap, id: string | undefined, kind: Object3DNodeKind) {
         this.idsMap = idsMap;
         this.kind = kind;
-        this.id = id ? this.idsMap.useIdOrGenerateUnique(id) : this.idsMap.getRandomId();
+        this.id = id ? this.idsMap.useIdOrCreateUnique(id) : this.idsMap.createRandomId();
         this.idsMap.register(this);
         this._geometry = new GeometryData(this, new Matrix4());
     }
