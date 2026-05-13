@@ -36,10 +36,10 @@ export function drawAnnotationsWithAnnotationLines(args: {
     lineDirection: Vector3,
     lineNormalDirection: Vector3,
     lineSpacing: number,
-}) {
+}): { countOfLines: number } {
     const { annotationsParent, layerName, annotations, lineStart, lineDirection, lineNormalDirection, lineSpacing = 50 } = args;
-
-    console.warn(`--- ${layerName} ---`);
+    // console.warn(`--- ${layerName} ---`);
+    void layerName;
     // sort the annotations by:
     // 1. distance from the line
     // 2. depth in view
@@ -331,10 +331,12 @@ export function drawAnnotationsWithAnnotationLines(args: {
     // }
 
     linesWithAnnotations.forEach((line, finalIndex) => {
-        line.print();
+        // line.print();
         const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
         line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection);
     });
+
+    return { countOfLines: linesWithAnnotations.length };
 
 
 

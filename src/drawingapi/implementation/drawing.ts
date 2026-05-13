@@ -114,7 +114,9 @@ export class Drawing implements IPlanSvgDrawing {
         });
         SVGHelper.createSvgDefsForArrowMarkers({ parent: svgRoot, properties: linesArrowMarkerStyle });
 
-        const baseMargin = 400;
+        const baseMargin = 10;
+        const annotationSpacing = 50;
+
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
 
         // rect around the image
@@ -224,26 +226,28 @@ export class Drawing implements IPlanSvgDrawing {
             });
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, horizontalAnnotations, new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(0, -1, 0));
-            drawAnnotationsWithAnnotationLines({
+            const horizontalAnnotationsResult = drawAnnotationsWithAnnotationLines({
                 annotationsParent: annotationsRoot,
                 layerName: layer,
                 annotations: horizontalAnnotations,
-                lineStart: new Vector3(0, this._renderResult.imageHeight, 0),
+                lineStart: new Vector3(0, this._renderResult.imageHeight + annotationSpacing, 0),
                 lineDirection: new Vector3(1, 0, 0),
                 lineNormalDirection: new Vector3(0, 1, 0),
-                lineSpacing: 50
+                lineSpacing: annotationSpacing
             });
+            marginDown += (horizontalAnnotationsResult.countOfLines + 1) * annotationSpacing;
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
-            drawAnnotationsWithAnnotationLines({
+            const verticalAnnotationsResult = drawAnnotationsWithAnnotationLines({
                 annotationsParent: annotationsRoot,
                 layerName: layer,
                 annotations: verticalAnnotations,
-                lineStart: new Vector3(this._renderResult.imageWidth, 0, 0),
+                lineStart: new Vector3(this._renderResult.imageWidth + annotationSpacing, 0, 0),
                 lineDirection: new Vector3(0, 1, 0),
                 lineNormalDirection: new Vector3(1, 0, 0),
-                lineSpacing: 50
+                lineSpacing: annotationSpacing
             });
+            marginRight += (verticalAnnotationsResult.countOfLines + 1) * annotationSpacing;
 
         });
 
