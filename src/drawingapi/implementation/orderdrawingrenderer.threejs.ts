@@ -4,7 +4,7 @@ import * as THREE from "three";
 import * as TC from "../../tc/base";
 import type { IRenderDrawing, IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "../interfaces/orderdrawingrenderer";
 import type { IOrderSceneNode } from "../interfaces/scene";
-import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer, svgRenderer } from "../implementation/orderdrawingrenderer.theejs.helpers";
+import { type ISceneGeometryConversionToThreeJsSettings, sceneToThreeJsScene, _resolveUpVector, _getBox3Corners, rasterRenderer, svgRenderer } from "../implementation/orderdrawingrenderer.theejs.helpers";
 
 /**
  * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.
@@ -15,7 +15,7 @@ import { type IExtendedDrawingRenderSettings, sceneToThreeJsScene, _resolveUpVec
 export const renderScene: IRenderDrawing = async function (
     sceneRoot: IOrderSceneNode,
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
-    drawingSettings: IExtendedDrawingRenderSettings,
+    drawingSettings: ISceneGeometryConversionToThreeJsSettings,
     settings: IRenderOrthoCameraParams
 ): Promise<IRenderOrthoCameraResult> {
 

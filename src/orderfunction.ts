@@ -2,7 +2,7 @@ import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationst
 import { Drawing } from "./drawingapi/implementation/drawing";
 import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawingapi/interfaces/drawing";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingapi/interfaces/orderdrawingrenderer";
-import type { IExtendedDrawingRenderSettings } from "./drawingapi/implementation/orderdrawingrenderer.theejs.helpers";
+import type { ISceneGeometryConversionToThreeJsSettings } from "./drawingapi/implementation/orderdrawingrenderer.theejs.helpers";
 import { renderScene } from "./drawingapi/implementation/orderdrawingrenderer.threejs";
 import { createScene } from "./drawingapi/implementation/scene";
 import { Object3DNodeKind, type IOrderSceneNode } from "./drawingapi/interfaces/scene";
@@ -19,7 +19,7 @@ export async function appOrderFunction(o: any, ol: any) {
     // =================
     // 1. settings and preparations 
     // =================
-    const drawingSettings: IExtendedDrawingRenderSettings = {
+    const drawingSettings: ISceneGeometryConversionToThreeJsSettings = {
         material: { color: 0xcccccc, },
         wireframeMaterial: { color: 0x000000, },
         wallsMaterial: {

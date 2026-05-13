@@ -7,7 +7,7 @@ import * as TC from "../../tc/base";
 import { logError, logWarning, logInfo } from "../../tc/base";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
-export interface IExtendedDrawingRenderSettings extends ISceneGeometryConversionSettings {
+export interface ISceneGeometryConversionToThreeJsSettings extends ISceneGeometryConversionSettings {
     edgesGeometryThresholdAngle?: number;
     cameraDirection?: TC.Vector3;
 }
@@ -147,7 +147,7 @@ function _addConfiguredRenderable(
 function _createEdgesWireframe(
     geometry: THREE.BufferGeometry,
     material: THREE.LineBasicMaterial,
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings,
 ): THREE.LineSegments {
     return new THREE.LineSegments(
         new THREE.EdgesGeometry(geometry, drawingRenderSettings.edgesGeometryThresholdAngle),
@@ -159,7 +159,7 @@ function _createSvgBoxPlanesAndWireframe(
     size: { _x: number; _y: number; _z: number },
     materialBase: any | undefined,
     wireframeMaterialBase: any | undefined,
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings,
 ): THREE.Object3D {
     const group = new THREE.Group();
     const halfX = size._x / 2;
@@ -255,7 +255,7 @@ function _addRenderableWithOptionalWireframe(
     renderable: THREE.BufferGeometry | THREE.Object3D,
     materialBase: any | undefined,
     wireframeMaterialBase: any | undefined,
-    drawingRenderSettings: IExtendedDrawingRenderSettings,
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings,
     configureRenderable?: (object: THREE.Object3D) => void,
     configureSurfaceMaterial?: (material: THREE.MeshBasicMaterial) => void,
 ): void {
@@ -312,7 +312,7 @@ function _addRenderableWithOptionalWireframe(
  */
 export async function sceneToThreeJsScene(
     rootObject3DNode: IOrderSceneNode,
-    drawingRenderSettings: IExtendedDrawingRenderSettings = {} as IExtendedDrawingRenderSettings,
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings = {} as ISceneGeometryConversionToThreeJsSettings,
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
 ): Promise<{ scene: THREE.Scene, nodesInScene: IOrderSceneNode[] }> {
     const scene = new THREE.Scene();
@@ -359,7 +359,7 @@ export async function sceneToThreeJsScene(
  */
 export async function orderObjectNodeToThreeObject3D(
     node: IOrderSceneNode,
-    drawingRenderSettings: IExtendedDrawingRenderSettings = {},
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings = {},
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
     convertedNodesCollector: IOrderSceneNode[],
 ): Promise<THREE.Object3D | null> {
