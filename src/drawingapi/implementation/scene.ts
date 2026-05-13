@@ -235,7 +235,8 @@ export class OrderSceneNode implements IOrderSceneNode {
             orderData.bomEntries?.forEach((bomEntry: any) => {
                 OrderSceneNode.createScenePartNodeFromPartBase(bomEntry, posGroupNode);
             });
-            OrderSceneNode.createSceneModuleNodeFromOD_Base(orderData.orderItem, posGroupNode);
+            const moduleOrderEntry = mergeModuleOrderEntryWithAttributes(orderData.orderItem, item.orderInput?.attributes);
+            OrderSceneNode.createSceneModuleNodeFromOD_Base(moduleOrderEntry, posGroupNode);
         });
         return posGroupNode;
     }
@@ -443,3 +444,36 @@ function computeWorldTransform(node: IOrderSceneNode): Matrix4 {
 function getPartId(part: any /* PartBase */): string {
     return `part__${part._partId}__${part._id}:${part._parentUniqueId}`;
 }
+
+let warned = false;
+
+function mergeModuleOrderEntryWithAttributes(source: any, attributes: any): any {
+    if (!warned) {
+        warned = true;
+        logWarning(`
+            
+            -------------------------
+
+            !!! WARNING !!!
+
+            THIS FUNCTION CALL MUST NOT BE CALLED IN THE IMPLEMENTATION.
+
+            scene.implementation.ts / mergeModuleOrderEntryWithAttributes
+
+            This is a workaround, without which this doesn't work in tc-drawings-three, but
+            with this workaround, this doesn't work in the cabinetlibrary_drawings.
+
+            -------------------------
+            
+            `);
+    }
+    if (!attributes || typeof attributes !== 'object') {
+        return source;
+    }
+
+    return {
+        ...source,
+        ...attributes,
+    };
+}
+
