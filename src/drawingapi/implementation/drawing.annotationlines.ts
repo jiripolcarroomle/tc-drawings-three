@@ -76,6 +76,24 @@ export function drawAnnotationsWithAnnotationLines(args: {
             this.usedIntervals.sort((a, b) => a.start - b.start || a.end - b.end || a.realLength - b.realLength);
         }
 
+
+        /**
+         * Array of normal distances from the annotation base line.
+         * This is useful for determining the preference into which annotation line should another one be merged.
+         * The values will not be unique because we want also the weight of the average distance.
+         */
+        yDistances: number[] = [];
+        /**
+         * @returns when deciding which line to merge with, the line with the lowest average distance of annotations from the base line will be preferred
+         */
+        getMergeCriteria(): number {
+            if (this.yDistances.length === 0) {
+                // no annotations - should not happen, but prefere merging to other lines
+                return 999999;
+            }
+            const averageDistance = this.yDistances.reduce((sum, value) => sum + value, 0) / this.yDistances.length;
+            return averageDistance;
+        }
         /**
          * Adds an annotation to the line if it does not overlap with existing annotations.
          * @param annotation The annotation to add
@@ -97,6 +115,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
             const availableInterval = this.getOrCreateInterval(intervalStart, intervalEnd, annotation.realLength, true);
             if (availableInterval && Math.abs(availableInterval.realLength - annotation.realLength) < Vector3.EPS) {
                 availableInterval.annotations.push(annotation);
+                this.yDistances.push(annotation.distanceY);
                 availableInterval.realLength = annotation.realLength;
                 return true;
             }
@@ -200,6 +219,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 const interval = copy.getOrCreateInterval(previousStart, previousEnd, realLength);
                 interval?.annotations.push(...annotations);
             }
+            copy.yDistances = [...this.yDistances];
 
             if (!copy.usedIntervals.length || copy.getSignature() === this.getSignature()) {
                 return undefined;
@@ -302,23 +322,45 @@ export function drawAnnotationsWithAnnotationLines(args: {
 
     // compare each with each other and merge them into one if possible (to minimize the number of lines)
     for (let i = 0; i < linesWithAnnotations.length; i++) {
-        for (let j = i + 1; j < linesWithAnnotations.length; j++) {
-            if (linesWithAnnotations[i].merge(linesWithAnnotations[j])) {
-                linesWithAnnotations.splice(j, 1);
-                j--;
+        const currentLine = linesWithAnnotations[i];
+        const ownMergeCriteria = currentLine.getMergeCriteria();
+        const otherAnnotationLinesToCompare = linesWithAnnotations
+            .map((line, index) => ({ line, index, crit: Math.abs(ownMergeCriteria - line.getMergeCriteria()) }))
+            // get array of all other annotation lines
+            .filter((l) => l.index !== i)
+            // sort them by the difference of their merge criteria
+            .sort((a, b) => a.crit - b.crit);
+
+        for (let j = 0; j < otherAnnotationLinesToCompare.length; j++) {
+            const mergeCandidate = otherAnnotationLinesToCompare[j];
+            if (currentLine.merge(mergeCandidate.line)) {
+                if (mergeCandidate.index > i) {
+                    linesWithAnnotations.splice(mergeCandidate.index, 1);
+                    i--; // adjust index because we removed a line after the current line
+                }
+                break;
             }
         }
     }
 
-    // add sums of continuous intervals to the lines
-    for (let i = 0; i < linesWithAnnotations.length; i++) {
+    const pushBehindCurrent = false;
+    // add sums of continuous intervals to the lines    
+    let arrayEnd = linesWithAnnotations.length;
+    for (let i = 0; i < arrayEnd; i++) {
         const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals();
         if (copyWithSummedIntervals) {
-            // push it behind the current line
-            linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
-            i++; // skip the copy in the next iteration
+            if (pushBehindCurrent) {
+                // push it behind the current line
+                linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
+                i++; // skip the copy in the next iteration
+                arrayEnd++; // adjust the end of the array because we added a new line
+            }
+            else {
+                linesWithAnnotations.push(copyWithSummedIntervals);
+            }
         }
     }
+
 
     // OPTIONAL: merge them again, because the summed intervals can free up some space on the annotation lines
     // for (let i = 0; i < linesWithAnnotations.length; i++) {
