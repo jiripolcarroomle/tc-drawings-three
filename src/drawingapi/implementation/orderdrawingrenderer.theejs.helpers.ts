@@ -13,68 +13,7 @@ export interface ISceneGeometryConversionToThreeJsSettings extends ISceneGeometr
 }
 
 
-type ThreeFacadeHmrData = {
-    object3dCache?: Map<string, THREE.Object3D>;
-};
-const _hmrData = (import.meta as any).hot?.data as ThreeFacadeHmrData | undefined;
-const _object3dCache: Map<string, THREE.Object3D> = _hmrData?.object3dCache ?? new Map();
-if (_hmrData) {
-    _hmrData.object3dCache = _object3dCache;
-}
-
-if ((import.meta as any).hot) {
-    (import.meta as any).hot.dispose((data: ThreeFacadeHmrData) => {
-        data.object3dCache = _object3dCache;
-    });
-}
-
-const _OBJ_TEXT_CACHE_NAME = 'tc-drawings-three:obj-text:v1';
-const _USE_PERSISTENT_OBJ_TEXT_CACHE = Boolean((import.meta as any).env?.DEV);
-async function _fetchTextFromCacheOrFetch(url: string): Promise<string> {
-    // DEV-only: Persist downloads across HMR *and* full page reloads.
-    // This caches the raw OBJ response; we still parse it into Object3D per session.
-    // In production, prefer standard HTTP caching (Cache-Control/ETag) and/or
-    // versioned URLs instead of app-managed persistent caching.
-    if (!_USE_PERSISTENT_OBJ_TEXT_CACHE) {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
-        }
-        return await response.text();
-    }
-
-    try {
-        if (typeof caches !== 'undefined') {
-            const cache = await caches.open(_OBJ_TEXT_CACHE_NAME);
-            const cachedResponse = await cache.match(url);
-            if (cachedResponse) {
-                return await cachedResponse.text();
-            }
-            logInfo(`OBJ fetch ${url}`);
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
-            }
-            try {
-                await cache.put(url, response.clone());
-            } catch (e) {
-                // Cache put can fail for opaque/cors responses or storage limits.
-                logWarning(`OBJ CacheStorage put failed for ${url}: ${e}`);
-            }
-            return await response.text();
-        }
-    } catch (e) {
-        logWarning(`OBJ CacheStorage error for ${url}: ${e}`);
-    }
-
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
-    }
-    return await response.text();
-}
-
-
+const _object3dCache: Map<string, THREE.Object3D> = new Map();
 
 const objLoader = new OBJLoader();
 
@@ -89,7 +28,11 @@ async function _loadObject3DFromCacheOrFetch(
 
     let obj: THREE.Object3D;
     try {
-        const md = await _fetchTextFromCacheOrFetch(url);
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`fetch(${url}) failed: ${response.status} ${response.statusText}`);
+        }
+        const md = await response.text();
         obj = objLoader.parse(md);
         if (material) {
             obj.traverse((child) => {
@@ -568,8 +511,6 @@ export function svgRenderer(threeScene: THREE.Scene, camera: THREE.Camera, outpu
 
 
 // Cache parsed SVG shapes (module-local) and fetched+parsed Object3D models.
-// Only the Object3D cache is persisted across Vite HMR updates to avoid
-// re-downloading meshes while iterating.
 const _svgShapeCache = new Map<string, THREE.Shape[]>();
 
 const svgLoader = new SVGLoader();

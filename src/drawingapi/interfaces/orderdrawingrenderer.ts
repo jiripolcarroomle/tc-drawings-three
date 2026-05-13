@@ -33,6 +33,8 @@ export interface ISceneGeometryConversionSettings {
 }
 
 export interface IRenderOrthoCameraParams {
+    /** name of the drawing, future file name of the render */
+    name?: string;
     /** direction of the camera, if unprovided, down direction will be used */
     direction?: TC.Vector3;
     /** Output maximum image width in pixels. The actual size will depend on the content. */
@@ -74,7 +76,7 @@ export interface IRenderOrthoCameraResult {
     /** list of nodes that have been rendered in the scene */
     renderedNodes?: IOrderSceneNode[];
     /** original drawing settings with which the rendering was performed */
-    cameraParameters?: IRenderOrthoCameraParams;
+    renderParameters?: IRenderOrthoCameraParams;
 
     /** additional metadata or information related to the rendered image */
     data?: any;

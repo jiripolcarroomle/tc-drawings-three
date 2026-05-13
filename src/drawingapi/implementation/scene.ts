@@ -235,8 +235,7 @@ export class OrderSceneNode implements IOrderSceneNode {
             orderData.bomEntries?.forEach((bomEntry: any) => {
                 OrderSceneNode.createScenePartNodeFromPartBase(bomEntry, posGroupNode);
             });
-            const moduleOrderEntry = mergeModuleOrderEntryWithAttributes(orderData.orderItem, item.orderInput?.attributes);
-            OrderSceneNode.createSceneModuleNodeFromOD_Base(moduleOrderEntry, posGroupNode);
+            OrderSceneNode.createSceneModuleNodeFromOD_Base(orderData.orderItem, posGroupNode);
         });
         return posGroupNode;
     }
@@ -444,31 +443,3 @@ function computeWorldTransform(node: IOrderSceneNode): Matrix4 {
 function getPartId(part: any /* PartBase */): string {
     return `part__${part._partId}__${part._id}:${part._parentUniqueId}`;
 }
-
-let warned = false;
-
-function mergeModuleOrderEntryWithAttributes(source: any, attributes: any): any {
-    if (!warned) {
-        warned = true;
-        logWarning(`
-            
-            -------------------------
-
-            scene.implementation.ts / mergeModuleOrderEntryWithAttributes
-            
-            DOES THIS HAVE TO BE IN FINAL IMPLEMENTATION?
-
-            -------------------------
-            
-            `);
-    }
-    if (!attributes || typeof attributes !== 'object') {
-        return source;
-    }
-
-    return {
-        ...source,
-        ...attributes,
-    };
-}
-

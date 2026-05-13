@@ -150,6 +150,13 @@ export class Drawing implements IPlanSvgDrawing {
         // text elements must be on top, therefore the annotations go into one group separate from everything else
         const annotationsRoot = SVGHelper.createSvgGroupElement({ parent: svgRoot });
 
+        // sort the SVG overlays by their distance to the camera
+        this._svgOverlays.sort((a, b) => {
+            const aPosition = new Vector3(0, 0, 0).applyMatrix4(a.transform).applyMatrix4(this._renderResult.worldToCameraMatrix);
+            const bPosition = new Vector3(0, 0, 0).applyMatrix4(b.transform).applyMatrix4(this._renderResult.worldToCameraMatrix);
+            return aPosition._z - bPosition._z;
+        });
+
         // render svg overlays on top of the rendered image
         this._svgOverlays.forEach(({ transform, svgInjection }) => {
             const pathD = svgInjection.d.map(cmd => {

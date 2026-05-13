@@ -9,14 +9,14 @@ import { type ISceneGeometryConversionToThreeJsSettings, sceneToThreeJsScene, _r
 /**
  * Render the scene with an orthographic camera based on the provided settings, and return the rendered data along with the camera settings used.
  * @param sceneRoot the root node of the scene to render
- * @param settings @see IRenderOrthoCameraParams
+ * @param renderSettings @see IRenderOrthoCameraParams
  * @returns @see IRenderOrthoCameraResult
  */
 export const renderScene: IRenderDrawing = async function (
     sceneRoot: IOrderSceneNode,
     filter: ((node: IOrderSceneNode) => boolean) | undefined = undefined,
     drawingSettings: ISceneGeometryConversionToThreeJsSettings,
-    settings: IRenderOrthoCameraParams
+    renderSettings: IRenderOrthoCameraParams
 ): Promise<IRenderOrthoCameraResult> {
 
     // Build a Three.js scene from the provided scene root and render settings
@@ -37,8 +37,8 @@ export const renderScene: IRenderDrawing = async function (
     const bboxSize = sceneBoundingBox.getSize(new THREE.Vector3());
     const bboxRadius = Math.max(bboxSize.length() * 0.5, 1);
     // fallback to top-view as per interface definition
-    const direction = settings.direction
-        ? new THREE.Vector3(settings.direction._x, settings.direction._y, settings.direction._z)
+    const direction = renderSettings.direction
+        ? new THREE.Vector3(renderSettings.direction._x, renderSettings.direction._y, renderSettings.direction._z)
         : new THREE.Vector3(0, -1, 0);
     if (direction.lengthSq() < 1e-12) {
         direction.set(0, -1, 0);
@@ -84,19 +84,19 @@ export const renderScene: IRenderDrawing = async function (
     const computedNear = Math.max(1e-4, -maxZ - nearFarPadding);
     const computedFar = Math.max(computedNear + 1e-3, -minZ + nearFarPadding);
 
-    camera.left = settings.left ?? computedLeft;
-    camera.right = settings.right ?? computedRight;
-    camera.top = settings.top ?? computedTop;
-    camera.bottom = settings.bottom ?? computedBottom;
-    camera.near = settings.near ?? computedNear;
-    camera.far = settings.far ?? computedFar;
+    camera.left = renderSettings.left ?? computedLeft;
+    camera.right = renderSettings.right ?? computedRight;
+    camera.top = renderSettings.top ?? computedTop;
+    camera.bottom = renderSettings.bottom ?? computedBottom;
+    camera.near = renderSettings.near ?? computedNear;
+    camera.far = renderSettings.far ?? computedFar;
     camera.updateProjectionMatrix();
 
 
 
     // compute image size so that the image is not streched in width or height and does not exceed the maximum
-    const outputWidth = settings.drawingMaxWidth ?? 1200;
-    const outputHeight = settings.drawingMaxHeight ?? 800;
+    const outputWidth = renderSettings.drawingMaxWidth ?? 1200;
+    const outputHeight = renderSettings.drawingMaxHeight ?? 800;
 
     const frustrumRatio = (camera.right - camera.left) / (camera.top - camera.bottom);
     const imageRatio = outputWidth / outputHeight;
@@ -135,7 +135,7 @@ export const renderScene: IRenderDrawing = async function (
         renderedScene: threeScene,
         imageHeight: adjustedHeight,
         imageWidth: adjustedWidth,
-        cameraParameters: settings,
+        renderParameters: renderSettings,
         renderedNodes: collectedNodes,
     };
 
