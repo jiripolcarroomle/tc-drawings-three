@@ -320,25 +320,20 @@ export function drawAnnotationsWithAnnotationLines(args: {
         LineWithAnnotations.AddAnnotationToLines(annotation, linesWithAnnotations);
     }
 
-    // compare each with each other and merge them into one if possible (to minimize the number of lines)
-    for (let i = 0; i < linesWithAnnotations.length; i++) {
-        const currentLine = linesWithAnnotations[i];
-        const ownMergeCriteria = currentLine.getMergeCriteria();
-        const otherAnnotationLinesToCompare = linesWithAnnotations
-            .map((line, index) => ({ line, index, crit: Math.abs(ownMergeCriteria - line.getMergeCriteria()) }))
-            // get array of all other annotation lines
-            .filter((l) => l.index !== i)
-            // sort them by the difference of their merge criteria
-            .sort((a, b) => a.crit - b.crit);
+    // Repeatedly merge nearby candidates in criteria-sorted order until no merge is possible.
+    let mergedAnyLine = true;
+    while (mergedAnyLine) {
+        mergedAnyLine = false;
+        linesWithAnnotations.sort((a, b) => a.getMergeCriteria() - b.getMergeCriteria());
 
-        for (let j = 0; j < otherAnnotationLinesToCompare.length; j++) {
-            const mergeCandidate = otherAnnotationLinesToCompare[j];
-            if (currentLine.merge(mergeCandidate.line)) {
-                if (mergeCandidate.index > i) {
-                    linesWithAnnotations.splice(mergeCandidate.index, 1);
-                    i--; // adjust index because we removed a line after the current line
+        for (let i = 0; i < linesWithAnnotations.length; i++) {
+            const currentLine = linesWithAnnotations[i];
+            for (let j = i + 1; j < linesWithAnnotations.length; j++) {
+                if (currentLine.merge(linesWithAnnotations[j])) {
+                    linesWithAnnotations.splice(j, 1);
+                    j--; // keep merging additional compatible lines into currentLine
+                    mergedAnyLine = true;
                 }
-                break;
             }
         }
     }
