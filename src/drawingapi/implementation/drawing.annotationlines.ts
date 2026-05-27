@@ -1,6 +1,7 @@
 import { type AnnotationTransformed } from "./drawing";
 import { Vector3 } from "../../tc/base";
 import * as SVGHelper from "../utils/svghelper";
+import { optimalAnnotationLinesMerge } from "./drawing.annotationlinesmerge";
 
 /**
  * Annotation projected to a direction of an annotation line.
@@ -36,9 +37,19 @@ export function drawAnnotationsWithAnnotationLines(args: {
     lineDirection: Vector3,
     lineNormalDirection: Vector3,
     lineSpacing: number,
+    minIntervalsForSummedAnnotationLine?: number,
 }): { countOfLines: number } {
-    const { annotationsParent, layerName, annotations, lineStart, lineDirection, lineNormalDirection, lineSpacing = 50 } = args;
-    // console.warn(`--- ${layerName} ---`);
+    const {
+        annotationsParent,
+        layerName,
+        annotations,
+        lineStart,
+        lineDirection,
+        lineNormalDirection,
+        lineSpacing = 50,
+        minIntervalsForSummedAnnotationLine = 3,
+    } = args;
+    console.warn(`--- ${layerName} ---`);
     void layerName;
     // sort the annotations by:
     // 1. distance from the line
@@ -190,7 +201,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
          * sums up all continuous intervals into one and merges their annotations
          * @returns a new LineWithAnnotations with summed intervals if the result is different, otherwise undefined
          */
-        makeCopyWithSumedIntervals(): LineWithAnnotations | undefined {
+        makeCopyWithSumedIntervals(minIntervalsCount: number): LineWithAnnotations | undefined {
             const copy = new LineWithAnnotations();
             let previousStart: number = this.usedIntervals[0].start;
             let previousEnd: number = this.usedIntervals[0].end;
@@ -201,7 +212,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 const currentStart = this.usedIntervals[i].start;
                 const currentEnd = this.usedIntervals[i].end;
                 if (currentStart !== previousEnd) {
-                    if (steps > 1) {
+                    if (steps >= minIntervalsCount) {
                         const interval = copy.getOrCreateInterval(previousStart, previousEnd, realLength);
                         interval?.annotations.push(...annotations);
                     }
@@ -215,7 +226,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 previousEnd = currentEnd;
                 annotations.push(...this.usedIntervals[i].annotations);
             }
-            if (steps > 1) {
+            if (steps >= minIntervalsCount) {
                 const interval = copy.getOrCreateInterval(previousStart, previousEnd, realLength);
                 interval?.annotations.push(...annotations);
             }
@@ -264,7 +275,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
                     startY: intervalStart._y,
                     endX: intervalEnd._x,
                     endY: intervalEnd._y,
-                    textOffset: { _x: 0, _y: 0 },
+                    textOffset: { _x: 0, _y: 16 },
                     textContent: interval.realLength.toFixed(0),
                     lineProperties: {
                         ...SVGHelper.thickLineStyle,
@@ -320,29 +331,15 @@ export function drawAnnotationsWithAnnotationLines(args: {
         LineWithAnnotations.AddAnnotationToLines(annotation, linesWithAnnotations);
     }
 
-    // Repeatedly merge nearby candidates in criteria-sorted order until no merge is possible.
-    let mergedAnyLine = true;
-    while (mergedAnyLine) {
-        mergedAnyLine = false;
-        linesWithAnnotations.sort((a, b) => a.getMergeCriteria() - b.getMergeCriteria());
+    // Apply optimal merging to minimize the number of final annotation lines
+    const mergedLines = optimalAnnotationLinesMerge(linesWithAnnotations);
+    linesWithAnnotations.splice(0, linesWithAnnotations.length, ...mergedLines);
 
-        for (let i = 0; i < linesWithAnnotations.length; i++) {
-            const currentLine = linesWithAnnotations[i];
-            for (let j = i + 1; j < linesWithAnnotations.length; j++) {
-                if (currentLine.merge(linesWithAnnotations[j])) {
-                    linesWithAnnotations.splice(j, 1);
-                    j--; // keep merging additional compatible lines into currentLine
-                    mergedAnyLine = true;
-                }
-            }
-        }
-    }
-
-    const pushBehindCurrent = false;
+    const pushBehindCurrent = true;
     // add sums of continuous intervals to the lines    
     let arrayEnd = linesWithAnnotations.length;
     for (let i = 0; i < arrayEnd; i++) {
-        const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals();
+        const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
         if (copyWithSummedIntervals) {
             if (pushBehindCurrent) {
                 // push it behind the current line
@@ -368,7 +365,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     // }
 
     linesWithAnnotations.forEach((line, finalIndex) => {
-        // line.print();
+        line.print();
         const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
         line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection);
     });

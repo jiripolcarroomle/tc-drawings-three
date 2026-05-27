@@ -114,4 +114,5 @@ export interface SvgPathInjectionData {
     markerEnd?: string;
     pathLength?: string;
     d: SvgPathCommandData[];
+    tags: string[];
 }   

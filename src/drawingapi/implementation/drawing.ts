@@ -118,6 +118,8 @@ export class Drawing implements IPlanSvgDrawing {
         const annotationSpacing = 50;
 
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
+        marginDown += annotationSpacing / 2; // leave space for the first annotation line
+        marginRight += annotationSpacing / 2; // leave space for the first annotation line
 
         // rect around the image
         const m = 3;
@@ -208,7 +210,6 @@ export class Drawing implements IPlanSvgDrawing {
                         startY: annotation.startPoint.pixelCoordinate._y,
                         endX: annotation.endPoint.pixelCoordinate._x,
                         endY: annotation.endPoint.pixelCoordinate._y,
-                        textOffset: new Vector3(0, 0, 0),
                         textContent: annotation.annotation.label ?? annotation.realLength.toFixed(0),
                         lineProperties: { ...thickLineStyle, ...arrowLineStyle },
                         textProperties: { ...textStyle, flipIfUpsideDown: true },
@@ -230,24 +231,24 @@ export class Drawing implements IPlanSvgDrawing {
                 annotationsParent: annotationsRoot,
                 layerName: layer,
                 annotations: horizontalAnnotations,
-                lineStart: new Vector3(0, this._renderResult.imageHeight + annotationSpacing, 0),
+                lineStart: new Vector3(0, this._renderResult.imageHeight + marginDown, 0),
                 lineDirection: new Vector3(1, 0, 0),
                 lineNormalDirection: new Vector3(0, 1, 0),
                 lineSpacing: annotationSpacing
             });
-            marginDown += (horizontalAnnotationsResult.countOfLines + 1) * annotationSpacing;
+            marginDown += (horizontalAnnotationsResult.countOfLines) * annotationSpacing;
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
             const verticalAnnotationsResult = drawAnnotationsWithAnnotationLines({
                 annotationsParent: annotationsRoot,
                 layerName: layer,
                 annotations: verticalAnnotations,
-                lineStart: new Vector3(this._renderResult.imageWidth + annotationSpacing, 0, 0),
+                lineStart: new Vector3(this._renderResult.imageWidth + marginRight, 0, 0),
                 lineDirection: new Vector3(0, 1, 0),
                 lineNormalDirection: new Vector3(1, 0, 0),
                 lineSpacing: annotationSpacing
             });
-            marginRight += (verticalAnnotationsResult.countOfLines + 1) * annotationSpacing;
+            marginRight += (verticalAnnotationsResult.countOfLines) * annotationSpacing;
 
         });
 
@@ -361,7 +362,6 @@ export class Drawing implements IPlanSvgDrawing {
                             startY: segmentStart._y,
                             endX: segmentEnd._x,
                             endY: segmentEnd._y,
-                            textOffset: normal.clone().multiply(0),
                             textContent: realLength.toFixed(0),
                             lineProperties: {
                                 ...thinLineStyle,

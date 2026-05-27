@@ -296,7 +296,7 @@ export function createSvgPathElement({
 }): SVGPathElement {
     const pathElement = createSvgElement("path") as SVGPathElement;
     pathElement.setAttribute("d", d);
-    applySvgProperties(pathElement, properties);
+    applySvgProperties(pathElement, properties, { excludedKeys: ["tags"] });
     parent.appendChild(pathElement);
     return pathElement;
 }
@@ -411,7 +411,7 @@ export function createSvgLineElementWithText(
         startY,
         endX,
         endY,
-        textOffset,
+        textOffset = { _x: 0, _y: 0 },
         textContent,
         lineProperties,
         textProperties,
@@ -421,7 +421,7 @@ export function createSvgLineElementWithText(
         startY: number,
         endX: number,
         endY: number,
-        textOffset: { _x: number, _y: number },
+            textOffset?: { _x: number, _y: number },
         textContent: string,
         lineProperties: SVGLineProperties | SVGPathProperties,
         textProperties: SVGTextProperties,
@@ -429,10 +429,24 @@ export function createSvgLineElementWithText(
 ): { line: SVGLineElement | SVGPathElement, text: SVGTextElement } {
     const line = createSvgLineElement({ parent, startX, startY, endX, endY, properties: lineProperties });
     const angle = Math.atan2(endY - startY, endX - startX) * 180 / Math.PI; // Angle in degrees
+    const lineAngle = (angle + 360) % 360;
+    const textUpsideDown = !!textProperties.flipIfUpsideDown && (lineAngle > 45 && lineAngle < 225);
+    const effectiveTextAngle = textUpsideDown ? lineAngle + 180 : lineAngle;
+    const effectiveTextAngleRad = effectiveTextAngle * Math.PI / 180;
+
+    // Build a local frame aligned with displayed text orientation.
+    // +x is along the annotation line and +y is above the line.
+    const alongX = Math.cos(effectiveTextAngleRad);
+    const alongY = Math.sin(effectiveTextAngleRad);
+    const aboveX = Math.sin(effectiveTextAngleRad);
+    const aboveY = -Math.cos(effectiveTextAngleRad);
+
+    const offsetX = textOffset._x * alongX + textOffset._y * aboveX;
+    const offsetY = textOffset._x * alongY + textOffset._y * aboveY;
     const text = createSvgTextElement({
         parent,
-        x: (startX + endX) / 2 + textOffset._x,
-        y: (startY + endY) / 2 + textOffset._y,
+        x: (startX + endX) / 2 + offsetX,
+        y: (startY + endY) / 2 + offsetY,
         textContent,
         properties: { ...textProperties, rotationAngle: angle },
     });

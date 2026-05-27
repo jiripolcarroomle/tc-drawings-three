@@ -1,4 +1,4 @@
-import { filterAnnotationForModule, type I_tab_Annotation } from "./annotationstable";
+import { filterAnnotationForModule, type I_tab_Annotation } from "./drawingapi/utils/annotationstable";
 import { Drawing } from "./drawingapi/implementation/drawing";
 import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawingapi/interfaces/drawing";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingapi/interfaces/orderdrawingrenderer";
@@ -9,7 +9,11 @@ import { Object3DNodeKind, type IOrderSceneNode } from "./drawingapi/interfaces/
 import { Vector3 } from "./tc/base";
 import { filterNodesCloseToWall } from "./drawingapi/implementation/scene-wall";
 
-export async function appOrderFunction(o: any, ol: any) {
+function createFileEntry(result: Map<string, any>, fileName: string, content: string, mimeType: string) {
+    result.set(fileName, { content, mimeType });
+}
+
+export async function appOrderFunction(o: any, ol: any, result: Map<string, any>): Promise<void> {
 
     const orthoCameraRenderResults: IRenderOrthoCameraResult[] = [];
 
@@ -19,16 +23,14 @@ export async function appOrderFunction(o: any, ol: any) {
     // =================
     // 1. settings and preparations 
     // =================
-    const drawingSettings: ISceneGeometryConversionToThreeJsSettings = {
+    const sceneSettings: ISceneGeometryConversionToThreeJsSettings = {
         material: { color: 0xcccccc, },
         wireframeMaterial: { color: 0x000000, },
         wallsMaterial: {
             color: 0x555500,
             transparent: true, opacity: 0.1,
-
         },
         wallsWireframeMaterial: { color: 0x000000, },
-        // will not fetch meshes and will render bounding boxes of the meshes instead
         doNotFetchMeshes: true,
         // three.js renderer property - angle in degrees between adjacent faces above which an edge will be rendered
         edgesGeometryThresholdAngle: 10,
@@ -62,6 +64,7 @@ export async function appOrderFunction(o: any, ol: any) {
                 [
                     'part_door',
                     'part_drawer_',
+                    'part_fliplift',
                     'part_handle',
                     'part_hinge',
                 ].some(x => node.id.toLowerCase().includes(x))
@@ -90,7 +93,7 @@ export async function appOrderFunction(o: any, ol: any) {
         .flatMap(group => group.children) // module + part candidates
         .filter(node => node.kind === Object3DNodeKind.Module);
 
-    const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry?._isGenerated);
+    const generationModules = allModuleNodesIncludingGenerationModules.filter(moduleNode => moduleNode.orderLineEntry!['_isGenerated']);
 
     const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
 
@@ -112,7 +115,7 @@ export async function appOrderFunction(o: any, ol: any) {
     // 2. collect relevant renderings
     // =================
 
-    const topView = await renderScene(orderScene, (node) => { void node; return true; }, drawingSettings, { ...orthoCameraRenderSettings, direction: undefined });
+    const topView = await renderScene(orderScene, (node) => { void node; return true; }, sceneSettings, { name: 'topview', ...orthoCameraRenderSettings, direction: undefined });
     orthoCameraRenderResults.push(topView);
 
     for (const wallAndSide of allWallSides) {
@@ -165,10 +168,10 @@ export async function appOrderFunction(o: any, ol: any) {
 
         const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.clone().multiply(-1);
 
-        const result = await renderScene(orderScene, renderingFilter, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
+        const result = await renderScene(orderScene, renderingFilter, sceneSettings, { name: `${wall.id}-${side}-elevation`, ...orthoCameraRenderSettings, direction: cameraDirection });
         orthoCameraRenderResults.push(result);
 
-        const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, drawingSettings, { ...orthoCameraRenderSettings, direction: cameraDirection });
+        const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, sceneSettings, { name: `${wall.id}-${side}-elevation-without-fronts`, ...orthoCameraRenderSettings, direction: cameraDirection });
         orthoCameraRenderResults.push(resultWithoutFronts);
 
     }
@@ -177,7 +180,7 @@ export async function appOrderFunction(o: any, ol: any) {
     // 3. make drawings from the renderings
     // =================
 
-    const svgs: SVGElement[] = [];
+    const imageFileNames: string[] = [];
 
     orthoCameraRenderResults.forEach((renderResult, index) => {
         const drawing = new Drawing(renderResult, { drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation });
@@ -206,16 +209,29 @@ export async function appOrderFunction(o: any, ol: any) {
             const moduleData = moduleNode.orderLineEntry;
             const nodeMatrix = moduleNode.worldTransform;
             if (!moduleData) { return; }
-            const id = moduleData!.modId;
+            const id = moduleData!['modId'];
             if (!id) { return; }
             const annotations = filterAnnotationForModule(id, moduleData, drawing);
             if (annotations.length > 0) {
                 annotations.forEach((annotation: I_tab_Annotation) => {
+                    const drawingWithoutFronts = renderResult.renderParameters?.name?.includes('elevation-without-fronts');
                     annotation.out_SvgPathOverlays?.(moduleData, drawing)?.forEach((injection: SvgPathInjectionData) => {
-                        drawing.addOverlay(nodeMatrix, injection);
+                        const tags = injection.tags ?? [];
+                        if (
+                            (drawingWithoutFronts && tags.includes('inside'))
+                            || (!drawingWithoutFronts && !tags.includes('inside'))
+                        ) {
+                            drawing.addOverlay(nodeMatrix, injection);
+                        }
                     });
                     annotation.out_Annotations?.(moduleData, drawing)?.forEach((annotation: Annotation) => {
-                        drawing.addAnnotation(nodeMatrix, annotation);
+                        const tags = annotation.tags ?? [];
+                        if (
+                            (drawingWithoutFronts && tags.includes('inside'))
+                            || (!drawingWithoutFronts && !tags.includes('inside'))
+                        ) {
+                            drawing.addAnnotation(nodeMatrix, annotation);
+                        }
                     });
                     annotation.out_AnnotablePoints?.(moduleData, drawing)?.forEach((point: AnnotablePoint) => {
                         drawing.addAnnotablePoint(nodeMatrix, { coordinate: point.coordinate });
@@ -226,10 +242,26 @@ export async function appOrderFunction(o: any, ol: any) {
         });
 
         const svg = drawing.render();
-        svgs.push(svg);
+
+        const fileName = (renderResult.renderParameters?.name ?? `drawing-${index}`) + '.svg';
+        imageFileNames.push(fileName);
+        createFileEntry(result, fileName, new XMLSerializer().serializeToString(svg), "image/svg+xml");
     });
 
+    let htmlResult = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Drawings</title>
+        </head>
+        <body>
+          ${imageFileNames.map((fileName) => {
+        return `<div><h2>${fileName}</h2><img src="${fileName}"></div>`;
+    }).join('\n')}
+        </body>
+        </html>`;
+    createFileEntry(result, "Drawings.html", htmlResult, "text/html");
 
-
-    return svgs;
 }

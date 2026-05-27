@@ -20,6 +20,7 @@ const orderJson = parseFlattedWithNestedPropertyValues<{ o: unknown; ol: unknown
 
 // get the html document
 const document = window.document;
+const result: Map<string, any> = new Map();
 
 run();
 
@@ -34,15 +35,22 @@ run();
 
 
 async function run() {
-  const orderCallResults = await appOrderFunction(orderJson.o, orderJson.ol);
+  await appOrderFunction(orderJson.o, orderJson.ol, result);
   const appRoot = document.querySelector<HTMLElement>('#app') ?? document.body;
 
-  orderCallResults.forEach(svg => {
 
-    addSvgToDocument(appRoot, svg);
+  Array.from(result.keys()).forEach((key) => {
+    const { content, mimeType } = result.get(key)!;
+    if (mimeType === 'image/svg+xml') {
+      const parser = new DOMParser();
+      const svgDoc = parser.parseFromString(content, 'image/svg+xml');
+      const svgElement = svgDoc.documentElement;
+      addSvgToDocument(appRoot, svgElement);
+    }
 
   });
 }
+
 
 function addSvgToDocument(target: HTMLElement, svg: any) {
 

@@ -235,6 +235,12 @@ export class OrderSceneNode implements IOrderSceneNode {
             orderData.bomEntries?.forEach((bomEntry: any) => {
                 OrderSceneNode.createScenePartNodeFromPartBase(bomEntry, posGroupNode);
             });
+            //
+            // WARNING
+            //
+            // THIS HAS TO BE IN tc-drawaings-three
+            // THUS MUST NOT BE IN cabinetlibrary_drawings
+            //
             const moduleOrderEntry = mergeModuleOrderEntryWithAttributes(orderData.orderItem, item.orderInput?.attributes);
             OrderSceneNode.createSceneModuleNodeFromOD_Base(moduleOrderEntry, posGroupNode);
         });
