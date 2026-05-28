@@ -29,16 +29,21 @@ export const tab_Annotations: I_tab_Annotation[] = [
             const countertopThk = m.mod_CreateCountertop ? (m.mod_CountertopThk ?? 0) : 0;
             const result = [];
 
+            console.log(m.mod_TypeElement);
+            const layerName = ['WallUnit'].includes(m.mod_TypeElement) ? `wallunit-dimension-horizontal` : 'carcase-dimension-horizontal';
+
             result.push({
                 start: new Vector3(0, 0, 0),
                 end: new Vector3(m.mod_Width, 0, 0),
-                layer: 'carcase-dimension-horizontal',
+                layer: layerName,
                 tags: ['overall', 'carcase'],
             });
             result.push({
                 start: new Vector3(0, 0, 0),
                 end: new Vector3(0, 0, m.mod_Depth),
-                layer: 'carcase-dimension-horizontal',
+                layer: layerName,
+                displayAtPosition: true,
+
                 tags: ['overall', 'carcase'],
             });
 
@@ -83,32 +88,32 @@ export const tab_Annotations: I_tab_Annotation[] = [
         in_Condition: (_m: any) => true,
     },
 
-    {
-        in_ModuleId: 'mc_Backsplash',
-        in_Condition: (_m: any) => { return true; },
-        out_Annotations: (m: any, _drawingData: IPlanSvgDrawing) => {
-            return [
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(0, m.mod_BacksplashHeight, 0),
-                    layer: 'carcase-dimension-elevation',
-                    tags: ['overall', 'carcase'],
-                },
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(0, 0, m.mod_BacksplashThk),
-                    layer: 'accessory-dimension-horizontal',
-                    tags: ['overall', 'carcase'],
-                },
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(m.mod_BacksplashWidth, 0, 0),
-                    layer: 'accessory-dimension-horizontal',
-                    tags: ['overall', 'carcase'],
-                }
-            ];
-        }
-    },
+    // {
+    //     in_ModuleId: 'mc_Backsplash',
+    //     in_Condition: (_m: any) => { return true; },
+    //     out_Annotations: (m: any, _drawingData: IPlanSvgDrawing) => {
+    //         return [
+    //             {
+    //                 start: new Vector3(0, 0, 0),
+    //                 end: new Vector3(0, m.mod_BacksplashHeight, 0),
+    //                 layer: 'carcase-dimension-elevation',
+    //                 tags: ['overall', 'carcase'],
+    //             },
+    //             {
+    //                 start: new Vector3(0, 0, 0),
+    //                 end: new Vector3(0, 0, m.mod_BacksplashThk),
+    //                 layer: 'accessory-dimension-horizontal',
+    //                 tags: ['overall', 'carcase'],
+    //             },
+    //             {
+    //                 start: new Vector3(0, 0, 0),
+    //                 end: new Vector3(m.mod_BacksplashWidth, 0, 0),
+    //                 layer: 'accessory-dimension-horizontal',
+    //                 tags: ['overall', 'carcase'],
+    //             }
+    //         ];
+    //     }
+    // },
 
     {
         in_ModuleId: 'mc_Storageunit01',

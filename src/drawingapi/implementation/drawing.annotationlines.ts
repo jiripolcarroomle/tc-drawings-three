@@ -241,6 +241,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
             const { min, max } = this.getMinMax();
             const lineStart = offsetPixels.clone().add(direction.clone().multiply(min));
             const lineEnd = offsetPixels.clone().add(direction.clone().multiply(max));
+            const annotationLayer = this.usedIntervals[0].annotations[0].annotation.layer ?? 'unknown-layer';
             // helper line
             SVGHelper.createSvgLineElement({
                 parent,
@@ -249,6 +250,22 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 endX: lineEnd._x,
                 endY: lineEnd._y,
                 properties: SVGHelper.thinLineStyle,
+            });
+            const azimuth = Math.atan2(direction._y, direction._x) * 180 / Math.PI;
+            // layer name
+            SVGHelper.createSvgTextElement({
+                parent,
+                x: 0,
+                y: 0,
+                textContent: `${annotationLayer} (${this.usedIntervals.length})`,
+                properties: {
+                    ...SVGHelper.textStyle,
+                    // align left
+                    textAnchor: 'start',
+                    fill: 'green',
+                    transform: `translate(${lineStart._x + 5}, ${lineStart._y + 15}) rotate(${-azimuth}) `,
+                },
+
             });
 
             this.usedIntervals.forEach(interval => {
@@ -335,23 +352,29 @@ export function drawAnnotationsWithAnnotationLines(args: {
     const mergedLines = optimalAnnotationLinesMerge(linesWithAnnotations);
     linesWithAnnotations.splice(0, linesWithAnnotations.length, ...mergedLines);
 
-    const pushBehindCurrent = true;
-    // add sums of continuous intervals to the lines    
-    let arrayEnd = linesWithAnnotations.length;
-    for (let i = 0; i < arrayEnd; i++) {
-        const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
-        if (copyWithSummedIntervals) {
-            if (pushBehindCurrent) {
-                // push it behind the current line
-                linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
-                i++; // skip the copy in the next iteration
-                arrayEnd++; // adjust the end of the array because we added a new line
-            }
-            else {
-                linesWithAnnotations.push(copyWithSummedIntervals);
-            }
-        }
-    }
+    // Sort them ... the ones that are shorter go first
+    linesWithAnnotations.sort((a, b) => {
+        const sumOfLengths = (line: LineWithAnnotations) => line.usedIntervals.reduce((sum, interval) => sum + interval.realLength, 0);
+        return sumOfLengths(a) - sumOfLengths(b);
+    });
+
+    // const pushBehindCurrent = true;
+    // add sums of continuous intervals to the lines
+    // let arrayEnd = linesWithAnnotations.length;
+    // for (let i = 0; i < arrayEnd; i++) {
+    //     const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
+    //     if (copyWithSummedIntervals) {
+    //         if (pushBehindCurrent) {
+    //             // push it behind the current line
+    //             linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
+    //             i++; // skip the copy in the next iteration
+    //             arrayEnd++; // adjust the end of the array because we added a new line
+    //         }
+    //         else {
+    //             linesWithAnnotations.push(copyWithSummedIntervals);
+    //         }
+    //     }
+    // }
 
 
     // OPTIONAL: merge them again, because the summed intervals can free up some space on the annotation lines
