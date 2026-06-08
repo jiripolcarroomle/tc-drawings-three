@@ -193,6 +193,8 @@ export class Drawing implements IPlanSvgDrawing {
             annotationLayers.get(layer)!.push(annotation);
         }
 
+        const directPositionAnnotations: AnnotationTransformed[] = [];
+
         const allLayers = Array.from(annotationLayers.keys()).sort();
         allLayers.forEach(layer => {
             const annotationsInLayer = annotationLayers.get(layer)!;
@@ -202,27 +204,15 @@ export class Drawing implements IPlanSvgDrawing {
             annotationsInLayer.forEach((annotation) => {
                 // calculate the azimuth, it only make sense to show the annotation on the aggregate lines if the annotation is rectangular to the drawing view
                 const azimuth = Math.round(Math.atan2(annotation.endPoint.cameraSpaceCoordinate._y - annotation.startPoint.cameraSpaceCoordinate._y, annotation.endPoint.cameraSpaceCoordinate._x - annotation.startPoint.cameraSpaceCoordinate._x) * 180 / Math.PI);
-                const isRightAngle = [-180, -90, 0, 90, 180].indexOf(azimuth) >= 0; // you can adjust the angles that are considered right angles as needed
-                if (!isRightAngle || annotation.annotation.displayAtPosition) {
-                    SVGHelper.createSvgLineElementWithText({
-                        parent: annotationsRoot,
-                        startX: annotation.startPoint.pixelCoordinate._x,
-                        startY: annotation.startPoint.pixelCoordinate._y,
-                        endX: annotation.endPoint.pixelCoordinate._x,
-                        endY: annotation.endPoint.pixelCoordinate._y,
-                        textContent: annotation.annotation.label ?? annotation.realLength.toFixed(0),
-                        lineProperties: { ...thickLineStyle, ...arrowLineStyle },
-                        textProperties: { ...textStyle, flipIfUpsideDown: true },
-                    });
+                const isVertical = Math.abs(azimuth) === 90 || Math.abs(azimuth) === -90;
+                const isHorizontal = Math.abs(azimuth) === 0 || Math.abs(azimuth) === 180 || Math.abs(azimuth) === -180;
+                if (isVertical && !annotation.annotation.displayAtPosition) {
+                    verticalAnnotations.push(annotation);
+                } else if (isHorizontal && !annotation.annotation.displayAtPosition) {
+                    horizontalAnnotations.push(annotation);
                 }
                 else {
-                    const isVertical = Math.abs(azimuth) === 90;
-                    const isHorizontal = Math.abs(azimuth) === 0 || Math.abs(azimuth) === 180;
-                    if (isVertical) {
-                        verticalAnnotations.push(annotation);
-                    } else if (isHorizontal) {
-                        horizontalAnnotations.push(annotation);
-                    }
+                    directPositionAnnotations.push(annotation);
                 }
             });
 
@@ -237,6 +227,9 @@ export class Drawing implements IPlanSvgDrawing {
                 lineSpacing: annotationSpacing
             });
             marginDown += (horizontalAnnotationsResult.countOfLines) * annotationSpacing;
+            horizontalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
+                directPositionAnnotations.push(annotation);
+            });
 
             // drawAnnotationsWithAnnotationLines(annotationsRoot, layer, verticalAnnotations, new Vector3(0, 0, 0), new Vector3(0, 1, 0), new Vector3(-1, 0, 0));
             const verticalAnnotationsResult = drawAnnotationsWithAnnotationLines({
@@ -249,7 +242,22 @@ export class Drawing implements IPlanSvgDrawing {
                 lineSpacing: annotationSpacing
             });
             marginRight += (verticalAnnotationsResult.countOfLines) * annotationSpacing;
+            verticalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
+                directPositionAnnotations.push(annotation);
+            });
+        });
 
+        directPositionAnnotations.forEach(annotation => {
+            SVGHelper.createSvgLineElementWithText({
+                parent: annotationsRoot,
+                startX: annotation.startPoint.pixelCoordinate._x,
+                startY: annotation.startPoint.pixelCoordinate._y,
+                endX: annotation.endPoint.pixelCoordinate._x,
+                endY: annotation.endPoint.pixelCoordinate._y,
+                textContent: annotation.annotation.label ?? annotation.realLength.toFixed(0),
+                lineProperties: { ...thickLineStyle, ...arrowLineStyle },
+                textProperties: { ...textStyle, flipIfUpsideDown: true },
+            });
         });
 
 
@@ -409,6 +417,9 @@ export class Drawing implements IPlanSvgDrawing {
         }).forEach(node => sortedAnnotationsRoot.appendChild(node));
 
         svgRoot.appendChild(sortedAnnotationsRoot);
+
+        marginDown += 100;
+        marginRight += 100;
 
 
         svgRoot.setAttribute("viewBox", `${-marginLeft} ${-marginUp} ${this.sceneRender.imageWidth + marginLeft + marginRight} ${this.sceneRender.imageHeight + marginDown + marginUp}`); // Default, or you can use actual image size if available

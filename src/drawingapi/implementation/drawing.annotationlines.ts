@@ -245,19 +245,19 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 properties: SVGHelper.thinLineStyle,
             });
             if (debugLabel) {
-            const azimuth = Math.atan2(direction._y, direction._x) * 180 / Math.PI;
-            SVGHelper.createSvgTextElement({
-                parent,
-                x: 0,
+                const azimuth = Math.atan2(direction._y, direction._x) * 180 / Math.PI;
+                SVGHelper.createSvgTextElement({
+                    parent,
+                    x: 0,
                     y: 15,
                     textContent: `${debugLabel}`,
-                properties: {
-                    ...SVGHelper.textStyle,
+                    properties: {
+                        ...SVGHelper.textStyle,
                     // align left
-                    fill: 'green',
+                        fill: 'green',
                         transform: `translate(${(lineStart._x + lineEnd._x) / 2}, ${(lineStart._y + lineEnd._y) / 2}) rotate(${-azimuth}) `,
-                },
-            });
+                    },
+                });
             }
             this.usedIntervals.forEach(interval => {
                 const selectAnnotationForIntervalEdge = (
@@ -335,6 +335,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     // more importantly, this step ensures that annotation of object that are close to each other
     // will have much higher probability to share one annotation line, which makes the final result more clear and less cluttered
     const linesWithAnnotations: LineWithAnnotations[] = [];
+    const annotationsAtPosition: AnnotationTransformedToDirection[] = [];
     for (const annotation of sortedAnnotations) {
         LineWithAnnotations.AddAnnotationToLines(annotation, linesWithAnnotations);
     }
@@ -342,6 +343,56 @@ export function drawAnnotationsWithAnnotationLines(args: {
     // Apply optimal merging to minimize the number of final annotation lines
     const mergedLines = optimalAnnotationLinesMerge(linesWithAnnotations);
     linesWithAnnotations.splice(0, linesWithAnnotations.length, ...mergedLines);
+
+    /**
+     * If an annotation line only has loose annotation intervals, with just a single annotation per interval, 
+     * we can let such annotations to be drawn at the position of the annotated object instead of along the 
+     * annotation line. This will make the annotation more clear and easier to read, because it will be closer 
+     * to the annotated object and we can avoid long thin annotation lines with just one annotation on them.
+     * @param linesWithAnnotations the array where all the annotations lines are stored; the disqualified members will be removerd from it
+     * @param annotationsAtPosition the array where the disqualified annotations will be moved to, so they can be drawn at position
+     */
+    function disqualifyLooseAnnotationsFromAnnotationLines(linesWithAnnotations: LineWithAnnotations[], annotationsAtPosition: AnnotationTransformedToDirection[]) {
+        // if all the intervals from a line are disqualified, remove such line - store the indices of such lines
+        const annotationsWithLinesToDestroyIndices: number[] = [];
+        for (let i = 0; i < linesWithAnnotations.length; i++) {
+            const line = linesWithAnnotations[i];
+            // 1. assume that intervals on the line all are loose and will be disqualified
+            // 2. loop through them and if they are not loose, remove them from the disqualification list
+            const intervalsToDestroy: number[] = line.usedIntervals.map((_i, index) => index);
+            for (let j = 1; j < line.usedIntervals.length; j++) {
+                const first = line.usedIntervals[j - 1];
+                const second = line.usedIntervals[j];
+                const secondContinuesFirst = Math.round(second.start) === Math.round(first.end);
+                if (secondContinuesFirst) {
+                    // remove j-1 and j from the intervals to destroy, because they are not loose
+                    if (intervalsToDestroy.includes(j - 1)) {
+                        intervalsToDestroy.splice(intervalsToDestroy.indexOf(j - 1), 1);
+                    }
+                    if (intervalsToDestroy.includes(j)) {
+                        intervalsToDestroy.splice(intervalsToDestroy.indexOf(j), 1);
+                    }
+                }
+            }
+            // the remaining intervals to destroy are loose, we can move their annotations to be drawn at position
+            intervalsToDestroy.sort((a, b) => b - a);
+            for (const index of intervalsToDestroy) {
+                const interval = line.usedIntervals[index];
+                annotationsAtPosition.push(interval.annotations[0]);
+                line.usedIntervals.splice(index, 1);
+            }
+            if (line.usedIntervals.length === 0) {
+                // no intervals on the annotation line -> remove the line
+                annotationsWithLinesToDestroyIndices.push(i);
+            }
+        }
+        annotationsWithLinesToDestroyIndices.sort((a, b) => b - a);
+        for (const index of annotationsWithLinesToDestroyIndices) {
+            linesWithAnnotations.splice(index, 1);
+        }
+    };
+
+    disqualifyLooseAnnotationsFromAnnotationLines(linesWithAnnotations, annotationsAtPosition);
 
     // Sort them ... the ones that are shorter go first
     linesWithAnnotations.sort((a, b) => {
@@ -352,7 +403,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
 
     if (minIntervalsForSummedAnnotationLine > 1) {
         const pushBehindCurrent = true;
-    // add sums of continuous intervals to the lines
+        // add sums of continuous intervals to the lines
         let arrayEnd = linesWithAnnotations.length;
         for (let i = 0; i < arrayEnd; i++) {
             const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
@@ -395,6 +446,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
         secondaryAnnotationLines: secondaryAnnotationLines,
         countOfLines: linesWithAnnotations.length,
         secondaryCountOfLines: secondaryAnnotationLines.length,
+        annotationsAtPosition: annotationsAtPosition,
     };
 
-}
+
