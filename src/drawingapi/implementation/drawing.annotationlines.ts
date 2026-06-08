@@ -231,11 +231,10 @@ export function drawAnnotationsWithAnnotationLines(args: {
             }
             return copy;
         }
-        toSvg(parent: SVGGElement, offsetPixels: Vector3, direction: Vector3): void {
+        toSvg(parent: SVGGElement, offsetPixels: Vector3, direction: Vector3, debugLabel: string | undefined = undefined): void {
             const { min, max } = this.getMinMax();
             const lineStart = offsetPixels.clone().add(direction.clone().multiply(min));
             const lineEnd = offsetPixels.clone().add(direction.clone().multiply(max));
-            const annotationLayer = this.usedIntervals[0].annotations[0].annotation.layer ?? 'unknown-layer';
             // helper line
             SVGHelper.createSvgLineElement({
                 parent,
@@ -245,22 +244,21 @@ export function drawAnnotationsWithAnnotationLines(args: {
                 endY: lineEnd._y,
                 properties: SVGHelper.thinLineStyle,
             });
+            if (debugLabel) {
             const azimuth = Math.atan2(direction._y, direction._x) * 180 / Math.PI;
-            // layer name
             SVGHelper.createSvgTextElement({
                 parent,
                 x: 0,
-                y: 0,
-                textContent: `${annotationLayer} (${this.usedIntervals.length})`,
+                    y: 15,
+                    textContent: `${debugLabel}`,
                 properties: {
                     ...SVGHelper.textStyle,
                     // align left
-                    textAnchor: 'start',
                     fill: 'green',
-                    transform: `translate(${lineStart._x + 5}, ${lineStart._y + 15}) rotate(${-azimuth}) `,
+                        transform: `translate(${(lineStart._x + lineEnd._x) / 2}, ${(lineStart._y + lineEnd._y) / 2}) rotate(${-azimuth}) `,
                 },
             });
-
+            }
             this.usedIntervals.forEach(interval => {
                 const selectAnnotationForIntervalEdge = (
                     edgeCoordinate: number,
@@ -386,7 +384,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     linesWithAnnotations.forEach((line, finalIndex) => {
         // line.print();
         const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
-        line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection);
+        line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection, layerName);
     });
 
     const secondaryAnnotationLines = linesWithAnnotations.map(line => { return line });
