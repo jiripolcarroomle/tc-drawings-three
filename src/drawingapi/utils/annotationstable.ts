@@ -38,8 +38,8 @@ export const tab_Annotations: I_tab_Annotation[] = [
                 tags: ['overall', 'carcase'],
             });
             result.push({
-                start: new Vector3(0, 0, 0),
-                end: new Vector3(0, 0, m.mod_Depth),
+                start: new Vector3(0, plinthAreaHeight, 0),
+                end: new Vector3(0, plinthAreaHeight, m.mod_Depth),
                 layer: layerName,
                 tags: ['overall', 'carcase'],
             });
@@ -177,13 +177,15 @@ export const tab_Annotations: I_tab_Annotation[] = [
             );
         }, // apply to all modules with the specified ID
         out_SvgPathOverlays: (m: any) => {
+            // dashed line around the module if it is covered with a countertop
+            const yPosition = m.mod_Height + (m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? (m.mod_PlinthAreaHeight ?? 0) : 0);
             return [
                 {
                     d: [
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, 0, m.mod_Depth) },
-                        { command: 'L', coordinate3d: new Vector3(0, 0, m.mod_Depth) },
+                        { command: 'M', coordinate3d: new Vector3(0, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, yPosition, m.mod_Depth) },
+                        { command: 'L', coordinate3d: new Vector3(0, yPosition, m.mod_Depth) },
                         { command: 'Z' }
                     ],
                     fill: 'none',
@@ -202,19 +204,20 @@ export const tab_Annotations: I_tab_Annotation[] = [
         in_ModuleId: 'mr_StorageunitSingle',
         in_Condition: (m: any) => { return m._articlePos.y > 100 /** todo: base on mod_ElementType */ },
         out_SvgPathOverlays: (m: any) => {
+            const yPosition = m.mod_Height + (m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? (m.mod_PlinthAreaHeight ?? 0) : 0);
             return [
                 {
                     d: [
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, 0, m.mod_Depth) },
-                        { command: 'L', coordinate3d: new Vector3(0, 0, m.mod_Depth) },
+                        { command: 'M', coordinate3d: new Vector3(0, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, yPosition, m.mod_Depth) },
+                        { command: 'L', coordinate3d: new Vector3(0, yPosition, m.mod_Depth) },
                         { command: 'Z' },
-                        { command: 'M', coordinate3d: new Vector3(0, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, 0, m.mod_Depth) },
+                        { command: 'M', coordinate3d: new Vector3(0, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(m.mod_Width, yPosition, m.mod_Depth) },
                         { command: 'Z' },
-                        { command: 'M', coordinate3d: new Vector3(m.mod_Width, 0, 0) },
-                        { command: 'L', coordinate3d: new Vector3(0, 0, m.mod_Depth) },
+                        { command: 'M', coordinate3d: new Vector3(m.mod_Width, yPosition, 0) },
+                        { command: 'L', coordinate3d: new Vector3(0, yPosition, m.mod_Depth) },
                         { command: 'Z' },
                     ],
                     stroke: '#000000',
