@@ -38,7 +38,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     lineNormalDirection: Vector3,
     lineSpacing: number,
     minIntervalsForSummedAnnotationLine?: number,
-}): { countOfLines: number } {
+}) {
     const {
         annotationsParent,
         layerName,
@@ -47,14 +47,8 @@ export function drawAnnotationsWithAnnotationLines(args: {
         lineDirection,
         lineNormalDirection,
         lineSpacing = 50,
-        minIntervalsForSummedAnnotationLine = 3,
+        minIntervalsForSummedAnnotationLine = -1,
     } = args;
-    console.warn(`--- ${layerName} ---`);
-    void layerName;
-    // sort the annotations by:
-    // 1. distance from the line
-    // 2. depth in view
-    // 3. distance along the line (and swap start and end if the annotation is "backwards")
 
     const sortedAnnotations: AnnotationTransformedToDirection[] = annotations
         .map(annotation => {
@@ -265,7 +259,6 @@ export function drawAnnotationsWithAnnotationLines(args: {
                     fill: 'green',
                     transform: `translate(${lineStart._x + 5}, ${lineStart._y + 15}) rotate(${-azimuth}) `,
                 },
-
             });
 
             this.usedIntervals.forEach(interval => {
@@ -358,23 +351,26 @@ export function drawAnnotationsWithAnnotationLines(args: {
         return sumOfLengths(a) - sumOfLengths(b);
     });
 
-    // const pushBehindCurrent = true;
+
+    if (minIntervalsForSummedAnnotationLine > 1) {
+        const pushBehindCurrent = true;
     // add sums of continuous intervals to the lines
-    // let arrayEnd = linesWithAnnotations.length;
-    // for (let i = 0; i < arrayEnd; i++) {
-    //     const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
-    //     if (copyWithSummedIntervals) {
-    //         if (pushBehindCurrent) {
-    //             // push it behind the current line
-    //             linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
-    //             i++; // skip the copy in the next iteration
-    //             arrayEnd++; // adjust the end of the array because we added a new line
-    //         }
-    //         else {
-    //             linesWithAnnotations.push(copyWithSummedIntervals);
-    //         }
-    //     }
-    // }
+        let arrayEnd = linesWithAnnotations.length;
+        for (let i = 0; i < arrayEnd; i++) {
+            const copyWithSummedIntervals = linesWithAnnotations[i].makeCopyWithSumedIntervals(minIntervalsForSummedAnnotationLine);
+            if (copyWithSummedIntervals) {
+                if (pushBehindCurrent) {
+                    // push it behind the current line
+                    linesWithAnnotations.splice(i + 1, 0, copyWithSummedIntervals);
+                    i++; // skip the copy in the next iteration
+                    arrayEnd++; // adjust the end of the array because we added a new line
+                }
+                else {
+                    linesWithAnnotations.push(copyWithSummedIntervals);
+                }
+            }
+        }
+    }
 
 
     // OPTIONAL: merge them again, because the summed intervals can free up some space on the annotation lines
@@ -388,13 +384,19 @@ export function drawAnnotationsWithAnnotationLines(args: {
     // }
 
     linesWithAnnotations.forEach((line, finalIndex) => {
-        line.print();
+        // line.print();
         const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
         line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection);
     });
 
-    return { countOfLines: linesWithAnnotations.length };
+    const secondaryAnnotationLines = linesWithAnnotations.map(line => { return line });
 
-
+    return {
+        layerName: layerName,
+        annotationLines: linesWithAnnotations,
+        secondaryAnnotationLines: secondaryAnnotationLines,
+        countOfLines: linesWithAnnotations.length,
+        secondaryCountOfLines: secondaryAnnotationLines.length,
+    };
 
 }

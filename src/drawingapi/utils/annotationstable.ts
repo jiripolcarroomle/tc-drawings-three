@@ -42,8 +42,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
                 start: new Vector3(0, 0, 0),
                 end: new Vector3(0, 0, m.mod_Depth),
                 layer: layerName,
-                displayAtPosition: true,
-
                 tags: ['overall', 'carcase'],
             });
 
