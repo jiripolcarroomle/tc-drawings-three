@@ -29,7 +29,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
             const countertopThk = m.mod_CreateCountertop ? (m.mod_CountertopThk ?? 0) : 0;
             const result = [];
 
-            console.log(m.mod_TypeElement);
             const layerName = ['WallUnit'].includes(m.mod_TypeElement) ? `wallunit-dimension-horizontal` : 'carcase-dimension-horizontal';
 
             result.push({
