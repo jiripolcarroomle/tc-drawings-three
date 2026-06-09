@@ -114,12 +114,11 @@ export class Drawing implements IPlanSvgDrawing {
         });
         SVGHelper.createSvgDefsForArrowMarkers({ parent: svgRoot, properties: linesArrowMarkerStyle });
 
-        const baseMargin = 10;
-        const annotationSpacing = 50;
+        const baseMargin = 20;
+        const finalMargin = 20;
+        const annotationSpacing = 40;
 
         let marginDown = baseMargin, marginUp = baseMargin, marginLeft = baseMargin, marginRight = baseMargin; // you can adjust margins as needed
-        marginDown += annotationSpacing / 2; // leave space for the first annotation line
-        marginRight += annotationSpacing / 2; // leave space for the first annotation line
 
         // rect around the image
         const m = 3;
@@ -224,9 +223,9 @@ export class Drawing implements IPlanSvgDrawing {
                 lineStart: new Vector3(0, this._renderResult.imageHeight + marginDown, 0),
                 lineDirection: new Vector3(1, 0, 0),
                 lineNormalDirection: new Vector3(0, 1, 0),
-                lineSpacing: annotationSpacing
+                lineSpacing: annotationSpacing,
+                drawingSizeY: this.sceneRender.imageHeight,
             });
-            marginDown += (horizontalAnnotationsResult.countOfLines) * annotationSpacing;
             horizontalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
                 directPositionAnnotations.push(annotation);
             });
@@ -239,11 +238,34 @@ export class Drawing implements IPlanSvgDrawing {
                 lineStart: new Vector3(this._renderResult.imageWidth + marginRight, 0, 0),
                 lineDirection: new Vector3(0, 1, 0),
                 lineNormalDirection: new Vector3(1, 0, 0),
-                lineSpacing: annotationSpacing
+                lineSpacing: annotationSpacing,
+                drawingSizeY: this.sceneRender.imageWidth,
             });
-            marginRight += (verticalAnnotationsResult.countOfLines) * annotationSpacing;
             verticalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
                 directPositionAnnotations.push(annotation);
+            });
+
+            const debugLabel = (line: any) => {
+                return undefined;
+                return `${line.getMergeCriteria().toFixed(0)}`;
+            }
+
+            horizontalAnnotationsResult.annotationLines.forEach(line => {
+                marginDown += annotationSpacing;
+                line.toSvg(annotationsRoot, new Vector3(0, this.sceneRender.imageHeight + marginDown, 0), new Vector3(1, 0, 0), debugLabel(line));
+            });
+            horizontalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
+                line.toSvg(annotationsRoot, new Vector3(0, - marginUp, 0), new Vector3(1, 0, 0), debugLabel(line));
+                marginUp += annotationSpacing;
+            });
+
+            verticalAnnotationsResult.annotationLines.forEach(line => {
+                marginRight += annotationSpacing;
+                line.toSvg(annotationsRoot, new Vector3(this.sceneRender.imageWidth + marginRight, 0, 0), new Vector3(0, 1, 0), debugLabel(line));
+            });
+            verticalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
+                line.toSvg(annotationsRoot, new Vector3(- marginLeft, 0, 0), new Vector3(0, 1, 0), debugLabel(line));
+                marginLeft += annotationSpacing;
             });
         });
 
@@ -418,9 +440,21 @@ export class Drawing implements IPlanSvgDrawing {
 
         svgRoot.appendChild(sortedAnnotationsRoot);
 
-        marginDown += 100;
-        marginRight += 100;
+        marginLeft += finalMargin; // leave space for the first annotation line
+        marginRight += finalMargin; // leave space for the first annotation line
+        marginUp += finalMargin; // leave space for the first annotation line
+        marginDown += finalMargin; // leave space for the first annotation line
 
+
+        // margin around the whole image
+        SVGHelper.createSvgRectElement({
+            parent: svgRoot,
+            x: -marginLeft,
+            y: -marginUp,
+            width: this.sceneRender.imageWidth + marginLeft + marginRight,
+            height: this.sceneRender.imageHeight + marginDown + marginUp,
+            properties: { fill: 'none', stroke: 'blue', strokeWidth: 1 },
+        })
 
         svgRoot.setAttribute("viewBox", `${-marginLeft} ${-marginUp} ${this.sceneRender.imageWidth + marginLeft + marginRight} ${this.sceneRender.imageHeight + marginDown + marginUp}`); // Default, or you can use actual image size if available
         return svgRoot;

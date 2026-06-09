@@ -34,6 +34,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     lineSpacing: number,
     minIntervalsForSummedAnnotationLine?: number,
     disqualifyLooseAnnotations?: boolean,
+    drawingSizeY?: number,
 }) {
     const {
         annotationsParent,
@@ -45,6 +46,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
         lineSpacing = 50,
         minIntervalsForSummedAnnotationLine = -1,
         disqualifyLooseAnnotations = true,
+        drawingSizeY = 2000,
     } = args;
 
     // 1. sort annotations by their distance from the line, then depth in view and then by their position along the line
@@ -121,19 +123,24 @@ export function drawAnnotationsWithAnnotationLines(args: {
         }
     }
 
-    linesWithAnnotations.forEach((line, finalIndex) => {
-        // line.print();
-        const lineStartPoint = lineStart.clone().add(lineNormalDirection.clone().multiply(finalIndex * lineSpacing));
-        line.toSvg(annotationsParent as SVGGElement, lineStartPoint, lineDirection, layerName);
-    });
 
-    const secondaryAnnotationLines = linesWithAnnotations.map(line => { return line });
+    const primaryAnnotationLines: LineWithAnnotations[] = []
+    const secondaryAnnotationLines: LineWithAnnotations[] = [];
+    splitArrayIntoTwo(
+        linesWithAnnotations,
+        (line: LineWithAnnotations) => {
+            const lineDistance = line.getMergeCriteria();
+            return lineDistance <= drawingSizeY / 2;
+        },
+        primaryAnnotationLines,
+        secondaryAnnotationLines
+    );
 
     return {
         layerName: layerName,
-        annotationLines: linesWithAnnotations,
+        annotationLines: primaryAnnotationLines,
         secondaryAnnotationLines: secondaryAnnotationLines,
-        countOfLines: linesWithAnnotations.length,
+        countOfLines: primaryAnnotationLines.length,
         secondaryCountOfLines: secondaryAnnotationLines.length,
         annotationsAtPosition: annotationsAtPosition,
     };
@@ -189,6 +196,7 @@ class LineWithAnnotations {
             // no annotations - should not happen, but prefere merging to other lines
             return 999999;
         }
+        // Warning: this is average distance from the line, which used as argument for splitting the lines into primary and secondary.
         const averageDistance = this.yDistances.reduce((sum, value) => sum + value, 0) / this.yDistances.length;
         return averageDistance;
     }
@@ -288,7 +296,9 @@ class LineWithAnnotations {
         return result;
     }
     getSignature(): string {
-        return this.usedIntervals.map(i => `S${i.start} E${i.end} L${i.realLength}`).join(' - ');
+        let signature = this.usedIntervals.map(i => `${i.realLength}`).join('-');
+        this.usedIntervals.forEach(i => signature += ` - S${i.start} E${i.end}`);
+        return signature;
     }
     /**
      * sums up all continuous intervals into one and merges their annotations
@@ -476,3 +486,22 @@ function disqualifyLooseAnnotationsFromAnnotationLines(linesWithAnnotations: Lin
         linesWithAnnotations.splice(index, 1);
     }
 };
+
+/**
+ * Splits the input array into two arrays based on the provided condition.
+ * The output arrays are provided as parameters and will be modified in place.
+ * @param input input array
+ * @param condition splitting condition
+ * @param matching output array for elements that match the condition
+ * @param nonMatching output array for elements that do not match the condition
+ */
+function splitArrayIntoTwo(input: any[], condition: (element: any) => boolean, matching: any[], nonMatching: any[]): void {
+    for (const element of input) {
+        if (condition(element)) {
+            matching.push(element);
+        }
+        else {
+            nonMatching.push(element);
+        }
+    }
+}
