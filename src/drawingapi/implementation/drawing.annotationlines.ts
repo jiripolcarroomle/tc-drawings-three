@@ -273,10 +273,16 @@ class LineWithAnnotations {
         });
         if (result) {
             other.usedIntervals.forEach(otherInterval => {
-                if (!this.usedIntervals.some(i => i.start === otherInterval.start && i.end === otherInterval.end)) {
-                    this.usedIntervals.push(otherInterval);
+                const ownInterval = this.usedIntervals.find(i => i.start === otherInterval.start && i.end === otherInterval.end);
+                if (ownInterval) {
+                    ownInterval.annotations.push(...otherInterval.annotations);
+                    ownInterval.realLength = Math.max(ownInterval.realLength, otherInterval.realLength);
+                    return;
                 }
+
+                this.usedIntervals.push(otherInterval);
             });
+            this.yDistances.push(...other.yDistances);
             this.sortUsedIntervals();
         }
         return result;
