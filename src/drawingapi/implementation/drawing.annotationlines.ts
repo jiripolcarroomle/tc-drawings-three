@@ -45,7 +45,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
         lineNormalDirection,
         lineSpacing = 50,
         minIntervalsForSummedAnnotationLine = -1,
-        disqualifyLooseAnnotations = true,
+        disqualifyLooseAnnotations = false,
         drawingSizeY = 2000,
     } = args;
 
@@ -95,6 +95,9 @@ export function drawAnnotationsWithAnnotationLines(args: {
     if (disqualifyLooseAnnotations) {
         disqualifyLooseAnnotationsFromAnnotationLines(linesWithAnnotations, annotationsAtPosition);
     }
+
+
+    // disqualifyAnnotationLinesWithOneInterval(linesWithAnnotations, annotationsAtPosition);
 
     // 4. sort the annotation lines by the amount of occupied space on them - the smaller will go nearer to the drawing
     linesWithAnnotations.sort((a, b) => {
@@ -436,6 +439,21 @@ class LineWithAnnotations {
         const newLine = new LineWithAnnotations();
         newLine.addAnnotation(annotation);
         lines.push(newLine);
+    }
+}
+
+function disqualifyAnnotationLinesWithOneInterval(linesWithAnnotations: LineWithAnnotations[], annotationsAtPosition: AnnotationTransformedToDirection[]) {
+    const linesToDestroyIndices: number[] = [];
+    for (let i = 0; i < linesWithAnnotations.length; i++) {
+        const line = linesWithAnnotations[i];
+        if (line.usedIntervals.length === 1) {
+            annotationsAtPosition.push(...line.usedIntervals[0].annotations);
+            linesToDestroyIndices.push(i);
+        }
+    }
+    linesToDestroyIndices.sort((a, b) => b - a);
+    for (const index of linesToDestroyIndices) {
+        linesWithAnnotations.splice(index, 1);
     }
 }
 
