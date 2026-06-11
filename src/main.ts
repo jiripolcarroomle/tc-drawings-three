@@ -5,7 +5,8 @@ import './style.css';
 // 
 //
 import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
+import serializedOrderJsonRaw from '../assets/cornerkitchen2.serializedscene.json?raw'
+//import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
 // 
 //import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
 // 

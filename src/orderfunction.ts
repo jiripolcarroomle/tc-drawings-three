@@ -21,16 +21,16 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
     // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
     const orderScene = serialized ? OrderSceneNode.deserialize(new IdsMap(), serialized) : createScene(o, ol);
 
-    const serializedScene = (orderScene as OrderSceneNode).serialize();
-    const stringifiedScene = JSON.stringify(serializedScene, null, 4);
-
-    const url = URL.createObjectURL(new Blob([stringifiedScene], { type: 'application/json' }));
-    const anchorElement = document.createElement('a');
-    anchorElement.href = url;
-    anchorElement.download = 'stringifiedscene.json';
-    anchorElement.click();
-    anchorElement.remove();
-    URL.revokeObjectURL(url);
+    // const serializedScene = (orderScene as OrderSceneNode).serialize();
+    // const stringifiedScene = JSON.stringify(serializedScene, null, 4);
+    //
+    // const url = URL.createObjectURL(new Blob([stringifiedScene], { type: 'application/json' }));
+    // const anchorElement = document.createElement('a');
+    // anchorElement.href = url;
+    // anchorElement.download = 'stringifiedscene.json';
+    // anchorElement.click();
+    // anchorElement.remove();
+    // URL.revokeObjectURL(url);
 
 
     // =================

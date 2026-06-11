@@ -3,7 +3,7 @@ import type { IRenderOrthoCameraResult } from "./orderdrawingrenderer";
 
 /*
  * Interface for the drawings.
- * This should take a rendered scene image and enhant it with SVG objects.
+ * This should take a rendered scene image and enhance it with SVG objects.
  * All coordinates the content creator should define must be in world coordinate system or in the module coordinate system.
  * All projections to the 2D drawing coordinate system and all SVG related calculations should be handled by the provided app.
  */

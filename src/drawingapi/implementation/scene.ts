@@ -238,8 +238,8 @@ export class OrderSceneNode implements IOrderSceneNode {
             //
             // WARNING
             //
-            // THIS HAS TO BE IN tc-drawaings-three
-            // THUS MUST NOT BE IN cabinetlibrary_drawings
+            // THIS HAS TO BE IN tc-drawaings-three IF FLATTED FILES ARE USED
+            // THIS MUST NOT BE IN cabinetlibrary_drawings
             //
             const moduleOrderEntry = mergeModuleOrderEntryWithAttributes(orderData.orderItem, item.orderInput?.attributes);
             OrderSceneNode.createSceneModuleNodeFromOD_Base(moduleOrderEntry, posGroupNode);
@@ -323,17 +323,29 @@ export class OrderSceneNode implements IOrderSceneNode {
             children: [],
         };
         serialized.orderLineEntry = {} as any;
-        const orderLineEntryRelevantKeys = Object.keys(this.orderLineEntry ?? {} as any).filter(k => {
-            if (['_dimx', '_dimy', '_dimz', '_isGenerated', '_xAbs', '_yAbs', '_zAbs', '_x', '_y', '_z', '_partId'].indexOf(k) >= 0) { return true; }
+        const orderLineEntryRelevantKeys = getSerializablePropertyKeysIncludingGetters(this.orderLineEntry).filter(k => {
+            if (['_dimx', '_dimy', '_dimz', '_isGenerated', '_xAbs', '_yAbs', '_zAbs', '_x', '_y', '_z', '_partId', '_articlePos'].indexOf(k) >= 0) { return true; }
             else if (k.startsWith('_')) { return false; }
             else if (['parentId', 'parent', 'm', 'p', 'parentBase', 'variants', 'roomContours', 'generationContours', 'groupPos', 'items'].indexOf(k) >= 0) { return false; }
             else { return true; }
         });
         orderLineEntryRelevantKeys.forEach(k => {
-            const value = (this.orderLineEntry as any)[k];
-            console.log(`Serializing orderLineEntry key ${k} with value ${value}`);
+            let value: any;
+            try {
+                value = (this.orderLineEntry as any)[k];
+            }
+            catch {
+                return;
+            }
+            if (typeof value === 'function') {
+                return;
+            }
             serialized.orderLineEntry[k] = value;
         });
+        if (this.id.startsWith('mr_StorageunitSingle')) {
+            console.log('serializing mr_StorageunitSingle', JSON.stringify(Object.keys(serialized.orderLineEntry), null, 2));
+            console.log('serializing', this.id, serialized.orderLineEntry);
+        }
         serialized.children = this.children.map(child => (child as OrderSceneNode).serialize());
         serialized._geometry.ownerNode = undefined;
         return serialized;
@@ -554,6 +566,43 @@ function getPartId(part: any /* PartBase */): string {
     return `part__${part._partId}__${part._id}:${part._parentUniqueId}`;
 }
 
+
+/** Similar like Object.keys but includes value getters */
+function getSerializablePropertyKeysIncludingGetters(source: any): string[] {
+    if (!source) {
+        return [];
+    }
+
+    const keys = new Set<string>();
+    let current = source;
+
+    while (current && current !== Object.prototype) {
+        Object.getOwnPropertyNames(current).forEach((propertyName) => {
+            if (propertyName === 'constructor' || keys.has(propertyName)) {
+                return;
+            }
+
+            const descriptor = Object.getOwnPropertyDescriptor(current, propertyName);
+            if (!descriptor) {
+                return;
+            }
+
+            if (typeof descriptor.get === 'function') {
+                keys.add(propertyName);
+                return;
+            }
+
+            if ('value' in descriptor && typeof descriptor.value !== 'function') {
+                keys.add(propertyName);
+            }
+        });
+
+        current = Object.getPrototypeOf(current);
+    }
+
+    return [...keys].sort();
+}
+
 let warned = false;
 
 function mergeModuleOrderEntryWithAttributes(source: any, attributes: any): any {
@@ -566,7 +615,6 @@ function mergeModuleOrderEntryWithAttributes(source: any, attributes: any): any 
             !!! WARNING !!!
 
             THIS FUNCTION CALL MUST NOT BE CALLED IN THE IMPLEMENTATION.
-
             scene.implementation.ts / mergeModuleOrderEntryWithAttributes
 
             This is a workaround, without which this doesn't work in tc-drawings-three, but
