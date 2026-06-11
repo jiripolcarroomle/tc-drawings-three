@@ -3,12 +3,13 @@ import './style.css';
 
 
 // 
-//import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+//
+import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
+import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
 // 
 //import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
 // 
-//
-import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
+//import orderJsonRaw from '../assets/biggerorder.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000141.flatted.json?raw'
 //import orderJsonRaw from '../assets/10000187.flatted.json?raw'
 
@@ -35,7 +36,10 @@ run();
 
 
 async function run() {
-  await appOrderFunction(orderJson.o, orderJson.ol, result);
+
+  const serializedJson = JSON.parse(serializedOrderJsonRaw);
+
+  await appOrderFunction(orderJson.o, orderJson.ol, result, serializedJson);
   const appRoot = document.querySelector<HTMLElement>('#app') ?? document.body;
 
 

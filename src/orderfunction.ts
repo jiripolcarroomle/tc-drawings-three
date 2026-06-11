@@ -4,21 +4,34 @@ import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInj
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingapi/interfaces/orderdrawingrenderer";
 import type { ISceneGeometryConversionToThreeJsSettings } from "./drawingapi/implementation/orderdrawingrenderer.theejs.helpers";
 import { renderScene } from "./drawingapi/implementation/orderdrawingrenderer.threejs";
-import { createScene } from "./drawingapi/implementation/scene";
+import { createScene, OrderSceneNode } from "./drawingapi/implementation/scene";
 import { Object3DNodeKind, type IOrderSceneNode } from "./drawingapi/interfaces/scene";
 import { Vector3 } from "./tc/base";
 import { filterNodesCloseToWall } from "./drawingapi/implementation/scene-wall";
+import { IdsMap } from "./drawingapi/interfaces/idsmap";
 
 function createFileEntry(result: Map<string, any>, fileName: string, content: string, mimeType: string) {
     result.set(fileName, { content, mimeType });
 }
 
-export async function appOrderFunction(o: any, ol: any, result: Map<string, any>): Promise<void> {
+export async function appOrderFunction(o: any, ol: any, result: Map<string, any>, serialized?: any): Promise<void> {
 
     const orthoCameraRenderResults: IRenderOrthoCameraResult[] = [];
 
     // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
-    const orderScene = createScene(o, ol);
+    const orderScene = serialized ? OrderSceneNode.deserialize(new IdsMap(), serialized) : createScene(o, ol);
+
+    const serializedScene = (orderScene as OrderSceneNode).serialize();
+    const stringifiedScene = JSON.stringify(serializedScene, null, 4);
+
+    const url = URL.createObjectURL(new Blob([stringifiedScene], { type: 'application/json' }));
+    const anchorElement = document.createElement('a');
+    anchorElement.href = url;
+    anchorElement.download = 'stringifiedscene.json';
+    anchorElement.click();
+    anchorElement.remove();
+    URL.revokeObjectURL(url);
+
 
     // =================
     // 1. settings and preparations 

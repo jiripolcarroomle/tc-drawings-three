@@ -10,7 +10,7 @@ const DEFAULT_WALL_THICKNESS = 200;
  * Concrete wall segment implementation used during scene construction.
  */
 export class WallSegment implements IWallSegment {
-    private constructor(
+    constructor(
         public segmentStart: Vector3,
         public segmentEnd: Vector3,
         public segmentBackStart: Vector3,
