@@ -3,7 +3,7 @@ import type { IRenderOrthoCameraResult } from "../interfaces/orderdrawingrendere
 import { Matrix4, Vector3 } from "../../tc/base";
 import * as SVGHelper from "../utils/svghelper";
 import { drawAnnotationsWithAnnotationLines } from "./drawing.annotationlines";
-import { arrowLineStyle, linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "../utils/svghelper";
+import { linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "../utils/svghelper";
 
 /**
  * Upon pushing data into the drawing, the coordinates are transformed into world, camera and pixel coodinates.
@@ -277,7 +277,7 @@ export class Drawing implements IPlanSvgDrawing {
                 endX: annotation.endPoint.pixelCoordinate._x,
                 endY: annotation.endPoint.pixelCoordinate._y,
                 textContent: annotation.annotation.label ?? annotation.realLength.toFixed(0),
-                lineProperties: { ...thickLineStyle, ...arrowLineStyle },
+                lineProperties: { ...thickLineStyle, ...SVGHelper.arrowLineStyle },
                 textProperties: { ...textStyle, flipIfUpsideDown: true },
             });
         });
@@ -395,7 +395,7 @@ export class Drawing implements IPlanSvgDrawing {
                             textContent: realLength.toFixed(0),
                             lineProperties: {
                                 ...thinLineStyle,
-                                ...arrowLineStyle,
+                                ...SVGHelper.arrowLineStyle,
                                 stroke: 'green',
                             },
                             textProperties: {

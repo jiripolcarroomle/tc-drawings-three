@@ -225,24 +225,32 @@ export function createSvgDefsForArrowMarkers({
     parent: SVGSVGElement,
     properties: SVGMarkerProperties,
 }): void {
-    if (parent.querySelector("#arrowStart, #arrowEnd")) {
+    if (parent.querySelector("#arrowStart, #arrowEnd, #arrowStartOpposite, #arrowEndOpposite")) {
         return;
     }
 
+    const DEFAULT_ARROW_MARKER_WIDTH = 20;
+    const DEFAULT_ARROW_MARKER_HEIGHT = 10;
+    const DEFAULT_ARROW_REF_X = 18;
+    const DEFAULT_ARROW_REF_Y = 5;
+    const DEFAULT_ARROW_VIEWBOX = "0 0 20 10";
+    const DEFAULT_ARROW_PATH = "M0,0 L0,10 L20,5 z";
+
     const defs = createSvgElement("defs") as SVGDefsElement;
     const markerProperties = {
-        markerWidth: properties?.markerWidth ?? 10,
-        markerHeight: properties?.markerHeight ?? 10,
+        markerWidth: properties?.markerWidth ?? DEFAULT_ARROW_MARKER_WIDTH,
+        markerHeight: properties?.markerHeight ?? DEFAULT_ARROW_MARKER_HEIGHT,
         markerUnits: properties?.markerUnits ?? "strokeWidth",
         orient: properties?.orient ?? "auto",
-        refY: properties?.refY ?? 5,
-        viewBox: properties?.viewBox ?? "0 0 10 10",
+        refY: properties?.refY ?? DEFAULT_ARROW_REF_Y,
+        viewBox: properties?.viewBox ?? DEFAULT_ARROW_VIEWBOX,
     };
     const markerPathFill = properties?.fill ?? "context-stroke";
-    const markerPathD = properties?.d ?? "M 0 0 L 10 5 L 0 10 z";
+    const markerPathD = properties?.d ?? DEFAULT_ARROW_PATH;
 
-    const refX = properties?.refX ?? properties?.markerWidth ?? 10;
-    const refY = properties?.refY ?? (typeof properties?.markerHeight === "number" ? (properties.markerHeight / 2) : 5);
+    const markerWidth = Number(markerProperties.markerWidth ?? DEFAULT_ARROW_MARKER_WIDTH);
+    const refX = Number(properties?.refX ?? DEFAULT_ARROW_REF_X);
+    const refY = properties?.refY ?? (typeof properties?.markerHeight === "number" ? (properties.markerHeight / 2) : DEFAULT_ARROW_REF_Y);
 
     const endMarker = createSvgElement("marker") as SVGMarkerElement;
     applySvgProperties(endMarker, { ...markerProperties, id: "arrowEnd", refX, refY, orient: properties?.orient ?? "auto" });
@@ -258,8 +266,38 @@ export function createSvgDefsForArrowMarkers({
     startMarkerPath.setAttribute("fill", markerPathFill);
     startMarker.appendChild(startMarkerPath);
 
+    const startMarkerOpposite = createSvgElement("marker") as SVGMarkerElement;
+    applySvgProperties(startMarkerOpposite, {
+        ...markerProperties,
+        id: "arrowStartOpposite",
+        orient: "auto-start-reverse",
+        refX: markerWidth - refX,
+        refY,
+    });
+    const startMarkerOppositePath = createSvgElement("path") as SVGPathElement;
+    startMarkerOppositePath.setAttribute("d", markerPathD);
+    startMarkerOppositePath.setAttribute("fill", markerPathFill);
+    startMarkerOppositePath.setAttribute("transform", `translate(${markerWidth}, 0) scale(-1, 1)`);
+    startMarkerOpposite.appendChild(startMarkerOppositePath);
+
+    const endMarkerOpposite = createSvgElement("marker") as SVGMarkerElement;
+    applySvgProperties(endMarkerOpposite, {
+        ...markerProperties,
+        id: "arrowEndOpposite",
+        orient: properties?.orient ?? "auto",
+        refX: markerWidth - refX,
+        refY,
+    });
+    const endMarkerOppositePath = createSvgElement("path") as SVGPathElement;
+    endMarkerOppositePath.setAttribute("d", markerPathD);
+    endMarkerOppositePath.setAttribute("fill", markerPathFill);
+    endMarkerOppositePath.setAttribute("transform", `translate(${markerWidth}, 0) scale(-1, 1)`);
+    endMarkerOpposite.appendChild(endMarkerOppositePath);
+
     defs.appendChild(startMarker);
     defs.appendChild(endMarker);
+    defs.appendChild(startMarkerOpposite);
+    defs.appendChild(endMarkerOpposite);
     parent.appendChild(defs);
 }
 
@@ -318,22 +356,23 @@ export function createSvgLineElement(
         properties: SVGLineProperties | SVGPathProperties,
     },
 ): SVGLineElement {
+    const effectiveProperties = getEffectiveLinePropertiesForLength({ startX, startY, endX, endY, properties });
     const line = createSvgElement("line") as SVGLineElement;
     line.setAttribute("x1", startX.toString());
     line.setAttribute("y1", startY.toString());
     line.setAttribute("x2", endX.toString());
     line.setAttribute("y2", endY.toString());
-    applySvgProperties(line, properties);
+    applySvgProperties(line, effectiveProperties);
     parent.appendChild(line);
-    if (properties.ticksAtEndsLength) {
+    if (effectiveProperties.ticksAtEndsLength) {
         const normalX = endY - startY;
         const normalY = startX - endX;
         const normalLength = Math.sqrt(normalX * normalX + normalY * normalY);
         if (normalLength > 0) {
             const unitNormalX = normalX / normalLength;
             const unitNormalY = normalY / normalLength;
-            const tickXOffset = unitNormalX * properties.ticksAtEndsLength / 2;
-            const tickYOffset = unitNormalY * properties.ticksAtEndsLength / 2;
+            const tickXOffset = unitNormalX * effectiveProperties.ticksAtEndsLength / 2;
+            const tickYOffset = unitNormalY * effectiveProperties.ticksAtEndsLength / 2;
 
             // Start tick
             createSvgLineElement({
@@ -342,7 +381,7 @@ export function createSvgLineElement(
                 startY: startY - tickYOffset,
                 endX: startX + tickXOffset,
                 endY: startY + tickYOffset,
-                properties: properties.ticksStyle || properties,
+                properties: effectiveProperties.ticksStyle || effectiveProperties,
             });
 
             // End tick
@@ -352,11 +391,45 @@ export function createSvgLineElement(
                 startY: endY - tickYOffset,
                 endX: endX + tickXOffset,
                 endY: endY + tickYOffset,
-                properties: properties.ticksStyle || properties,
+                properties: effectiveProperties.ticksStyle || effectiveProperties,
             });
         }
     }
     return line;
+}
+
+/**
+ * Helper function to determine effective line properties based on the line properties.
+ * Useful for evaluating >|-|< vs |<---->| annotation styles.
+ * @param param0 
+ * @returns 
+ */
+function getEffectiveLinePropertiesForLength({
+    startX,
+    startY,
+    endX,
+    endY,
+    properties,
+}: {
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    properties: SVGLineProperties | SVGPathProperties,
+}): SVGLineProperties | SVGPathProperties {
+    if (properties.markerStart !== arrowLineStyle.markerStart || properties.markerEnd !== arrowLineStyle.markerEnd) {
+        return properties;
+    }
+
+    const lineLength = Math.hypot(endX - startX, endY - startY);
+    if (lineLength >= SHORT_ANNOTATION_PIXEL_LENGTH) {
+        return properties;
+    }
+
+    return {
+        ...properties,
+        ...arrowShortLineStyle,
+    };
 }
 
 export function createSvgGroupElement({
@@ -522,6 +595,14 @@ export const arrowLineStyle = {
     markerStart: "url(#arrowStart)",
     markerEnd: "url(#arrowEnd)",
 };
+export const arrowShortLineStyle = {
+    markerStart: "url(#arrowStartOpposite)",
+    markerEnd: "url(#arrowEndOpposite)",
+};
+const SHORT_ANNOTATION_PIXEL_LENGTH = 40;
+export function getArrowStyleForLineLength(lineLength: number): SVGPathProperties {
+    return lineLength < SHORT_ANNOTATION_PIXEL_LENGTH ? arrowShortLineStyle : arrowLineStyle;
+}
 export const overlayStyle = {
     fill: "rgba(255,255,0,0.5)",
     stroke: "orange",
