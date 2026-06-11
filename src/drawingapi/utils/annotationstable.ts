@@ -23,7 +23,7 @@ export function filterAnnotationForModule(moduleId: string, m: any, drawingData:
 export const tab_Annotations: I_tab_Annotation[] = [
 
     {
-        in_ModuleId: 'mr_StorageunitSingle,mr_CornerunitStraight',
+        in_ModuleId: 'mr_StorageunitSingle,mr_CornerunitStraight,mr_Appliance',
         out_Annotations: (m: any, _drawingData: IPlanSvgDrawing) => {
             const plinthAreaHeight = (m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? m.mod_PlinthAreaHeight : 0) ?? 0;
             const countertopThk = m.mod_CreateCountertop ? (m.mod_CountertopThk ?? 0) : 0;
@@ -32,8 +32,8 @@ export const tab_Annotations: I_tab_Annotation[] = [
             const layerName = ['WallUnit'].includes(m.mod_TypeElement) ? `wallunit-dimension-horizontal` : 'carcase-dimension-horizontal';
 
             result.push({
-                start: new Vector3(0, 0, 0),
-                end: new Vector3(m.mod_Width, 0, 0),
+                start: new Vector3(0, plinthAreaHeight, 0),
+                end: new Vector3(m.mod_Width, plinthAreaHeight, 0),
                 layer: layerName,
                 tags: ['overall', 'carcase'],
             });
@@ -80,10 +80,6 @@ export const tab_Annotations: I_tab_Annotation[] = [
         },
     },
 
-    {
-        in_ModuleId: 'mr_CornerunitStraight',
-        in_Condition: (_m: any) => true,
-    },
 
     // {
     //     in_ModuleId: 'mc_Backsplash',
@@ -152,24 +148,24 @@ export const tab_Annotations: I_tab_Annotation[] = [
                     layer: 'carcase-dimension-elevation',
                     tags: ['overall', 'carcase'],
                 },
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(0, 0, m.mod_CountertopDepth),
-                    layer: 'accessory-dimension-horizontal',
-                    tags: ['overall', 'carcase'],
-                },
-                {
-                    start: new Vector3(0, 0, 0),
-                    end: new Vector3(m.mod_CountertopWidth, 0, 0),
-                    layer: 'accessory-dimension-horizontal',
-                    tags: ['overall', 'carcase'],
-                }
+                // {
+                //     start: new Vector3(0, 0, 0),
+                //     end: new Vector3(0, 0, m.mod_CountertopDepth),
+                //     layer: 'accessory-dimension-horizontal',
+                //     tags: ['overall', 'carcase'],
+                // },
+                // {
+                //     start: new Vector3(0, 0, 0),
+                //     end: new Vector3(m.mod_CountertopWidth, 0, 0),
+                //     layer: 'accessory-dimension-horizontal',
+                //     tags: ['overall', 'carcase'],
+                // }
             ];
         }
     },
 
     {
-        in_ModuleId: 'mr_StorageunitSingle,mr_CornerunitStraight',
+        in_ModuleId: 'mr_StorageunitSingle,mr_CornerunitStraight,mr_Appliance',
         in_Condition: (m: any, drawingData: IPlanSvgDrawing) => {
             return (
                 (m.mod_CreateCountertop || m.mod_CreatePaneltop)
@@ -202,7 +198,7 @@ export const tab_Annotations: I_tab_Annotation[] = [
 
     {
         in_ModuleId: 'mr_StorageunitSingle',
-        in_Condition: (m: any) => { return m._articlePos.y > 100 /** todo: base on mod_ElementType */ },
+        in_Condition: (m: any) => { return m.mod_TypeElement === 'WallUnit'; /** todo: base on mod_ElementType */ },
         out_SvgPathOverlays: (m: any) => {
             const yPosition = m.mod_Height + (m.mod_PlinthAreaDesign_matrix.PlinthAreaType !== 'None' ? (m.mod_PlinthAreaHeight ?? 0) : 0);
             return [
