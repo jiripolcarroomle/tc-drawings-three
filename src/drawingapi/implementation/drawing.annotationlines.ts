@@ -433,6 +433,48 @@ class LineWithAnnotations {
             });
         });
 
+        // Draw gap annotations between non-continuous intervals
+        for (let i = 0; i < this.usedIntervals.length - 1; i++) {
+            const current = this.usedIntervals[i];
+            const next = this.usedIntervals[i + 1];
+            const gapPixelStart = current.end;
+            const gapPixelEnd = next.start;
+            if (gapPixelEnd <= gapPixelStart) continue;
+
+            const refAnnotation = current.annotations[0] ?? next.annotations[0];
+            if (!refAnnotation) continue;
+
+            const annotationPixelSpan = refAnnotation.distanceEndX - refAnnotation.distanceStartX;
+            if (Math.abs(annotationPixelSpan) < Vector3.EPS) continue;
+
+            const mmPerPixel = refAnnotation.realLength / annotationPixelSpan;
+            const gapRealLength = (gapPixelEnd - gapPixelStart) * mmPerPixel;
+            if (gapRealLength < 1) continue;
+
+            const gapStart = offsetPixels.clone().add(direction.clone().multiply(gapPixelStart));
+            const gapEnd = offsetPixels.clone().add(direction.clone().multiply(gapPixelEnd));
+            SVGHelper.createSvgLineElementWithText({
+                parent,
+                startX: gapStart._x,
+                startY: gapStart._y,
+                endX: gapEnd._x,
+                endY: gapEnd._y,
+                textOffset: { _x: 0, _y: 16 },
+                textContent: gapRealLength.toFixed(0),
+                lineProperties: {
+                    ...SVGHelper.thinLineStyle,
+                    ...SVGHelper.arrowLineStyle,
+                    stroke: 'gray',
+                    ticksAtEndsLength: 25,
+                    ticksStyle: { ...SVGHelper.thinLineStyle, stroke: 'gray' },
+                },
+                textProperties: {
+                    ...SVGHelper.textStyle,
+                    fill: 'gray',
+                },
+            });
+        }
+
     }
     static AddAnnotationToLines(annotation: AnnotationTransformedToDirection, lines: LineWithAnnotations[]): void {
         // try to add the annotation to an existing line
