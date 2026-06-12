@@ -258,19 +258,19 @@ export class Drawing implements IPlanSvgDrawing {
 
             horizontalAnnotationsResult.annotationLines.forEach(line => {
                 marginDown += annotationSpacing;
-                line.toSvg(annotationsRoot, new Vector3(0, this.sceneRender.imageHeight + marginDown, 0), new Vector3(1, 0, 0), debugLabel(line));
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, this.sceneRender.imageHeight + marginDown, 0), direction: new Vector3(1, 0, 0), debugLabel: debugLabel(line) });
             });
             horizontalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
-                line.toSvg(annotationsRoot, new Vector3(0, - marginUp, 0), new Vector3(1, 0, 0), debugLabel(line));
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, -marginUp, 0), direction: new Vector3(1, 0, 0), debugLabel: debugLabel(line) });
                 marginUp += annotationSpacing;
             });
 
             verticalAnnotationsResult.annotationLines.forEach(line => {
                 marginRight += annotationSpacing;
-                line.toSvg(annotationsRoot, new Vector3(this.sceneRender.imageWidth + marginRight, 0, 0), new Vector3(0, 1, 0), debugLabel(line));
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(this.sceneRender.imageWidth + marginRight, 0, 0), direction: new Vector3(0, 1, 0), debugLabel: debugLabel(line) });
             });
             verticalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
-                line.toSvg(annotationsRoot, new Vector3(- marginLeft, 0, 0), new Vector3(0, 1, 0), debugLabel(line));
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(-marginLeft, 0, 0), direction: new Vector3(0, 1, 0), debugLabel: debugLabel(line) });
                 marginLeft += annotationSpacing;
             });
         });

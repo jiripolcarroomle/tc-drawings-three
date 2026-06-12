@@ -349,18 +349,60 @@ class LineWithAnnotations {
         }
         return copy;
     }
-    toSvg(parent: SVGGElement, offsetPixels: Vector3, direction: Vector3, debugLabel: string | undefined = undefined): void {
+    toSvg({
+        parent,
+        offsetPixels,
+        direction,
+        debugLabel = undefined,
+        showGaps = true,
+        styles = {},
+    }: {
+        parent: SVGGElement,
+        offsetPixels: Vector3,
+        direction: Vector3,
+        debugLabel?: string,
+            showGaps?: boolean,
+            styles?: {
+                baseLine?: SVGHelper.SVGPathProperties,
+                intervalLine?: SVGHelper.SVGLineProperties | SVGHelper.SVGPathProperties,
+                intervalText?: SVGHelper.SVGTextProperties,
+                intervalTextOffset?: { _x: number, _y: number },
+                leaderLine?: SVGHelper.SVGPathProperties,
+                gapLine?: SVGHelper.SVGLineProperties | SVGHelper.SVGPathProperties,
+                gapText?: SVGHelper.SVGTextProperties,
+                gapTextOffset?: { _x: number, _y: number },
+            },
+    }): void {
+        const {
+            baseLine: baseLineStyle = SVGHelper.thinLineStyle,
+            intervalLine: intervalLineStyle = {
+                ...SVGHelper.thickLineStyle,
+                ...SVGHelper.arrowLineStyle,
+                ticksAtEndsLength: 25,
+                ticksStyle: SVGHelper.thinLineStyle,
+            },
+            intervalText: intervalTextStyle = SVGHelper.textStyle,
+            intervalTextOffset = { _x: 0, _y: 16 },
+            leaderLine: leaderLineStyle = SVGHelper.thinDashedLineStyle,
+            gapLine: gapLineStyle = {
+                ...SVGHelper.thinLineStyle,
+                ...SVGHelper.arrowLineStyle,
+                stroke: 'gray',
+            },
+            gapText: gapTextStyle = { ...SVGHelper.textStyle, fill: 'gray' },
+            gapTextOffset = { _x: 0, _y: 16 },
+        } = styles;
+
         const { min, max } = this.getMinMax();
         const lineStart = offsetPixels.clone().add(direction.clone().multiply(min));
         const lineEnd = offsetPixels.clone().add(direction.clone().multiply(max));
-        // helper line
         SVGHelper.createSvgLineElement({
             parent,
             startX: lineStart._x,
             startY: lineStart._y,
             endX: lineEnd._x,
             endY: lineEnd._y,
-            properties: SVGHelper.thinLineStyle,
+            properties: baseLineStyle,
         });
         if (debugLabel) {
             const azimuth = Math.atan2(direction._y, direction._x) * 180 / Math.PI;
@@ -371,7 +413,6 @@ class LineWithAnnotations {
                 textContent: `${debugLabel}`,
                 properties: {
                     ...SVGHelper.textStyle,
-                    // align left
                     fill: 'green',
                     transform: `translate(${(lineStart._x + lineEnd._x) / 2}, ${(lineStart._y + lineEnd._y) / 2}) rotate(${-azimuth}) `,
                 },
@@ -401,18 +442,12 @@ class LineWithAnnotations {
                 startY: intervalStart._y,
                 endX: intervalEnd._x,
                 endY: intervalEnd._y,
-                textOffset: { _x: 0, _y: 16 },
+                textOffset: intervalTextOffset,
                 textContent: interval.realLength.toFixed(0),
-                lineProperties: {
-                    ...SVGHelper.thickLineStyle,
-                    ...SVGHelper.arrowLineStyle,
-                    ticksAtEndsLength: 25,
-                    ticksStyle: SVGHelper.thinLineStyle,
-                },
-                textProperties: SVGHelper.textStyle,
+                lineProperties: intervalLineStyle,
+                textProperties: intervalTextStyle,
             });
 
-            // drag helper lines to the farthest annotation
             const farthestStartAnnotation = selectAnnotationForIntervalEdge(interval.start, "distanceStartX");
             const farthestEndAnnotation = selectAnnotationForIntervalEdge(interval.end, "distanceEndX");
             SVGHelper.createSvgLineElement({
@@ -421,7 +456,7 @@ class LineWithAnnotations {
                 startY: intervalStart._y,
                 endX: farthestStartAnnotation.startPoint.pixelCoordinate._x,
                 endY: farthestStartAnnotation.startPoint.pixelCoordinate._y,
-                properties: SVGHelper.thinDashedLineStyle,
+                properties: leaderLineStyle,
             });
             SVGHelper.createSvgLineElement({
                 parent,
@@ -429,50 +464,43 @@ class LineWithAnnotations {
                 startY: intervalEnd._y,
                 endX: farthestEndAnnotation.endPoint.pixelCoordinate._x,
                 endY: farthestEndAnnotation.endPoint.pixelCoordinate._y,
-                properties: SVGHelper.thinDashedLineStyle,
+                properties: leaderLineStyle,
             });
         });
 
         // Draw gap annotations between non-continuous intervals
-        for (let i = 0; i < this.usedIntervals.length - 1; i++) {
-            const current = this.usedIntervals[i];
-            const next = this.usedIntervals[i + 1];
-            const gapPixelStart = current.end;
-            const gapPixelEnd = next.start;
-            if (gapPixelEnd <= gapPixelStart) continue;
+        if (showGaps) {
+            for (let i = 0; i < this.usedIntervals.length - 1; i++) {
+                const current = this.usedIntervals[i];
+                const next = this.usedIntervals[i + 1];
+                const gapPixelStart = current.end;
+                const gapPixelEnd = next.start;
+                if (gapPixelEnd <= gapPixelStart) continue;
 
-            const refAnnotation = current.annotations[0] ?? next.annotations[0];
-            if (!refAnnotation) continue;
+                const refAnnotation = current.annotations[0] ?? next.annotations[0];
+                if (!refAnnotation) continue;
 
-            const annotationPixelSpan = refAnnotation.distanceEndX - refAnnotation.distanceStartX;
-            if (Math.abs(annotationPixelSpan) < Vector3.EPS) continue;
+                const annotationPixelSpan = refAnnotation.distanceEndX - refAnnotation.distanceStartX;
+                if (Math.abs(annotationPixelSpan) < Vector3.EPS) continue;
 
-            const mmPerPixel = refAnnotation.realLength / annotationPixelSpan;
-            const gapRealLength = (gapPixelEnd - gapPixelStart) * mmPerPixel;
-            if (gapRealLength < 1) continue;
+                const mmPerPixel = refAnnotation.realLength / annotationPixelSpan;
+                const gapRealLength = (gapPixelEnd - gapPixelStart) * mmPerPixel;
+                if (gapRealLength < 1) continue;
 
-            const gapStart = offsetPixels.clone().add(direction.clone().multiply(gapPixelStart));
-            const gapEnd = offsetPixels.clone().add(direction.clone().multiply(gapPixelEnd));
-            SVGHelper.createSvgLineElementWithText({
-                parent,
-                startX: gapStart._x,
-                startY: gapStart._y,
-                endX: gapEnd._x,
-                endY: gapEnd._y,
-                textOffset: { _x: 0, _y: 16 },
-                textContent: gapRealLength.toFixed(0),
-                lineProperties: {
-                    ...SVGHelper.thinLineStyle,
-                    ...SVGHelper.arrowLineStyle,
-                    stroke: 'gray',
-                    ticksAtEndsLength: 25,
-                    ticksStyle: { ...SVGHelper.thinLineStyle, stroke: 'gray' },
-                },
-                textProperties: {
-                    ...SVGHelper.textStyle,
-                    fill: 'gray',
-                },
-            });
+                const gapStart = offsetPixels.clone().add(direction.clone().multiply(gapPixelStart));
+                const gapEnd = offsetPixels.clone().add(direction.clone().multiply(gapPixelEnd));
+                SVGHelper.createSvgLineElementWithText({
+                    parent,
+                    startX: gapStart._x,
+                    startY: gapStart._y,
+                    endX: gapEnd._x,
+                    endY: gapEnd._y,
+                    textOffset: gapTextOffset,
+                    textContent: gapRealLength.toFixed(0),
+                    lineProperties: gapLineStyle,
+                    textProperties: gapTextStyle,
+                });
+            }
         }
 
     }
