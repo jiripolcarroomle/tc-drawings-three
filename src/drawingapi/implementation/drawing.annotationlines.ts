@@ -16,6 +16,12 @@ interface AnnotationTransformedToDirection extends AnnotationTransformed {
     distanceZ: number,
 }
 
+export enum AnnotationLineDisqualifyType {
+    OnlyNonperpendicular = 'onlyNonperpendicular',
+    LooseIntervals = 'looseIntervals',
+    WithSingleInterval = 'withSingleInterval',
+}
+
 /**
  * Draws the annotations on annotation lines. The annotation lines are drawn outside of the drawing and carry the annotations on them.
  * The annotations are projected to the annotation lines based on their position and the specified line direction. 
@@ -33,7 +39,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
     lineNormalDirection: Vector3,
     lineSpacing: number,
     minIntervalsForSummedAnnotationLine?: number,
-    disqualifyLooseAnnotations?: boolean,
+    disqualifyAnnotations?: AnnotationLineDisqualifyType,
     drawingSizeY?: number,
 }) {
     const {
@@ -45,7 +51,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
         lineNormalDirection,
         lineSpacing = 50,
         minIntervalsForSummedAnnotationLine = -1,
-        disqualifyLooseAnnotations = false,
+        disqualifyAnnotations = 'onlyNonperpendicular',
         drawingSizeY = 2000,
     } = args;
 
@@ -92,12 +98,12 @@ export function drawAnnotationsWithAnnotationLines(args: {
     linesWithAnnotations.splice(0, linesWithAnnotations.length, ...mergedLines);
 
     // 3. optional: if annotations can be drawn in their place without overcomplicating the drawing, draw them at their positions
-    if (disqualifyLooseAnnotations) {
+    if (disqualifyAnnotations === 'looseIntervals') {
         disqualifyLooseAnnotationsFromAnnotationLines(linesWithAnnotations, annotationsAtPosition);
     }
-
-
-    // disqualifyAnnotationLinesWithOneInterval(linesWithAnnotations, annotationsAtPosition);
+    else if (disqualifyAnnotations === 'withSingleInterval') {
+        disqualifyAnnotationLinesWithOneInterval(linesWithAnnotations, annotationsAtPosition);
+    }
 
     // 4. sort the annotation lines by the amount of occupied space on them - the smaller will go nearer to the drawing
     linesWithAnnotations.sort((a, b) => {

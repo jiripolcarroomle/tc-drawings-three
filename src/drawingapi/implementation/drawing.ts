@@ -2,7 +2,7 @@ import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDr
 import type { IRenderOrthoCameraResult } from "../interfaces/orderdrawingrenderer";
 import { Matrix4, Vector3 } from "../../tc/base";
 import * as SVGHelper from "../utils/svghelper";
-import { drawAnnotationsWithAnnotationLines } from "./drawing.annotationlines";
+import { AnnotationLineDisqualifyType, drawAnnotationsWithAnnotationLines } from "./drawing.annotationlines";
 import { linesArrowMarkerStyle, overlayStyle, textStyle, thickLineStyle, thinLineStyle } from "../utils/svghelper";
 
 /**
@@ -114,6 +114,8 @@ export class Drawing implements IPlanSvgDrawing {
         });
         SVGHelper.createSvgDefsForArrowMarkers({ parent: svgRoot, properties: linesArrowMarkerStyle });
 
+
+        const ANNOTATION_LINE_DISQUALIFY_TYPE = AnnotationLineDisqualifyType.WithSingleInterval; // you can adjust this as needed, it disqualifies annotations from being drawn on annotation lines based on different criteria, for example with this setting, if there is only one annotation in an annotation line interval, it will not be drawn on the annotation line but directly at its position, because it doesn't make sense to have an annotation line for only one annotation
         const baseMargin = 20;
         const finalMargin = 20;
         const annotationSpacing = 40;
@@ -225,6 +227,7 @@ export class Drawing implements IPlanSvgDrawing {
                 lineNormalDirection: new Vector3(0, 1, 0),
                 lineSpacing: annotationSpacing,
                 drawingSizeY: this.sceneRender.imageHeight,
+                disqualifyAnnotations: ANNOTATION_LINE_DISQUALIFY_TYPE,
             });
             horizontalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
                 directPositionAnnotations.push(annotation);
@@ -240,6 +243,9 @@ export class Drawing implements IPlanSvgDrawing {
                 lineNormalDirection: new Vector3(1, 0, 0),
                 lineSpacing: annotationSpacing,
                 drawingSizeY: this.sceneRender.imageWidth,
+                disqualifyAnnotations: ANNOTATION_LINE_DISQUALIFY_TYPE,
+
+
             });
             verticalAnnotationsResult.annotationsAtPosition.forEach(annotation => {
                 directPositionAnnotations.push(annotation);
