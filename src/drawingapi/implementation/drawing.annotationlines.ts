@@ -186,8 +186,14 @@ function projectPointOnLine(point: Vector3, linePoint: Vector3, lineDirection: V
 class LineWithAnnotations {
     usedIntervals: { start: number, end: number, annotations: AnnotationTransformedToDirection[], realLength: number }[] = [];
 
+    readonly annotationLayerName: string;
+
     private sortUsedIntervals(): void {
         this.usedIntervals.sort((a, b) => a.start - b.start || a.end - b.end || a.realLength - b.realLength);
+    }
+
+    constructor(annotationLayerName: string = '') {
+        this.annotationLayerName = annotationLayerName;
     }
 
 
@@ -314,7 +320,7 @@ class LineWithAnnotations {
      * @returns a new LineWithAnnotations with summed intervals if the result is different, otherwise undefined
      */
     makeCopyWithSumedIntervals(minIntervalsCount: number): LineWithAnnotations | undefined {
-        const copy = new LineWithAnnotations();
+        const copy = new LineWithAnnotations(this.annotationLayerName);
         let previousStart: number = this.usedIntervals[0].start;
         let previousEnd: number = this.usedIntervals[0].end;
         let realLength = this.usedIntervals[0].realLength;
@@ -354,14 +360,14 @@ class LineWithAnnotations {
         offsetPixels,
         direction,
         debugLabel = undefined,
-        showGaps = true,
+        fillGapsOnAnnotationLine: showGaps = true,
         styles = {},
     }: {
         parent: SVGGElement,
         offsetPixels: Vector3,
         direction: Vector3,
         debugLabel?: string,
-            showGaps?: boolean,
+            fillGapsOnAnnotationLine?: boolean,
             styles?: {
                 baseLine?: SVGHelper.SVGPathProperties,
                 intervalLine?: SVGHelper.SVGLineProperties | SVGHelper.SVGPathProperties,
@@ -512,7 +518,7 @@ class LineWithAnnotations {
             }
         }
         // if it does not fit in any existing line, create a new line
-        const newLine = new LineWithAnnotations();
+        const newLine = new LineWithAnnotations(annotation.annotation.layer);
         newLine.addAnnotation(annotation);
         lines.push(newLine);
     }

@@ -1,4 +1,4 @@
-import { Vector3 } from "../../tc/base";
+import { logWarning, Vector3 } from "../../tc/base";
 import { DrawingDirection, type AnnotablePoint, type Annotation, type IPlanSvgDrawing, type SvgPathInjectionData } from "../interfaces/drawing";
 
 
@@ -10,6 +10,27 @@ export interface I_tab_Annotation {
     out_Annotations?: (m: any, drawingData: IPlanSvgDrawing) => Annotation[];
 }
 
+/**
+ * in_Layer: identifies the annotation layer this setting applies to
+ * out_AnnotationLineSort: optional sorting order for annotation lines in the layer (lower numbers are first - near to the drawing)
+ * out_AnnotateDistanceFromWallCorners: whether annotate distances from wall; applies only for annotations on annotation lines
+ * out_DisplayAtPosition: whether to display annotation in their actual place; defaults to automatic, overridable to always and never; if never, annotations not qualifying to annotation lines will not be shown at all
+ * out_FillAnnotationGaps: whether to add extra annotations to fill gaps between existing annotations on the same annotation line
+ */
+export interface I_tab_AnnotationLayerSettings {
+    in_Layer: string;
+    out_AnnotationLineSort?: number;
+    out_AnnotateDistanceFromWallCorners?: boolean;
+    out_FillAnnotationGaps?: boolean;
+}
+
+export function find_AnnotationLayerSetting(layer: string): I_tab_AnnotationLayerSettings | undefined {
+    const setting = tab_AnnotationLayerSettings.find(s => s.in_Layer === layer);
+    if (!setting) {
+        logWarning(`No annotation layer setting found for layer ${layer}`);
+    }
+    return setting;
+}
 
 export function filterAnnotationForModule(moduleId: string, m: any, drawingData: IPlanSvgDrawing): I_tab_Annotation[] {
     return tab_Annotations.filter(annotation => {
@@ -18,6 +39,34 @@ export function filterAnnotationForModule(moduleId: string, m: any, drawingData:
             && (annotation.in_Condition ? annotation.in_Condition(m, drawingData) : true);
     });
 }
+
+export const tab_AnnotationLayerSettings: I_tab_AnnotationLayerSettings[] = [
+    {
+        in_Layer: `wallunit-dimension-horizontal`,
+        out_AnnotationLineSort: 190,
+        out_FillAnnotationGaps: true,
+        out_AnnotateDistanceFromWallCorners: true,
+    },
+    {
+        in_Layer: 'carcase-dimension-horizontal',
+        out_AnnotationLineSort: 200,
+        out_FillAnnotationGaps: true,
+        out_AnnotateDistanceFromWallCorners: true,
+    },
+    {
+        in_Layer: 'carcase-dimension-elevation',
+        out_AnnotationLineSort: 210,
+        out_FillAnnotationGaps: true,
+        out_AnnotateDistanceFromWallCorners: true,
+    },
+    {
+        in_Layer: 'carcase-inside-elevation',
+    },
+    {
+        in_Layer: 'accessory-dimension-horizontal',
+        out_AnnotationLineSort: 100,
+    },
+];
 
 
 export const tab_Annotations: I_tab_Annotation[] = [

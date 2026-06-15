@@ -1,5 +1,5 @@
-import { filterAnnotationForModule, type I_tab_Annotation } from "./drawingapi/utils/annotationstable";
-import { Drawing } from "./drawingapi/implementation/drawing";
+import { filterAnnotationForModule, tab_AnnotationLayerSettings, type I_tab_Annotation } from "./drawingapi/utils/annotationstable";
+import { Drawing, type ILayerSettings } from "./drawingapi/implementation/drawing";
 import { DrawingDirection, type AnnotablePoint, type Annotation, type SvgPathInjectionData } from "./drawingapi/interfaces/drawing";
 import type { IRenderOrthoCameraParams, IRenderOrthoCameraResult } from "./drawingapi/interfaces/orderdrawingrenderer";
 import type { ISceneGeometryConversionToThreeJsSettings } from "./drawingapi/implementation/orderdrawingrenderer.theejs.helpers";
@@ -48,6 +48,11 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
         // three.js renderer property - angle in degrees between adjacent faces above which an edge will be rendered
         edgesGeometryThresholdAngle: 10,
         format: 'png',
+    }
+    const defaultLayerSettings: ILayerSettings = {
+        fillAnnotationGaps: false,
+        addWallCornersToAnnotationLines: false,
+        annotationLineSort: 0,
     }
     const moduleCloseToWallDistanceThreshold = 300; // in mm
     const orthoCameraRenderSettings: IRenderOrthoCameraParams = {
@@ -196,7 +201,26 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
     const imageFileNames: string[] = [];
 
     orthoCameraRenderResults.forEach((renderResult, index) => {
-        const drawing = new Drawing(renderResult, { drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation });
+
+        const layerSettings: Map<string, ILayerSettings> = new Map();
+        tab_AnnotationLayerSettings.forEach(setting => {
+            const layerName = setting.in_Layer;
+            const layerSetting = {
+                fillAnnotationGaps: setting.out_FillAnnotationGaps ?? defaultLayerSettings.fillAnnotationGaps,
+                addWallCornersToAnnotationLines: setting.out_AnnotateDistanceFromWallCorners ?? defaultLayerSettings.addWallCornersToAnnotationLines,
+                annotationLineSort: setting.out_AnnotationLineSort ?? defaultLayerSettings.annotationLineSort,
+            }
+            layerSettings.set(layerName, layerSetting);
+        });
+
+
+        const drawing = new Drawing(
+            renderResult,
+            {
+                drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation,
+                layerSettings: layerSettings,
+            }
+        );
 
         // get the walls in the drawing
         const walls = renderResult.renderedNodes?.filter(node => node.kind === Object3DNodeKind.Wall) ?? [];

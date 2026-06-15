@@ -22,6 +22,11 @@ interface TransformedPoint {
     pixelCoordinate: Vector3;
 }
 
+export interface ILayerSettings {
+    annotationLineSort?: number;
+    addWallCornersToAnnotationLines?: boolean;
+    fillAnnotationGaps: boolean;
+}
 
 interface AnnotablePointTransformed {
     point: AnnotablePoint;
@@ -36,14 +41,19 @@ export interface AnnotationTransformed {
     pixelLength: number,
 }
 
+interface DrawingOptions {
+    drawingDirection: DrawingDirection;
+    layerSettings: Map<string, ILayerSettings>;
+}
+
 export class Drawing implements IPlanSvgDrawing {
 
-    _options: any;
+    _options: DrawingOptions;
     private _renderResult: IRenderOrthoCameraResult;
 
-    constructor(renderResult: IRenderOrthoCameraResult, options?: any) {
+    constructor(renderResult: IRenderOrthoCameraResult, options?: DrawingOptions) {
         this._renderResult = renderResult;
-        this._options = options;
+        this._options = options || { drawingDirection: DrawingDirection.Top, layerSettings: new Map() };
     }
 
     get worldToViewMatrix(): Matrix4 {
@@ -55,7 +65,7 @@ export class Drawing implements IPlanSvgDrawing {
     }
 
     /** Gets a copy of the options provided to the drawing. */
-    get options(): any {
+    get options(): DrawingOptions {
         return { ...this._options };
     }
 
@@ -196,7 +206,11 @@ export class Drawing implements IPlanSvgDrawing {
 
         const directPositionAnnotations: AnnotationTransformed[] = [];
 
-        const allLayers = Array.from(annotationLayers.keys()).sort();
+        const allLayers = Array.from(annotationLayers.keys()).sort((a, b) => {
+            const aSort = this._options.layerSettings.get(a)?.annotationLineSort ?? Number.POSITIVE_INFINITY;
+            const bSort = this._options.layerSettings.get(b)?.annotationLineSort ?? Number.POSITIVE_INFINITY;
+            return aSort - bSort;
+        });
         allLayers.forEach(layer => {
             const annotationsInLayer = annotationLayers.get(layer)!;
             const horizontalAnnotations: AnnotationTransformed[] = [];
@@ -255,22 +269,26 @@ export class Drawing implements IPlanSvgDrawing {
                 return undefined;
                 return `${line.getMergeCriteria().toFixed(0)}`;
             }
+            const showGaps = (line: any) => {
+                const layerName = line.annotationLayerName;
+                return this.options.layerSettings.get(layerName)?.fillAnnotationGaps ?? false;
+            };
 
             horizontalAnnotationsResult.annotationLines.forEach(line => {
                 marginDown += annotationSpacing;
-                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, this.sceneRender.imageHeight + marginDown, 0), direction: new Vector3(1, 0, 0), debugLabel: debugLabel(line) });
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, this.sceneRender.imageHeight + marginDown, 0), direction: new Vector3(1, 0, 0), fillGapsOnAnnotationLine: showGaps(line), debugLabel: debugLabel(line) });
             });
             horizontalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
-                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, -marginUp, 0), direction: new Vector3(1, 0, 0), debugLabel: debugLabel(line) });
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(0, -marginUp, 0), direction: new Vector3(1, 0, 0), fillGapsOnAnnotationLine: showGaps(line), debugLabel: debugLabel(line) });
                 marginUp += annotationSpacing;
             });
 
             verticalAnnotationsResult.annotationLines.forEach(line => {
                 marginRight += annotationSpacing;
-                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(this.sceneRender.imageWidth + marginRight, 0, 0), direction: new Vector3(0, 1, 0), debugLabel: debugLabel(line) });
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(this.sceneRender.imageWidth + marginRight, 0, 0), direction: new Vector3(0, 1, 0), fillGapsOnAnnotationLine: showGaps(line), debugLabel: debugLabel(line) });
             });
             verticalAnnotationsResult.secondaryAnnotationLines.forEach(line => {
-                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(-marginLeft, 0, 0), direction: new Vector3(0, 1, 0), debugLabel: debugLabel(line) });
+                line.toSvg({ parent: annotationsRoot, offsetPixels: new Vector3(-marginLeft, 0, 0), direction: new Vector3(0, 1, 0), fillGapsOnAnnotationLine: showGaps(line), debugLabel: debugLabel(line) });
                 marginLeft += annotationSpacing;
             });
         });
