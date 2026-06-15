@@ -45,7 +45,7 @@ export const tab_AnnotationLayerSettings: I_tab_AnnotationLayerSettings[] = [
         in_Layer: `wallunit-dimension-horizontal`,
         out_AnnotationLineSort: 190,
         out_FillAnnotationGaps: true,
-        out_AnnotateDistanceFromWallCorners: true,
+        out_AnnotateDistanceFromWallCorners: false,
     },
     {
         in_Layer: 'carcase-dimension-horizontal',
