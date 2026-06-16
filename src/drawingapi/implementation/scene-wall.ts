@@ -159,21 +159,42 @@ export function filterNodesCloseToWall(nodes: IOrderSceneNode[], wallSegment: IW
     const wallStart = backSide ? wallSegment.segmentBackStart : wallSegment.segmentStart;
     const wallEnd = backSide ? wallSegment.segmentBackEnd : wallSegment.segmentEnd;
     const normalFromWall = backSide ? wallSegment.normalToWall : wallSegment.normalToWall.clone().multiply(-1);
+    const wallVector = wallEnd.clone().sub(wallStart);
+    const wallLength = wallVector.length();
+    if (wallLength < Vector3.EPS) {
+        return [];
+    }
+    const wallDirection = wallVector.clone().normalize();
+    const distanceTolerance = 1;
 
     const result: IOrderSceneNode[] = [];
 
     for (const node of nodes) {
         const allCorners = node.getAllBBoxCornersInWorld();
+        if (!allCorners.length) {
+            continue;
+        }
+
+        let minProjectionAlongWall = Number.POSITIVE_INFINITY;
+        let maxProjectionAlongWall = Number.NEGATIVE_INFINITY;
+        let minDistanceFromWall = Number.POSITIVE_INFINITY;
+        let maxDistanceFromWall = Number.NEGATIVE_INFINITY;
+
         for (const corner of allCorners) {
             const toCorner = corner.clone().sub(wallStart);
-            const projectionLength = toCorner.dot(wallEnd.clone().sub(wallStart).normalize());
-            const projectionPoint = wallStart.clone().add(wallEnd.clone().sub(wallStart).normalize().multiply(projectionLength));
-            const distanceToWall = corner.clone().sub(projectionPoint).dot(normalFromWall);
-            // floating point tolerance ... maybe down to >= -wallThickness / 2?
-            if (distanceToWall >= -1 && distanceToWall <= distance) {
-                result.push(node);
-                break;
-            }
+            const projectionAlongWall = toCorner.dot(wallDirection);
+            const distanceFromWall = toCorner.dot(normalFromWall);
+
+            minProjectionAlongWall = Math.min(minProjectionAlongWall, projectionAlongWall);
+            maxProjectionAlongWall = Math.max(maxProjectionAlongWall, projectionAlongWall);
+            minDistanceFromWall = Math.min(minDistanceFromWall, distanceFromWall);
+            maxDistanceFromWall = Math.max(maxDistanceFromWall, distanceFromWall);
+        }
+
+        const overlapsWallSpan = maxProjectionAlongWall >= -distanceTolerance && minProjectionAlongWall <= wallLength + distanceTolerance;
+        const distanceFromWallSurface = maxDistanceFromWall >= -distanceTolerance && minDistanceFromWall <= distance;
+        if (overlapsWallSpan && distanceFromWallSurface) {
+            result.push(node);
         }
 
     }
