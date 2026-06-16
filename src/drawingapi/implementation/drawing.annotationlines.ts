@@ -279,14 +279,14 @@ class LineWithAnnotations {
     isIntervalFree(start: number, end: number): boolean {
         const startRound = Math.round(Math.min(start, end));
         const endRound = Math.round(Math.max(start, end));
-        return !this.usedIntervals.some(i => i.start < endRound && i.end > startRound);
+        return !this.usedIntervals.some(i => Math.round(i.start) <= endRound && Math.round(i.end) >= startRound);
     }
     getMinMax(): { min: number, max: number } {
         if (this.usedIntervals.length === 0) {
             return { min: 0, max: 0 };
         }
-        const min = Math.min(...this.usedIntervals.map(i => i.start));
-        const max = Math.max(...this.usedIntervals.map(i => i.end));
+        const min = Math.min(...this.usedIntervals.map(i => Math.round(i.start)));
+        const max = Math.max(...this.usedIntervals.map(i => Math.round(i.end)));
         return { min, max };
     }
     /**
