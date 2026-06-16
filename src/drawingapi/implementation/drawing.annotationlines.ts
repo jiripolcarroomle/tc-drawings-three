@@ -587,7 +587,9 @@ function disqualifyAnnotationLinesWithOneInterval(linesWithAnnotations: LineWith
     for (let i = 0; i < linesWithAnnotations.length; i++) {
         const line = linesWithAnnotations[i];
         if (line.usedIntervals.length === 1) {
-            annotationsAtPosition.push(...line.usedIntervals[0].annotations);
+            // only add one of the annotation to position
+            // can be rewritten to pour all of them, but there might be too many
+            annotationsAtPosition.push(line.usedIntervals[0].annotations[0]);
             linesToDestroyIndices.push(i);
         }
     }
