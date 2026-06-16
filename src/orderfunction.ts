@@ -6,7 +6,7 @@ import type { ISceneGeometryConversionToThreeJsSettings } from "./drawingapi/imp
 import { renderScene } from "./drawingapi/implementation/orderdrawingrenderer.threejs";
 import { createScene, OrderSceneNode } from "./drawingapi/implementation/scene";
 import { Object3DNodeKind, type IOrderSceneNode } from "./drawingapi/interfaces/scene";
-import { Vector3 } from "./tc/base";
+import { Matrix4, Vector3 } from "./tc/base";
 import { filterNodesCloseToWall } from "./drawingapi/implementation/scene-wall";
 import { IdsMap } from "./drawingapi/interfaces/idsmap";
 
@@ -16,7 +16,7 @@ function createFileEntry(result: Map<string, any>, fileName: string, content: st
 
 export async function appOrderFunction(o: any, ol: any, result: Map<string, any>, serialized?: any): Promise<void> {
 
-    const orthoCameraRenderResults: IRenderOrthoCameraResult[] = [];
+    const orthoCameraRenderResults: { renderResult: IRenderOrthoCameraResult, drawing: Drawing }[] = [];
 
     // convert order to scene nodes, where the parts are grouped under modules and their world transforms can be calculated
     const orderScene = serialized ? OrderSceneNode.deserialize(new IdsMap(), serialized) : createScene(o, ol);
@@ -60,6 +60,17 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
         drawingMaxHeight: 1080 * 2,
     }
 
+    const layerSettings: Map<string, ILayerSettings> = new Map();
+    tab_AnnotationLayerSettings.forEach(setting => {
+        const layerName = setting.in_Layer;
+        const layerSetting = {
+            fillAnnotationGaps: setting.out_FillAnnotationGaps ?? defaultLayerSettings.fillAnnotationGaps,
+            addWallCornersToAnnotationLines: setting.out_AnnotateDistanceFromWallCorners ?? defaultLayerSettings.addWallCornersToAnnotationLines,
+            annotationLineSort: setting.out_AnnotationLineSort ?? defaultLayerSettings.annotationLineSort,
+        }
+        layerSettings.set(layerName, layerSetting);
+    });
+
     const partsNameFilter = (node: IOrderSceneNode) => {
         // filter out tiny parts that are not important for the overview drawings
         if (node.kind === Object3DNodeKind.Part) {
@@ -68,23 +79,6 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
                     'hinge',
                     'hanger',
                     'drill',
-                ].some(x => node.id.toLowerCase().includes(x))
-            ) {
-                return false;
-            }
-        }
-        return true;
-    }
-    const frontsNameFilter = (node: IOrderSceneNode) => {
-        // filter out tiny parts that are not important for the overview drawings
-        if (node.kind === Object3DNodeKind.Part) {
-            if (
-                [
-                    'part_door',
-                    'part_drawer_',
-                    'part_fliplift',
-                    'part_handle',
-                    'part_hinge',
                 ].some(x => node.id.toLowerCase().includes(x))
             ) {
                 return false;
@@ -133,8 +127,7 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
     // 2. collect relevant renderings
     // =================
 
-    const topView = await renderScene(orderScene, (node) => { void node; return true; }, sceneSettings, { name: 'topview', ...orthoCameraRenderSettings, direction: undefined });
-    orthoCameraRenderResults.push(topView);
+    const collectedWallAnnotablePoints: { wallWorldTransform: Matrix4, annotablePoint: AnnotablePoint }[] = [];
 
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
@@ -168,31 +161,59 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
             return true;
         }
 
-        const renderingFilterForFronts = (node: IOrderSceneNode) => {
-            // filter by name
-            if (!frontsNameFilter(node)) {
-                return false;
-            }
-            if (node.kind === Object3DNodeKind.Wall) {
-                return getWallsFilter(wall)(node);
-            }
-            if (node.kind === Object3DNodeKind.Part || node.kind === Object3DNodeKind.Module) {
-                return isOwnedByModuleCloseToWall(node);
-            }
-
-            return true;
-        }
-
-
         const cameraDirection = side === 'front' ? wall.wallData?.normalToWall : wall.wallData?.normalToWall.clone().multiply(-1);
 
-        const result = await renderScene(orderScene, renderingFilter, sceneSettings, { name: `${wall.id}-${side}-elevation`, ...orthoCameraRenderSettings, direction: cameraDirection });
-        orthoCameraRenderResults.push(result);
+        const renderResult = await renderScene(orderScene, renderingFilter, sceneSettings, { name: `${wall.id}-${side}-elevation`, ...orthoCameraRenderSettings, direction: cameraDirection });
 
-        // const resultWithoutFronts = await renderScene(orderScene, renderingFilterForFronts, sceneSettings, { name: `${wall.id}-${side}-elevation-without-fronts`, ...orthoCameraRenderSettings, direction: cameraDirection });
-        // orthoCameraRenderResults.push(resultWithoutFronts);
+        const drawing = new Drawing(
+            renderResult,
+            {
+                drawingDirection: DrawingDirection.Elevation,
+                layerSettings: layerSettings,
+            }
+        );
+
+        const wallData = wall.wallData;
+        if (!wallData) {
+            return;
+        }
+        (
+            side === 'front' ? [
+                wallData.segmentStart,
+                wallData.segmentEnd,
+                wallData.segmentStart.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+                wallData.segmentEnd.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+            ] : [
+                wallData.segmentBackStart,
+                wallData.segmentBackEnd,
+                wallData.segmentBackStart.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+                wallData.segmentBackEnd.clone().add(new Vector3(0, wallData.wallHeight, 0)),
+            ]
+        ).forEach((wallEndPoint) => {
+            const annotablePoint: AnnotablePoint = {
+                coordinate: wallEndPoint,
+            }
+            drawing.addAnnotablePoint(wall.worldTransform, annotablePoint);
+            collectedWallAnnotablePoints.push({ wallWorldTransform: wall.worldTransform, annotablePoint });
+        });
+
+        orthoCameraRenderResults.push({ renderResult, drawing });
 
     }
+
+    const topView = await renderScene(orderScene, (node) => { void node; return true; }, sceneSettings, { name: 'topview', ...orthoCameraRenderSettings, direction: undefined });
+    const topViewDrawing = new Drawing(
+        topView,
+        {
+            drawingDirection: DrawingDirection.Top,
+            layerSettings: layerSettings,
+        }
+    );
+    collectedWallAnnotablePoints.forEach(({ wallWorldTransform, annotablePoint }) => {
+        topViewDrawing.addAnnotablePoint(wallWorldTransform, annotablePoint);
+    });
+
+    orthoCameraRenderResults.unshift({ renderResult: topView, drawing: topViewDrawing });
 
     // =================
     // 3. make drawings from the renderings
@@ -200,47 +221,7 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
 
     const imageFileNames: string[] = [];
 
-    orthoCameraRenderResults.forEach((renderResult, index) => {
-
-        const layerSettings: Map<string, ILayerSettings> = new Map();
-        tab_AnnotationLayerSettings.forEach(setting => {
-            const layerName = setting.in_Layer;
-            const layerSetting = {
-                fillAnnotationGaps: setting.out_FillAnnotationGaps ?? defaultLayerSettings.fillAnnotationGaps,
-                addWallCornersToAnnotationLines: setting.out_AnnotateDistanceFromWallCorners ?? defaultLayerSettings.addWallCornersToAnnotationLines,
-                annotationLineSort: setting.out_AnnotationLineSort ?? defaultLayerSettings.annotationLineSort,
-            }
-            layerSettings.set(layerName, layerSetting);
-        });
-
-
-        const drawing = new Drawing(
-            renderResult,
-            {
-                drawingDirection: index === 0 ? DrawingDirection.Top : DrawingDirection.Elevation,
-                layerSettings: layerSettings,
-            }
-        );
-
-        // get the walls in the drawing
-        const walls = renderResult.renderedNodes?.filter(node => node.kind === Object3DNodeKind.Wall) ?? [];
-        walls.forEach(wall => {
-            const wallData = wall.wallData;
-            if (!wallData) {
-                return;
-            }
-            [
-                wallData.segmentStart,
-                wallData.segmentEnd,
-                wallData.segmentStart.clone().add(new Vector3(0, wallData.wallHeight, 0)),
-                wallData.segmentEnd.clone().add(new Vector3(0, wallData.wallHeight, 0)),
-            ].forEach((wallEndPoint) => {
-                const annotablePoint: AnnotablePoint = {
-                    coordinate: wallEndPoint,
-                }
-                drawing.addAnnotablePoint(wall.worldTransform, annotablePoint);
-            });
-        });
+    orthoCameraRenderResults.forEach(({ renderResult: renderResult, drawing }, index) => {
 
         renderResult.renderedNodes?.forEach((moduleNode: IOrderSceneNode) => {
             const moduleData = moduleNode.orderLineEntry;
