@@ -49,6 +49,8 @@ export interface AnnotablePoint {
     notHorizontal?: boolean;
     /** whether the point is relevant for the vertical (Y) axis of the drawing. defaults false. if true, annotation won't show on the given annotation line */
     notVertical?: boolean;
+    /** whether the point is a wall corner */
+    isWallVertex?: boolean;
 }
 
 /**

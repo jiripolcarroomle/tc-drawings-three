@@ -278,11 +278,12 @@ export class Drawing implements IPlanSvgDrawing {
                 return this.options.layerSettings.get(layerName)?.addWallCornersToAnnotationLines ?? false;
             };
             if (this.options.layerSettings.get(layer)?.addWallCornersToAnnotationLines) {
+                const wallCornerPoints = this._annotablePoints.filter(({ point }) => point.isWallVertex === true);
                 [
                     ...horizontalAnnotationsResult.annotationLines,
                     ...horizontalAnnotationsResult.secondaryAnnotationLines,
                 ].forEach(line => {
-                    this._annotablePoints.forEach(({ transformedPoint }) => {
+                    wallCornerPoints.forEach(({ transformedPoint }) => {
                         line.pushAnnotablePoint(transformedPoint, new Vector3(1, 0, 0));
                     });
                 });
@@ -290,7 +291,7 @@ export class Drawing implements IPlanSvgDrawing {
                     ...verticalAnnotationsResult.annotationLines,
                     ...verticalAnnotationsResult.secondaryAnnotationLines,
                 ].forEach(line => {
-                    this._annotablePoints.forEach(({ transformedPoint }) => {
+                    wallCornerPoints.forEach(({ transformedPoint }) => {
                         line.pushAnnotablePoint(transformedPoint, new Vector3(0, 1, 0));
                     });
                 });

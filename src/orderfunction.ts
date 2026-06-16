@@ -192,6 +192,7 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
         ).forEach((wallEndPoint) => {
             const annotablePoint: AnnotablePoint = {
                 coordinate: wallEndPoint,
+                isWallVertex: true,
             }
             drawing.addAnnotablePoint(wall.worldTransform, annotablePoint);
             collectedWallAnnotablePoints.push({ wallWorldTransform: wall.worldTransform, annotablePoint });
