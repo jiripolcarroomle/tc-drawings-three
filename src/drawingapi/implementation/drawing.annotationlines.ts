@@ -507,22 +507,30 @@ class LineWithAnnotations {
                 },
             });
         }
-        copyOfIntervals.forEach(interval => {
-            const selectAnnotationForIntervalEdge = (
-                edgeCoordinate: number,
-                distanceKey: "distanceStartX" | "distanceEndX",
-            ): AnnotationTransformedToDirection => interval.annotations.reduce((best, current) => {
-                const bestEdgeDistance = Math.abs(best[distanceKey] - edgeCoordinate);
-                const currentEdgeDistance = Math.abs(current[distanceKey] - edgeCoordinate);
-                if (currentEdgeDistance !== bestEdgeDistance) {
-                    return currentEdgeDistance < bestEdgeDistance ? current : best;
-                }
-                if (current.distanceY !== best.distanceY) {
-                    return current.distanceY > best.distanceY ? current : best;
-                }
-                return current;
-            });
+        // perpendicular to the annotation line direction - used to find how far a point reaches away from the line
+        const normalDirection = new Vector3(-direction._y, direction._x, 0);
 
+        // among all given points, returns the two that are nearest/farthest along normalDirection
+        const pickNormalExtremes = (points: Vector3[]): [Vector3, Vector3] => {
+            let nearest = points[0];
+            let farthest = points[0];
+            let nearestProjection = nearest.dot(normalDirection);
+            let farthestProjection = nearestProjection;
+            for (const point of points) {
+                const projection = point.dot(normalDirection);
+                if (projection < nearestProjection) {
+                    nearestProjection = projection;
+                    nearest = point;
+                }
+                if (projection > farthestProjection) {
+                    farthestProjection = projection;
+                    farthest = point;
+                }
+            }
+            return [nearest, farthest];
+        };
+
+        copyOfIntervals.forEach(interval => {
             const intervalStart = offsetPixels.clone().add(direction.clone().multiply(interval.start));
             const intervalEnd = offsetPixels.clone().add(direction.clone().multiply(interval.end));
 
@@ -540,22 +548,28 @@ class LineWithAnnotations {
                 });
             }
 
-            const farthestStartAnnotation = selectAnnotationForIntervalEdge(interval.start, "distanceStartX");
-            const farthestEndAnnotation = selectAnnotationForIntervalEdge(interval.end, "distanceEndX");
+            const [startNear, startFar] = pickNormalExtremes([
+                intervalStart,
+                ...interval.annotations.map(a => a.startPoint.pixelCoordinate),
+            ]);
             SVGHelper.createSvgLineElement({
                 parent,
-                startX: intervalStart._x,
-                startY: intervalStart._y,
-                endX: farthestStartAnnotation.startPoint.pixelCoordinate._x,
-                endY: farthestStartAnnotation.startPoint.pixelCoordinate._y,
+                startX: startNear._x,
+                startY: startNear._y,
+                endX: startFar._x,
+                endY: startFar._y,
                 properties: leaderLineStyle,
             });
+            const [endNear, endFar] = pickNormalExtremes([
+                intervalEnd,
+                ...interval.annotations.map(a => a.endPoint.pixelCoordinate),
+            ]);
             SVGHelper.createSvgLineElement({
                 parent,
-                startX: intervalEnd._x,
-                startY: intervalEnd._y,
-                endX: farthestEndAnnotation.endPoint.pixelCoordinate._x,
-                endY: farthestEndAnnotation.endPoint.pixelCoordinate._y,
+                startX: endNear._x,
+                startY: endNear._y,
+                endX: endFar._x,
+                endY: endFar._y,
                 properties: leaderLineStyle,
             });
         });
