@@ -2,11 +2,15 @@ import { parseFlattedWithNestedPropertyValues } from './dev-helpers';
 import './style.css';
 
 
+//import serializedOrderJsonRaw from '../assets/cornerkitchen2.serializedscene.json?raw'
+//import serializedOrderJsonRaw from '../assets/jpdevdrwtest1.serializedscene.json?raw'
+//
+import serializedOrderJsonRaw from '../assets/jpdevdrwtest2.serializedscene.json?raw'
+//import serializedOrderJsonRaw from '../assets/jpdevdrwtest3.serializedscene.json?raw'
+//import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
 // 
 //
 import orderJsonRaw from '../assets/simpleorder.flatted.json?raw'
-import serializedOrderJsonRaw from '../assets/cornerkitchen2.serializedscene.json?raw'
-//import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
 // 
 //import orderJsonRaw from '../assets/cornersorder.flatted.json?raw'
 // 
@@ -50,15 +54,21 @@ async function run() {
       const parser = new DOMParser();
       const svgDoc = parser.parseFromString(content, 'image/svg+xml');
       const svgElement = svgDoc.documentElement;
-      addSvgToDocument(appRoot, svgElement);
+      addSvgToDocument(appRoot, svgElement, key);
     }
 
   });
 }
 
 
-function addSvgToDocument(target: HTMLElement, svg: any) {
+function addSvgToDocument(target: HTMLElement, svg: any, drawingName: string) {
 
+  // header
+  const header = document.createElement('h2');
+  header.textContent = drawingName;
+  target.appendChild(header);
+
+  // the drawing
   target.appendChild(svg);
 
   // Add download button for SVG

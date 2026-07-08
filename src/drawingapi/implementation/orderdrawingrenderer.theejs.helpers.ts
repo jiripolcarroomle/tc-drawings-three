@@ -4,7 +4,7 @@ import { type ISceneGeometryConversionSettings } from "../interfaces/orderdrawin
 import { Object3DNodeKind } from "../interfaces/scene";
 import { type IOrderSceneNode } from "../interfaces/scene";
 import * as TC from "../../tc/base";
-import { logError, logWarning, logInfo } from "../../tc/base";
+import { logError, logInfo } from "../../tc/base";
 import { SVGRenderer } from "three/examples/jsm/Addons.js";
 
 export interface ISceneGeometryConversionToThreeJsSettings extends ISceneGeometryConversionSettings {
