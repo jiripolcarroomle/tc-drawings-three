@@ -81,6 +81,12 @@ export interface IOrderSceneNode {
      */
     wallData: IWallSegment | undefined;
     /**
+     * Id of the generation module node (e.g. mr_Countertop) that generated this node.
+     * Generation modules have no placement of their own, so their children are reparented to the pos-group when the scene is created.
+     * Undefined for nodes that were not generated.
+     */
+    generationModuleId?: string;
+    /**
      * Returns a list of all corners of bounding boxes of all descendands in world coordinates.
      * This is useful to determining whether a node is close to a wall.
      */

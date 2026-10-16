@@ -109,6 +109,15 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
 
     const allModuleNodes = allModuleNodesIncludingGenerationModules.filter(node => !generationModules.includes(node));
 
+    // modules created by the generation modules (countertops, toekicks, legs, ...) are drawn together with the modules
+    // that emitted the contours they were generated from (their owners); the other modules can be owners
+    const generatedModuleNodes = allModuleNodes.filter(node => node.generationModuleId !== undefined);
+    const ownerCandidateModuleNodes = allModuleNodes.filter(node => node.generationModuleId === undefined);
+    const getContourOwnerIds = (node: IOrderSceneNode): string[] => {
+        const ownerIds = node.orderLineEntry?.['mod_ContourOwnerIds'];
+        return Array.isArray(ownerIds) ? ownerIds : [];
+    };
+
     // get all walls in the order
     const allWalls = orderScene.children.find(child => child.kind === Object3DNodeKind.WallGroup)?.children ?? [];
     // both sides of all walls
@@ -131,9 +140,20 @@ export async function appOrderFunction(o: any, ol: any, result: Map<string, any>
 
     for (const wallAndSide of allWallSides) {
         const { wall, side } = wallAndSide;
-        const modulesCloseToWall = filterNodesCloseToWall(allModuleNodes, wall.wallData!, side === 'rear', moduleCloseToWallDistanceThreshold)
-        // nothing -> do not render
-        if (!modulesCloseToWall.length) continue;
+        const ownerModulesCloseToWall = filterNodesCloseToWall(ownerCandidateModuleNodes, wall.wallData!, side === 'rear', moduleCloseToWallDistanceThreshold)
+        // nothing -> do not render; generated modules alone do not make an elevation
+        if (!ownerModulesCloseToWall.length) continue;
+
+        const ownerIdsCloseToWall = new Set(ownerModulesCloseToWall.map(node => node.orderLineEntry?.['_id']));
+        const generatedModulesCloseToWall = generatedModuleNodes.filter(node => {
+            const ownerIds = getContourOwnerIds(node);
+            if (ownerIds.length) {
+                return ownerIds.some(ownerId => ownerIdsCloseToWall.has(ownerId));
+            }
+            // no owner information (e.g. data from an older library) - decide by the distance from the wall
+            return filterNodesCloseToWall([node], wall.wallData!, side === 'rear', moduleCloseToWallDistanceThreshold).length > 0;
+        });
+        const modulesCloseToWall = [...ownerModulesCloseToWall, ...generatedModulesCloseToWall];
 
         const isOwnedByModuleCloseToWall = (node: IOrderSceneNode) => {
             let current: IOrderSceneNode | null = node;
