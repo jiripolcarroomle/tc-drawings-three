@@ -9,7 +9,7 @@ import { drawingArea, linesBox, writeSheet } from './render/svg.ts';
 import { buildSceneFromOrder } from './scene/from-order.ts';
 import { NodeKind, walk, type Scene, type SceneNode } from './scene/scene.ts';
 import { defineViews, nodeContext, type ViewDefinition } from './views.ts';
-import { collectAnnotations, projectPoint } from './annotations/collect.ts';
+import { collectAnnotations, entriesForModule, projectPoint, type EntriesOf } from './annotations/collect.ts';
 import { layoutAnnotations, type AnnotationLayout, type ViewAnnotations } from './annotations/layout.ts';
 import { DrawingDirection, type I_tab_AnnotationLayerSettings, type ILayerSettings } from './annotations/types.ts';
 
@@ -145,7 +145,10 @@ export function renderView(view: ViewDefinition, solids: Map<SceneNode, Solid>, 
 
 function viewAnnotations(view: ViewDefinition, modules: SceneNode[], content: DrawingContent, settings: DrawingSettings, basis: ViewBasis, logger: Logger): ViewAnnotations {
     const drawingInfo = { drawingDirection: view.kind === 'top' ? DrawingDirection.Top : DrawingDirection.Elevation, name: view.name };
-    const result = collectAnnotations(modules.filter(m => view.shows(m)), content.annotations ?? [], drawingInfo, basis, settings.annotations.excludeTags, logger);
+    const entriesOf: EntriesOf = content.annotationsOf
+        ? (modId, data, drawing) => content.annotationsOf!(modId, data, drawing)
+        : (modId, data, drawing) => entriesForModule(content.annotations ?? [], modId, data, drawing);
+    const result = collectAnnotations(modules.filter(m => view.shows(m)), entriesOf, drawingInfo, basis, settings.annotations.excludeTags, logger);
     for (const corner of view.wallVertices) {
         result.annotablePoints.push({ point: { coordinate: { x: corner.x, y: corner.y, z: corner.z }, isWallVertex: true }, at: projectPoint(corner, basis) });
     }

@@ -13,11 +13,15 @@ scale plus a `Drawings.html` preview page.
 
 ## Usage in an order output
 
+The order output imports the package (the only import it needs) and passes the order data and the content:
+
 ```ts
+import * as RoomDrawings from 'room-drawings';
+
 const drawings = RoomDrawings.createRoomDrawings({ order: o, groups: ol }, {
     content: {
-        annotations: tab_Annotations,                                 // the content data, as written today
-        annotationLayerSettings: tab_AnnotationLayerSettings,
+        annotationsOf: filterAnnotationForModule,                     // the content data, as written today
+        annotationLayerSettings: tab_AnnotationLayerSettings,         // (or annotations: tab_Annotations)
         includeNode: ctx => GlobalFunc.drawing_IncludeNode(ctx),      // e.g. skip drillings
         classifyPart: ctx => GlobalFunc.drawing_PartClass(ctx),       // 'front' | 'carcass' | 'worktop' | ...
         ownerIds: ctx => ctx.data?.mod_ContourOwnerIds,               // generated parts follow their owners
@@ -34,12 +38,19 @@ drawings.files.forEach(f => this.createFileEntry(result, f.fileName, f.content, 
 `examples/content.ts` is a working example of the content callbacks and styles; `examples/annotationstable.ts`
 is the current annotation table, unchanged apart from its imports.
 
+**In cabinetlibrary_drawings** the order output `output_RoomDrawings` (branch `v2-room-drawings`) runs next to
+`output_DrawingsPlanDEV`. It writes the SVG sheets, `Drawings.html` and `dev_room_drawings_scene.json` (a scene
+snapshot; `node scripts/make-fixture.ts` is not needed for it, `readScene` reads it directly). For local
+development the library links this folder (`"room-drawings": "link:../tc-drawings-three/packages/room-drawings"`);
+run `npm run build` here after a change.
+
 ## Content data
 
 The package takes the drawing content data in the format content developers write today
 (`src/annotations/types.ts`, exported from the package with the same names):
 
-- **`tab_Annotations`** (`I_tab_Annotation[]`) — per module id (`in_ModuleId`, comma-separated ids allowed) and an
+- **`tab_Annotations`** (`I_tab_Annotation[]`, option `annotations`; or option `annotationsOf`, a lookup with the
+  signature of `filterAnnotationForModule`) — per module id (`in_ModuleId`, comma-separated ids allowed) and an
   optional `in_Condition(data, drawing)`:
   - `out_Annotations` — dimension intervals (`Annotation`: points, layer, label, tags, …);
   - `out_SvgPathOverlays` — SVG path overlays (`SvgPathInjectionData`), e.g. the wall-unit cross or the countertop outline in the top view;
@@ -47,6 +58,8 @@ The package takes the drawing content data in the format content developers writ
 
   All functions get the module's order entry and the drawing (`IPlanSvgDrawing`: `drawingDirection` `'top'` or
   `'elevation'`, view name) and return coordinates in module space; the package transforms them into the view.
+  Tables typed against the former drawing API's interfaces are accepted as they are; their functions only get
+  these two fields.
 - **`tab_AnnotationLayerSettings`** (`I_tab_AnnotationLayerSettings[]`) — per layer: line order, filling gaps, distances
   to the wall corners.
 
@@ -106,9 +119,9 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
   - vector renderer with hidden-line removal;
   - views, true-scale sheets, HTML preview;
   - annotations from the unchanged content data (same dimensions as the product export);
+  - output method `output_RoomDrawings` in cabinetlibrary_drawings (same files as the golden files, 0.1–0.3 s per order);
   - regression suite over 10 orders.
 - **Next:**
   - title block and legend;
   - outlines of 3D models;
-  - content documentation;
-  - the new output method in the library.
+  - content documentation.

@@ -16,11 +16,14 @@ export const DrawingDirection = {
 } as const;
 export type DrawingDirection = typeof DrawingDirection[keyof typeof DrawingDirection];
 
-/** What the content functions receive as `drawingData` (the content reads `drawingDirection`). */
+/**
+ * What the content functions receive as `drawingData` (the content reads `drawingDirection`). Content typed
+ * against the former drawing API's IPlanSvgDrawing is accepted; only these fields are present.
+ */
 export interface IPlanSvgDrawing {
     readonly drawingDirection: DrawingDirection;
-    /** Name of the view, e.g. 'topview' or 'wall-2-front-elevation'. */
-    readonly name: string;
+    /** Name of the view, e.g. 'topview' or 'wall-2-front-elevation' (always set by this package). */
+    readonly name?: string;
 }
 
 export interface AnnotablePoint {
@@ -88,14 +91,17 @@ export interface SvgPathInjectionData {
     tags: string[];
 }
 
-/** One entry of the annotation table (tab_Annotations). */
+/**
+ * One entry of the annotation table (tab_Annotations). The functions are declared as methods so that tables
+ * typed against the former drawing API's interfaces fit as they are.
+ */
 export interface I_tab_Annotation {
     /** Comma separated module ids (modId) the entry applies to. */
     in_ModuleId: string;
-    in_Condition?: (m: any, drawingData: IPlanSvgDrawing) => boolean;
-    out_AnnotablePoints?: (m: any, drawingData: IPlanSvgDrawing) => AnnotablePoint[];
-    out_SvgPathOverlays?: (m: any, drawingData: IPlanSvgDrawing) => SvgPathInjectionData[];
-    out_Annotations?: (m: any, drawingData: IPlanSvgDrawing) => Annotation[];
+    in_Condition?(m: any, drawingData: IPlanSvgDrawing): boolean;
+    out_AnnotablePoints?(m: any, drawingData: IPlanSvgDrawing): AnnotablePoint[];
+    out_SvgPathOverlays?(m: any, drawingData: IPlanSvgDrawing): SvgPathInjectionData[];
+    out_Annotations?(m: any, drawingData: IPlanSvgDrawing): Annotation[];
 }
 
 /** One entry of the annotation layer settings table (tab_AnnotationLayerSettings). */

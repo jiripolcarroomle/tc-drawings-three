@@ -30,7 +30,10 @@ export function entriesForModule(table: I_tab_Annotation[], modId: string, data:
     });
 }
 
-export function collectAnnotations(modules: SceneNode[], table: I_tab_Annotation[], drawing: IPlanSvgDrawing, basis: ViewBasis, excludeTags: string[], logger: Logger): ViewAnnotations {
+/** The table entries of a module in a drawing (content `annotationsOf`, or the table filtered by `entriesForModule`). */
+export type EntriesOf = (modId: string, data: unknown, drawing: IPlanSvgDrawing) => I_tab_Annotation[];
+
+export function collectAnnotations(modules: SceneNode[], entriesOf: EntriesOf, drawing: IPlanSvgDrawing, basis: ViewBasis, excludeTags: string[], logger: Logger): ViewAnnotations {
     const result: ViewAnnotations = { annotations: [], overlays: [], annotablePoints: [] };
     const allowed = (tags: string[] | undefined) => !(tags ?? []).some(tag => excludeTags.includes(tag));
     const at = (world: Mat4, p: ContentPoint) => projectPoint(transformPoint(world, contentPoint(p)), basis);
@@ -41,7 +44,7 @@ export function collectAnnotations(modules: SceneNode[], table: I_tab_Annotation
         if (!modId) continue;
         let entries: I_tab_Annotation[];
         try {
-            entries = entriesForModule(table, modId, data, drawing);
+            entries = entriesOf(modId, data, drawing);
         }
         catch (error) {
             logger.warning(`room-drawings: annotation condition failed for ${node.id}: ${message(error)}`);

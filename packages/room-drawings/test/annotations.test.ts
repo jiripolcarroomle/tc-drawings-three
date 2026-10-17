@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRoomDrawingsFromScene } from '../src/index.ts';
+import { createRoomDrawingsFromScene, type IPlanSvgDrawing } from '../src/index.ts';
 import { exampleContent, exampleSettings } from '../examples/content.ts';
 import { readScene } from '../scripts/files.ts';
 
@@ -25,3 +25,14 @@ for (const [order, views] of Object.entries(reference.orders)) {
         }
     });
 }
+
+test('annotationsOf (the content lookup, like filterAnnotationForModule) gives the same drawings as the table', () => {
+    const scene = () => readScene(path.join(FIXTURES, '10000130.scene.json.gz'));
+    const { annotations: table, ...rest } = exampleContent;
+    const filterAnnotationForModule = (moduleId: string, m: any, drawingData: IPlanSvgDrawing) => table!.filter(entry =>
+        entry.in_ModuleId.split(',').map(id => id.trim()).includes(moduleId) && (entry.in_Condition ? entry.in_Condition(m, drawingData) : true));
+    const viaTable = createRoomDrawingsFromScene(scene(), { content: exampleContent, settings: exampleSettings });
+    const viaLookup = createRoomDrawingsFromScene(scene(), { content: { ...rest, annotationsOf: filterAnnotationForModule }, settings: exampleSettings });
+    assert.ok(viaTable.views.every(v => v.stats.annotations > 0), 'annotated');
+    assert.deepEqual(viaLookup.files, viaTable.files);
+});
