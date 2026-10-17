@@ -11,7 +11,8 @@ import { readScene } from '../scripts/files.ts';
 const FIXTURES = path.join(import.meta.dirname, 'fixtures');
 const reference: { orders: Record<string, Record<string, string[]>> } = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'product-dimensions.json'), 'utf8'));
 
-const dimensionTexts = (svg: string) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)]
+// numeric texts of the annotation group (the title block has numbers too)
+const dimensionTexts = (svg: string) => [...svg.slice(svg.indexOf('<g class="annotations"'), svg.indexOf('<g class="title-block"')).matchAll(/<text[^>]*>([^<]*)<\/text>/g)]
     .map(match => match[1]!.trim())
     .filter(text => /^-?\d+$/.test(text))
     .sort((a, b) => Number(a) - Number(b));

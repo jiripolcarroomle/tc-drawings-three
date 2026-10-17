@@ -1,5 +1,5 @@
 import type { DrawingContent, NodeContext, ViewInfo } from './content.ts';
-import { dot, length, normalize, scale, sub, vec3, type Vec3 } from './math.ts';
+import { add, dot, length, normalize, scale, sub, vec3, type Vec3 } from './math.ts';
 import type { DrawingSettings } from './settings.ts';
 import type { Solid } from './geometry/solids.ts';
 import { ancestorModule, NodeKind, placedModules, walls, type Scene, type SceneNode } from './scene/scene.ts';
@@ -19,6 +19,11 @@ export interface ViewDefinition extends ViewInfo {
     wall?: SceneNode;
     /** Wall corners offered to the annotation lines (distances to the walls), world coordinates. */
     wallVertices: Vec3[];
+    /**
+     * Elevations: letter of the view for the marker in the top view; `at` is the middle of the wall face moved to
+     * the front of the furniture shown (the marker goes in front of it), `direction` the view direction (world).
+     */
+    marker?: { label: string; at: Vec3; direction: Vec3 };
     /** Is a node with geometry part of this view? */
     shows(node: SceneNode): boolean;
 }
@@ -55,11 +60,19 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
         return result;
     };
 
+    // outlines of everything in the top view except walls, for the elevation markers
+    let furnitureRings: Vec3[][] | undefined;
+    const furniture = () => furnitureRings ??= [...solids].filter(([node]) => node.kind !== NodeKind.Wall && chainIncluded(node, { name: 'topview', kind: 'top' }))
+        .flatMap(([, solid]) => solid.faces.flatMap(face => face.rings));
+
+    let letter = 0;
     for (const wall of walls(scene)) {
         for (const side of settings.views.rearElevations ? ['front', 'rear'] as const : ['front'] as const) {
             const rear = side === 'rear';
             const ownersClose = closeToWall(owners, verticesOf, wall, rear, settings.views.maxDistanceFromWall);
             if (!ownersClose.length) continue;
+            const label = elevationLabel(letter++);
+            const direction = rear ? scale(wall.wall!.normal, -1) : wall.wall!.normal;
             const ownerIds = new Set(ownersClose.map(m => m.module!.uid));
             const shown = new Set<SceneNode>([...ownersClose, ...generated.filter(m => {
                 const ids = content.ownerIds?.({ node: m, data: m.data });
@@ -70,10 +83,11 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
             const info: ViewInfo = { name: `${wall.id}-${side}-elevation`, kind: 'elevation' };
             views.push({
                 ...info,
-                title: `Elevation ${wall.id} (${side})`,
-                direction: rear ? scale(wall.wall!.normal, -1) : wall.wall!.normal,
+                title: `Elevation ${label} – ${wall.id.replace(/-/g, ' ')}${rear ? ', rear side' : ''}`,
+                direction,
                 wall,
                 wallVertices: wallFaceCorners(wall.wall!, rear),
+                marker: { label, at: markerPosition(wall, rear, furniture(), settings.views.maxDistanceFromWall), direction },
                 shows: node => {
                     if (node.kind === NodeKind.Wall) return node === wall;
                     const module = topModule(node);
@@ -94,6 +108,50 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
         }
         return result;
     }
+}
+
+/** A, B, ..., Z, AA, AB, ... */
+function elevationLabel(index: number): string {
+    const letter = String.fromCharCode(65 + index % 26);
+    return index < 26 ? letter : elevationLabel(Math.floor(index / 26) - 1) + letter;
+}
+
+/**
+ * Middle of the wall face, moved away from the wall to the front of the furniture standing there: face outlines
+ * that come within `band` of the middle (measured along the wall) and start closer than `near` to the wall
+ * face; furniture elsewhere along the wall or across the room does not count.
+ */
+function markerPosition(wallNode: SceneNode, rear: boolean, furniture: Vec3[][], near: number, band = 300): Vec3 {
+    const wall = wallNode.wall!;
+    const start = rear ? wall.backStart : wall.start, end = rear ? wall.backEnd : wall.end;
+    const along = normalize(sub(end, start));
+    const away = rear ? wall.normal : scale(wall.normal, -1);
+    const half = length(sub(end, start)) / 2;
+    const lo = half - band, hi = half + band;
+    let depth = 0;
+    for (const ring of furniture) {
+        let ringMin = Infinity, ringMax = -Infinity;
+        for (let i = 0; i < ring.length; i++) {
+            const p = sub(ring[i]!, start), q = sub(ring[(i + 1) % ring.length]!, start);
+            const pa = dot(p, along), qa = dot(q, along), pd = dot(p, away), qd = dot(q, away);
+            // the part of the edge within the band along the wall
+            let t0 = 0, t1 = 1;
+            if (Math.abs(qa - pa) < 1e-9) {
+                if (pa < lo || pa > hi) continue;
+            }
+            else {
+                const a = (lo - pa) / (qa - pa), b = (hi - pa) / (qa - pa);
+                t0 = Math.max(0, Math.min(a, b));
+                t1 = Math.min(1, Math.max(a, b));
+                if (t0 > t1) continue;
+            }
+            const d0 = pd + (qd - pd) * t0, d1 = pd + (qd - pd) * t1;
+            ringMin = Math.min(ringMin, d0, d1);
+            ringMax = Math.max(ringMax, d0, d1);
+        }
+        if (ringMin > -1 && ringMin <= near && ringMax > depth) depth = ringMax;
+    }
+    return add(scale(add(start, end), 0.5), scale(away, depth));
 }
 
 /** The four corners of the viewed wall face (bottom and top). */

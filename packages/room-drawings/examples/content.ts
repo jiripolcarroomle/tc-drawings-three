@@ -24,6 +24,19 @@ export const exampleContent: DrawingContent = {
     },
 };
 
+/** The example content with title block fields, as an order output would fill them from the order data. */
+export function exampleContentFor(order: string): DrawingContent {
+    return {
+        ...exampleContent,
+        titleBlock: [
+            { label: 'Order', value: order },
+            { label: 'Position', value: '1' },
+            { label: 'Description', value: 'Kitchen' },
+            { label: 'Date', value: '2026-10-17' },
+        ],
+    };
+}
+
 export const exampleSettings: SettingsOverrides = {
     styles: {
         carcass: { lineWidth: 0.25, fill: '#ffffff', pattern: 'solid', hiddenLines: 'none' },

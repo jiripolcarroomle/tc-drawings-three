@@ -2,7 +2,8 @@
 
 Vector drawings of a furnished room — a top view and an elevation per wall side — made from the order data.
 Built for the server: no DOM, no WebGL, no runtime dependencies. The output is a set of SVG sheets at true
-scale plus a `Drawings.html` preview page.
+scale — an overview sheet with all views, then one sheet per view, each with a frame and title block — plus a
+`Drawings.html` preview page.
 
 ## Who does what
 
@@ -25,6 +26,7 @@ const drawings = RoomDrawings.createRoomDrawings({ order: o, groups: ol }, {
         includeNode: ctx => GlobalFunc.drawing_IncludeNode(ctx),      // e.g. skip drillings
         classifyPart: ctx => GlobalFunc.drawing_PartClass(ctx),       // 'front' | 'carcass' | 'worktop' | ...
         ownerIds: ctx => ctx.data?.mod_ContourOwnerIds,               // generated parts follow their owners
+        titleBlock: [{ label: 'Order', value: String(o.orderNo) }, { label: 'Date', value: today }],
     },
     settings: {
         paper: { width: 420, height: 297, margin: 10 },               // A3 landscape
@@ -73,10 +75,11 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
 
 - **`paper`** — sheet size and margin [mm].
 - **`scales`** — allowed scale denominators; the first that fits is used.
-- **`styles[class]`** — line width on paper [mm], fill, line pattern, hidden lines (none or dashed).
+- **`styles[class]`** — line width on paper [mm], fill, line pattern, hidden lines (none or dashed). Walls use `wall` in the top view (cut walls) and `wall-elevation` behind an elevation.
 - **`fills`** — shade faces underneath the lines.
 - **`views`** — top view, elevations, rear elevations, and the maximum distance of a module from a wall for that wall to get an elevation.
 - **`text`** — font and title height.
+- **`sheet`** — frame, padding, title block height, the overview sheet (on/off, gap between views, caption height), elevation markers in the top view (on/off, radius).
 - **`annotations`** — text height on paper [mm] (sets the size of the whole annotation layout), spacing of the dimension lines, margins, which single-interval lines are dropped (`disqualify`), and annotation tags that are skipped (`excludeTags`, default `inside`).
 - **`smoothAngle`**, **`tolerance`** — geometric tuning.
 
@@ -89,7 +92,11 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
    - an elevation is made for each wall side that has a regular module close to it. It shows those modules and the generated modules owned by them; generated modules without owner ids fall back to the wall distance.
 4. **Hidden-line removal** (`src/render/hlr.ts`) — every edge is split where it crosses the outline of a face in front of it, and each piece is visible unless a face covers it closer to the viewer. The lines are exact, not painted over; collinear duplicates are merged (`render/lines.ts`).
 5. **Annotations** (`src/annotations`) — the content tables are evaluated for each module in the view; points are projected into the view; the wall corners are added as snap points. The dimension lines are laid out per scale until everything fits; the result is a string-built SVG group (no DOM).
-6. **Sheet** (`src/render/svg.ts`) — SVG with the viewBox in room millimeters and the sheet size in paper millimeters, i.e. true scale, with the annotation group on top.
+6. **Sheets** (`src/render/svg.ts`) — SVG in paper millimeters; each view is a group in room millimeters scaled by 1/scale, i.e. true scale, with the annotation group on top.
+   - one sheet per view, at the largest scale in `settings.scales` where the view and its dimension lines fit;
+   - an overview sheet with all views packed in rows, at the largest common scale where they fit;
+   - elevations are lettered A, B, C, …; the top view shows a marker per elevation (letter, view direction) at the middle of its wall, in front of the furniture standing there;
+   - frame and title block: view title, the content's `titleBlock` fields, scale, sheet n / N.
 
 ## Development
 
@@ -117,11 +124,11 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
 - **Done:**
   - package, scene from order data (same result as tc-drawings-three's scene builder, checked node by node);
   - vector renderer with hidden-line removal;
-  - views, true-scale sheets, HTML preview;
+  - views, true-scale sheets with frame and title block, overview sheet, elevation markers, HTML preview;
   - annotations from the unchanged content data (same dimensions as the product export);
   - output method `output_RoomDrawings` in cabinetlibrary_drawings (same files as the golden files, 0.1–0.3 s per order);
   - regression suite over 10 orders.
 - **Next:**
-  - title block and legend;
+  - legend;
   - outlines of 3D models;
   - content documentation.

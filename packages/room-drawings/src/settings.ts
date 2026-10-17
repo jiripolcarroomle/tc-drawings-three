@@ -19,7 +19,7 @@ export interface DrawingSettings {
     paper: { width: number; height: number; margin: number };
     /** Allowed scale denominators, the first one that fits the sheet is used (1:10, 1:20, ...). */
     scales: number[];
-    /** Styles per part class. Classes are defined by the content (classifyPart); 'wall' is used for walls. */
+    /** Styles per part class. Classes are defined by the content (classifyPart); walls are 'wall' in the top view and 'wall-elevation' in elevations. */
     styles: Record<string, ClassStyle>;
     /** Style of parts without a class or with a class missing in `styles`. */
     defaultStyle: ClassStyle;
@@ -33,6 +33,25 @@ export interface DrawingSettings {
         maxDistanceFromWall: number;
     };
     text: { fontFamily: string; titleHeight: number };
+    /** Sheet layout [paper mm]. */
+    sheet: {
+        /** Frame line at the paper margin. */
+        frame: boolean;
+        /** Space between the frame and the views. */
+        padding: number;
+        /** Height of the title block band at the bottom of the frame. */
+        titleBlockHeight: number;
+        /** Overview sheet: all views on one sheet at a common scale (first file). */
+        overview: boolean;
+        /** Space between views on the overview sheet. */
+        viewGap: number;
+        /** Text height of the view captions on the overview sheet. */
+        captionHeight: number;
+        /** Elevation markers (letter, view direction) in the top view. */
+        elevationMarkers: boolean;
+        /** Radius of the elevation marker circle. */
+        markerRadius: number;
+    };
     /** Layout of the content annotations (dimensions, overlays). */
     annotations: {
         /**
@@ -60,12 +79,16 @@ export const defaultSettings: DrawingSettings = {
     paper: { width: 420, height: 297, margin: 10 },
     scales: [10, 20, 25, 50, 100, 200],
     styles: {
-        wall: { lineWidth: 0.5, fill: '#d9d9d9', pattern: 'solid', hiddenLines: 'none' },
+        // walls cut by the top view
+        wall: { lineWidth: 0.5, fill: '#bfbfbf', pattern: 'solid', hiddenLines: 'none' },
+        // the wall behind an elevation
+        'wall-elevation': { lineWidth: 0.35, fill: '#ececec', pattern: 'solid', hiddenLines: 'none' },
     },
     defaultStyle: { lineWidth: 0.25, fill: '#ffffff', pattern: 'solid', hiddenLines: 'none' },
     fills: true,
     views: { top: true, elevations: true, rearElevations: true, maxDistanceFromWall: 300 },
     text: { fontFamily: 'Arial, Helvetica, sans-serif', titleHeight: 3.5 },
+    sheet: { frame: true, padding: 5, titleBlockHeight: 14, overview: true, viewGap: 12, captionHeight: 3.5, elevationMarkers: true, markerRadius: 4 },
     annotations: { textHeight: 2.5, lineSpacing: 40, baseMargin: 20, finalMargin: 20, disqualify: 'withSingleInterval', excludeTags: ['inside'] },
     smoothAngle: 10,
     tolerance: { depth: 0.5, boundary: 0.05 },

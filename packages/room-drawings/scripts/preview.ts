@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRoomDrawingsFromScene } from '../src/index.ts';
-import { exampleContent, exampleSettings } from '../examples/content.ts';
+import { exampleContentFor, exampleSettings } from '../examples/content.ts';
 import { readScene } from './files.ts';
 
 const [file, outDir] = process.argv.slice(2);
@@ -14,7 +14,7 @@ if (!file || !outDir) {
 const start = performance.now();
 const scene = readScene(file);
 const loaded = performance.now();
-const result = createRoomDrawingsFromScene(scene, { content: exampleContent, settings: exampleSettings });
+const result = createRoomDrawingsFromScene(scene, { content: exampleContentFor(path.basename(file).split('.')[0]!), settings: exampleSettings });
 const rendered = performance.now();
 fs.mkdirSync(outDir, { recursive: true });
 for (const f of result.files) fs.writeFileSync(path.join(outDir, f.fileName), f.content);

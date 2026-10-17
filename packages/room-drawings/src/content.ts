@@ -36,6 +36,8 @@ export interface DrawingContent {
     annotationsOf?(modId: string, data: unknown, drawing: IPlanSvgDrawing): I_tab_Annotation[];
     /** Settings of the annotation layers (tab_AnnotationLayerSettings): line order, gaps, wall corner distances. */
     annotationLayerSettings?: I_tab_AnnotationLayerSettings[];
+    /** Fields of the title block on every sheet, e.g. order number, position, customer, date. */
+    titleBlock?: { label: string; value: string }[];
     /** Whether a part or module is drawn in a view (e.g. skip drillings or fittings). Default: everything. */
     includeNode?(context: NodeContext): boolean;
     /** Style class of a part (a key of `settings.styles`, e.g. 'front', 'carcass', 'worktop'). Default: none. */

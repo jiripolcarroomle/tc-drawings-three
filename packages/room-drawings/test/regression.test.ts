@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRoomDrawingsFromScene } from '../src/index.ts';
-import { exampleContent, exampleSettings } from '../examples/content.ts';
+import { exampleContentFor, exampleSettings } from '../examples/content.ts';
 import { readScene } from '../scripts/files.ts';
 
 const FIXTURES = path.join(import.meta.dirname, 'fixtures');
@@ -16,9 +16,10 @@ const update = process.env.UPDATE_GOLDEN === '1';
 for (const fixture of fs.readdirSync(FIXTURES).filter(f => f.endsWith('.scene.json.gz')).sort()) {
     const name = fixture.replace('.scene.json.gz', '');
     test(`drawings of ${name}`, () => {
-        const result = createRoomDrawingsFromScene(readScene(path.join(FIXTURES, fixture)), { content: exampleContent, settings: exampleSettings });
+        const result = createRoomDrawingsFromScene(readScene(path.join(FIXTURES, fixture)), { content: exampleContentFor(name), settings: exampleSettings });
 
         assert.ok(result.views.some(v => v.name === 'topview'), 'has a top view');
+        assert.ok(result.views.length < 2 || result.files[0]?.fileName === 'overview.svg', 'overview sheet first');
         for (const view of result.views) {
             assert.ok(view.stats.solids > 0 && view.stats.lines > 0, `${view.name} is not empty`);
             assert.ok(!/NaN|Infinity/.test(view.svg), `${view.name} has only finite coordinates`);
