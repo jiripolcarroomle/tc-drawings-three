@@ -15,6 +15,9 @@ export interface ISceneGeometryConversionToThreeJsSettings extends ISceneGeometr
 
 const _object3dCache: Map<string, THREE.Object3D> = new Map();
 
+/** Surface color of the bounding boxes drawn instead of 3d models that could not be loaded. */
+const MISSING_MESH_COLOR = 0xff0000;
+
 const objLoader = new OBJLoader();
 
 async function _loadObject3DFromCacheOrFetch(
@@ -167,6 +170,55 @@ function _createSvgBoxPlanesAndWireframe(
     }
 
     return group;
+}
+
+/**
+ * Adds a box of the given size to the parent; the box is placed at the origin translation and extends in the positive axes.
+ * @param parent the THREE.Object3D to which the box will be added as a child
+ * @param origin the local coordinate system of the geometry inside the owner node; only its translation is used
+ * @param size the size of the box
+ * @param materialBase the base material properties for the surface; if undefined, no surface will be created
+ * @param wireframeMaterialBase the base material properties for the wireframe; if undefined, no wireframe will be created
+ * @param drawingRenderSettings the settings that may influence how the geometry is rendered
+ */
+function _addBoxRenderable(
+    parent: THREE.Object3D,
+    origin: TC.Matrix4,
+    size: TC.Vector3,
+    materialBase: any | undefined,
+    wireframeMaterialBase: any | undefined,
+    drawingRenderSettings: ISceneGeometryConversionToThreeJsSettings,
+): void {
+    const boxPosition = new THREE.Vector3(
+        origin.elements[12] + size._x / 2,
+        origin.elements[13] + size._y / 2,
+        origin.elements[14] + size._z / 2,
+    );
+
+    if (drawingRenderSettings.format === 'svg') {
+        const boxGroup = _createSvgBoxPlanesAndWireframe(
+            size,
+            materialBase,
+            wireframeMaterialBase,
+            drawingRenderSettings,
+        );
+        _addConfiguredRenderable(parent, boxGroup, (object) => {
+            object.position.copy(boxPosition);
+        });
+    }
+    else {
+        const geometry = new THREE.BoxGeometry(size._x, size._y, size._z);
+        _addRenderableWithOptionalWireframe(
+            parent,
+            geometry,
+            materialBase,
+            wireframeMaterialBase,
+            drawingRenderSettings,
+            (object) => {
+                object.position.copy(boxPosition);
+            },
+        );
+    }
 }
 
 function _collectMeshChildren(objectGroup: THREE.Object3D): THREE.Mesh[] {
@@ -391,65 +443,50 @@ export async function orderObjectNodeToThreeObject3D(
     }
     else if (geom.meshUrl) {
         const objGrp = await _loadObject3DFromCacheOrFetch(geom.meshUrl, undefined, node.id);
-        const originX = geom.origin.elements[12];
-        const originY = geom.origin.elements[13];
-        const originZ = geom.origin.elements[14];
-
-        let bbox = new THREE.Box3().setFromObject(objGrp);
-        let bsize = new THREE.Vector3(0, 0, 0);
-        bbox.getSize(bsize);
-        let m4 = new THREE.Matrix4();
-        m4.scale(
-            new THREE.Vector3(
-                node.orderLineEntry!['_dimx'] / bsize.x,
-                node.orderLineEntry!['_dimy'] / bsize.y,
-                node.orderLineEntry!['_dimz'] / bsize.z
-            )
-        );
-        objGrp.applyMatrix4(m4);
-
-        bbox = new THREE.Box3().setFromObject(objGrp);
-        m4 = new THREE.Matrix4();
-        m4.setPosition(
-            originX - bbox.min.x,
-            originY - bbox.min.y,
-            originZ - bbox.min.z
-        );
-        objGrp.applyMatrix4(m4);
-
-        _addRenderableWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
-    }
-    else if (geom.size) {
-        const boxPosition = new THREE.Vector3(
-            geom.origin.elements[12] + geom.size._x / 2,
-            geom.origin.elements[13] + geom.size._y / 2,
-            geom.origin.elements[14] + geom.size._z / 2,
-        );
-
-        if (drawingRenderSettings.format === 'svg') {
-            const boxGroup = _createSvgBoxPlanesAndWireframe(
+        if (geom.size && _collectMeshChildren(objGrp).length === 0) {
+            // The model could not be loaded (or it is empty) - draw the bounding box of the part instead,
+            // colored to mark the missing model (the same fallback as in the former drawing API).
+            _addBoxRenderable(
+                threeObject,
+                geom.origin,
                 geom.size,
-                mainMaterial,
+                mainMaterial ? { ...mainMaterial, color: MISSING_MESH_COLOR } : undefined,
                 wireframeMaterial,
                 drawingRenderSettings,
             );
-            _addConfiguredRenderable(threeObject, boxGroup, (object) => {
-                object.position.copy(boxPosition);
-            });
         }
         else {
-            const geometry = new THREE.BoxGeometry(geom.size._x, geom.size._y, geom.size._z);
-            _addRenderableWithOptionalWireframe(
-                threeObject,
-                geometry,
-                mainMaterial,
-                wireframeMaterial,
-                drawingRenderSettings,
-                (object) => {
-                    object.position.copy(boxPosition);
-                },
+            const originX = geom.origin.elements[12];
+            const originY = geom.origin.elements[13];
+            const originZ = geom.origin.elements[14];
+
+            let bbox = new THREE.Box3().setFromObject(objGrp);
+            let bsize = new THREE.Vector3(0, 0, 0);
+            bbox.getSize(bsize);
+            let m4 = new THREE.Matrix4();
+            m4.scale(
+                new THREE.Vector3(
+                    node.orderLineEntry!['_dimx'] / bsize.x,
+                    node.orderLineEntry!['_dimy'] / bsize.y,
+                    node.orderLineEntry!['_dimz'] / bsize.z
+                )
             );
+            objGrp.applyMatrix4(m4);
+
+            bbox = new THREE.Box3().setFromObject(objGrp);
+            m4 = new THREE.Matrix4();
+            m4.setPosition(
+                originX - bbox.min.x,
+                originY - bbox.min.y,
+                originZ - bbox.min.z
+            );
+            objGrp.applyMatrix4(m4);
+
+            _addRenderableWithOptionalWireframe(threeObject, objGrp, mainMaterial, wireframeMaterial, drawingRenderSettings);
         }
+    }
+    else if (geom.size) {
+        _addBoxRenderable(threeObject, geom.origin, geom.size, mainMaterial, wireframeMaterial, drawingRenderSettings);
     }
     convertedNodesCollector.push(node);
 
