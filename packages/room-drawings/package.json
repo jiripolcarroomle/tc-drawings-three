@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.build.json --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",
     "test:update-golden": "UPDATE_GOLDEN=1 node --test \"test/**/*.test.ts\"",
     "preview": "node scripts/preview.ts"

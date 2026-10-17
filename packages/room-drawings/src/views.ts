@@ -17,6 +17,8 @@ export interface ViewDefinition extends ViewInfo {
     /** Direction the viewer looks in (world). */
     direction: Vec3;
     wall?: SceneNode;
+    /** Wall corners offered to the annotation lines (distances to the walls), world coordinates. */
+    wallVertices: Vec3[];
     /** Is a node with geometry part of this view? */
     shows(node: SceneNode): boolean;
 }
@@ -33,7 +35,7 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
 
     if (settings.views.top) {
         const info: ViewInfo = { name: 'topview', kind: 'top' };
-        views.push({ ...info, title: 'Top view', direction: vec3(0, -1, 0), shows: node => node.kind === NodeKind.Wall || chainIncluded(node, info) });
+        views.push({ ...info, title: 'Top view', direction: vec3(0, -1, 0), wallVertices: [], shows: node => node.kind === NodeKind.Wall || chainIncluded(node, info) });
     }
     if (!settings.views.elevations) {
         return views;
@@ -71,6 +73,7 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
                 title: `Elevation ${wall.id} (${side})`,
                 direction: rear ? scale(wall.wall!.normal, -1) : wall.wall!.normal,
                 wall,
+                wallVertices: wallFaceCorners(wall.wall!, rear),
                 shows: node => {
                     if (node.kind === NodeKind.Wall) return node === wall;
                     const module = topModule(node);
@@ -79,6 +82,9 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
             });
         }
     }
+    // the top view gets the corners of all walls that have an elevation
+    const top = views.find(v => v.kind === 'top');
+    if (top) top.wallVertices.push(...views.flatMap(v => v.kind === 'elevation' ? v.wallVertices : []));
     return views;
 
     function topModule(node: SceneNode): SceneNode | undefined {
@@ -88,6 +94,12 @@ export function defineViews(scene: Scene, solids: Map<SceneNode, Solid>, content
         }
         return result;
     }
+}
+
+/** The four corners of the viewed wall face (bottom and top). */
+function wallFaceCorners(wall: NonNullable<SceneNode['wall']>, rear: boolean): Vec3[] {
+    const [a, b] = rear ? [wall.backStart, wall.backEnd] : [wall.start, wall.end];
+    return [a, b, vec3(a.x, a.y + wall.height, a.z), vec3(b.x, b.y + wall.height, b.z)];
 }
 
 export function nodeContext(node: SceneNode, view: ViewInfo): NodeContext {

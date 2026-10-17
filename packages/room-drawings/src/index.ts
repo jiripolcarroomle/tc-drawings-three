@@ -10,6 +10,9 @@
 export { createRoomDrawings, createRoomDrawingsFromScene, renderView } from './drawings.ts';
 export type { OutputFile, RenderedView, RoomDrawingOptions, RoomDrawingsResult } from './drawings.ts';
 export type { DrawingContent, NodeContext, ViewInfo, ViewKind } from './content.ts';
+// the drawing content data, unchanged from how content developers write it
+export { DrawingDirection } from './annotations/types.ts';
+export type { AnnotablePoint, Annotation, ContentPoint, I_tab_Annotation, I_tab_AnnotationLayerSettings, IPlanSvgDrawing, SvgPathCommandData, SvgPathInjectionData } from './annotations/types.ts';
 export { defaultSettings, resolveSettings } from './settings.ts';
 export type { ClassStyle, DrawingSettings, SettingsOverrides } from './settings.ts';
 export type { Logger } from './log.ts';

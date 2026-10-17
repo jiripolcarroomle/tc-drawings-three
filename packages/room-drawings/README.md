@@ -8,7 +8,7 @@ scale plus a `Drawings.html` preview page.
 
 | Content side (order output script) | This package |
 |---|---|
-| **What** is drawn: which parts, their style class, which modules own the generated parts (later also dimensions and symbols) | **How**: scene, views, hidden-line rendering, layout at true scale, output files |
+| **What** is drawn and annotated: the annotation tables (`tab_Annotations`, `tab_AnnotationLayerSettings`, unchanged), which parts, their style class, which modules own the generated parts | **How**: scene, views, hidden-line rendering, annotation layout for legibility, scale, output files |
 | May use the library's global functions | Uses **no** library content: no module ids, part names, tables or global functions |
 
 ## Usage in an order output
@@ -16,6 +16,8 @@ scale plus a `Drawings.html` preview page.
 ```ts
 const drawings = RoomDrawings.createRoomDrawings({ order: o, groups: ol }, {
     content: {
+        annotations: tab_Annotations,                                 // the content data, as written today
+        annotationLayerSettings: tab_AnnotationLayerSettings,
         includeNode: ctx => GlobalFunc.drawing_IncludeNode(ctx),      // e.g. skip drillings
         classifyPart: ctx => GlobalFunc.drawing_PartClass(ctx),       // 'front' | 'carcass' | 'worktop' | ...
         ownerIds: ctx => ctx.data?.mod_ContourOwnerIds,               // generated parts follow their owners
@@ -29,7 +31,28 @@ const drawings = RoomDrawings.createRoomDrawings({ order: o, groups: ol }, {
 drawings.files.forEach(f => this.createFileEntry(result, f.fileName, f.content, f.contentType));
 ```
 
-`examples/content.ts` is a working example of the content callbacks and styles.
+`examples/content.ts` is a working example of the content callbacks and styles; `examples/annotationstable.ts`
+is the current annotation table, unchanged apart from its imports.
+
+## Content data
+
+The package takes the drawing content data in the format content developers write today
+(`src/annotations/types.ts`, exported from the package with the same names):
+
+- **`tab_Annotations`** (`I_tab_Annotation[]`) — per module id (`in_ModuleId`, comma-separated ids allowed) and an
+  optional `in_Condition(data, drawing)`:
+  - `out_Annotations` — dimension intervals (`Annotation`: points, layer, label, tags, …);
+  - `out_SvgPathOverlays` — SVG path overlays (`SvgPathInjectionData`), e.g. the wall-unit cross or the countertop outline in the top view;
+  - `out_AnnotablePoints` — extra points the dimension lines may snap to (`AnnotablePoint`).
+
+  All functions get the module's order entry and the drawing (`IPlanSvgDrawing`: `drawingDirection` `'top'` or
+  `'elevation'`, view name) and return coordinates in module space; the package transforms them into the view.
+- **`tab_AnnotationLayerSettings`** (`I_tab_AnnotationLayerSettings[]`) — per layer: line order, filling gaps, distances
+  to the wall corners.
+
+The layout is a port of the tc-drawings-three annotation engine. Given the same content data it prints the
+same dimensions as the product export (`test/annotations.test.ts`). The scale is the largest one in `settings.scales`
+at which the drawing and its dimension lines fit the sheet.
 
 ## Settings
 
@@ -41,6 +64,7 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
 - **`fills`** — shade faces underneath the lines.
 - **`views`** — top view, elevations, rear elevations, and the maximum distance of a module from a wall for that wall to get an elevation.
 - **`text`** — font and title height.
+- **`annotations`** — text height on paper [mm] (sets the size of the whole annotation layout), spacing of the dimension lines, margins, which single-interval lines are dropped (`disqualify`), and annotation tags that are skipped (`excludeTags`, default `inside`).
 - **`smoothAngle`**, **`tolerance`** — geometric tuning.
 
 ## How it works
@@ -51,7 +75,8 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
    - the top view shows everything;
    - an elevation is made for each wall side that has a regular module close to it. It shows those modules and the generated modules owned by them; generated modules without owner ids fall back to the wall distance.
 4. **Hidden-line removal** (`src/render/hlr.ts`) — every edge is split where it crosses the outline of a face in front of it, and each piece is visible unless a face covers it closer to the viewer. The lines are exact, not painted over; collinear duplicates are merged (`render/lines.ts`).
-5. **Sheet** (`src/render/svg.ts`) — SVG with the viewBox in room millimeters and the sheet size in paper millimeters, i.e. true scale.
+5. **Annotations** (`src/annotations`) — the content tables are evaluated for each module in the view; points are projected into the view; the wall corners are added as snap points. The dimension lines are laid out per scale until everything fits; the result is a string-built SVG group (no DOM).
+6. **Sheet** (`src/render/svg.ts`) — SVG with the viewBox in room millimeters and the sheet size in paper millimeters, i.e. true scale, with the annotation group on top.
 
 ## Development
 
@@ -59,7 +84,7 @@ Requires Node ≥ 22.18. Sources use erasable TypeScript only, so Node runs test
 
 ```sh
 npm install                      # dev dependencies: typescript, @types/node
-npm test                         # unit tests + regression suite
+npm test                         # unit tests, annotation parity, regression suite
 npm run typecheck
 npm run build                    # dist/ (ESM + .d.ts)
 npm run test:update-golden       # after an intended change: review, then rewrite the golden files
@@ -70,6 +95,7 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
 **Regression suite.**
 - `test/fixtures` holds gzipped scene snapshots of real orders, converted from the `dev_serialized_scene.json` the product writes with `output_DrawingsPlanDEV`.
 - `test/golden` holds the approved drawings of those orders.
+- `test/fixtures/product-dimensions.json` holds the dimension texts of each view of the product export; `test/annotations.test.ts` checks the package prints the same.
 
 **Snapshots.** `sceneToSnapshot` / `sceneFromSnapshot` store a scene as compact JSON, useful for reproducing an issue outside the host.
 
@@ -79,10 +105,9 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
   - package, scene from order data (same result as tc-drawings-three's scene builder, checked node by node);
   - vector renderer with hidden-line removal;
   - views, true-scale sheets, HTML preview;
+  - annotations from the unchanged content data (same dimensions as the product export);
   - regression suite over 10 orders.
 - **Next:**
-  - dimension engine (content requests dimensions, the API lays them out for legibility);
-  - symbols and conventions;
   - title block and legend;
   - outlines of 3D models;
   - content documentation;

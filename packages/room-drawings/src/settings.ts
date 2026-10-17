@@ -33,6 +33,23 @@ export interface DrawingSettings {
         maxDistanceFromWall: number;
     };
     text: { fontFamily: string; titleHeight: number };
+    /** Layout of the content annotations (dimensions, overlays). */
+    annotations: {
+        /**
+         * Height of the dimension texts on paper [mm]. All other annotation sizes keep the proportions of the
+         * original design, in units of textHeight / 24: line spacing 40, margins 20, tick length 25, ...
+         */
+        textHeight: number;
+        /** Distance of the annotation lines [textHeight / 24 units]. */
+        lineSpacing: number;
+        /** Space before the first and after the last annotation line [textHeight / 24 units]. */
+        baseMargin: number;
+        finalMargin: number;
+        /** Which annotations leave the annotation lines and are drawn at their position instead. */
+        disqualify: 'onlyNonperpendicular' | 'looseIntervals' | 'withSingleInterval';
+        /** Annotations and overlays with one of these tags are not drawn. */
+        excludeTags: string[];
+    };
     /** Edges between faces meeting under a smaller angle are not drawn (smooth arcs) [degrees]. */
     smoothAngle: number;
     /** Geometric tolerances [mm]. */
@@ -49,6 +66,7 @@ export const defaultSettings: DrawingSettings = {
     fills: true,
     views: { top: true, elevations: true, rearElevations: true, maxDistanceFromWall: 300 },
     text: { fontFamily: 'Arial, Helvetica, sans-serif', titleHeight: 3.5 },
+    annotations: { textHeight: 2.5, lineSpacing: 40, baseMargin: 20, finalMargin: 20, disqualify: 'withSingleInterval', excludeTags: ['inside'] },
     smoothAngle: 10,
     tolerance: { depth: 0.5, boundary: 0.05 },
 };

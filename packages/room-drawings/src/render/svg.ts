@@ -3,14 +3,33 @@ import type { ClassedSegment, HlrResult } from './hlr.ts';
 
 /**
  * Writes one view as an SVG sheet at true scale: the viewBox is in room millimeters, the sheet size in paper
- * millimeters, so 1 unit on paper = 1/scale. The first allowed scale that fits the drawing area is used.
- * Pure string output, no DOM.
+ * millimeters, so 1 unit on paper = 1/scale. Pure string output, no DOM.
  */
 
-export interface SheetResult {
-    svg: string;
+export interface SheetPlacement {
     /** Scale denominator (20 = 1:20). */
     scale: number;
+    /** What has to fit and is centered in the drawing area (drawing + annotations), sheet coordinates (y down) [mm]. */
+    extent: { minX: number; maxX: number; minY: number; maxY: number };
+    /** SVG drawn on top of the geometry (annotations), in sheet coordinates. */
+    overlay?: string;
+}
+
+/** Drawing area of the sheet [paper mm]: sheet minus margins minus the title band. */
+export function drawingArea(settings: DrawingSettings): { width: number; height: number } {
+    return {
+        width: settings.paper.width - 2 * settings.paper.margin,
+        height: settings.paper.height - 2 * settings.paper.margin - settings.text.titleHeight * 3,
+    };
+}
+
+/** Bounding box of the drawn lines in sheet coordinates (x right, y down) [mm]. */
+export function linesBox(result: HlrResult): { minX: number; minY: number; width: number; height: number } {
+    const segments = [...result.visible, ...result.hidden];
+    if (!segments.length) return { minX: 0, minY: 0, width: 0, height: 0 };
+    const xs = segments.flatMap(s => [s.x1, s.x2]), ys = segments.flatMap(s => [-s.y1, -s.y2]);
+    const minX = Math.min(...xs), minY = Math.min(...ys);
+    return { minX, minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
 }
 
 const format = (n: number) => {
@@ -19,17 +38,11 @@ const format = (n: number) => {
 };
 const escapeXml = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-export function writeSheet(title: string, result: HlrResult, settings: DrawingSettings): SheetResult {
+export function writeSheet(title: string, result: HlrResult, settings: DrawingSettings, placement: SheetPlacement): string {
     const { paper } = settings;
-    const segments = [...result.visible, ...result.hidden];
-    const xs = segments.flatMap(s => [s.x1, s.x2]);
-    const ys = segments.flatMap(s => [-s.y1, -s.y2]);
-    const minX = xs.length ? Math.min(...xs) : 0, maxX = xs.length ? Math.max(...xs) : 1;
-    const minY = ys.length ? Math.min(...ys) : 0, maxY = ys.length ? Math.max(...ys) : 1;
-    const titleBand = settings.text.titleHeight * 3;
-    const areaWidth = paper.width - 2 * paper.margin, areaHeight = paper.height - 2 * paper.margin - titleBand;
-    const scale = settings.scales.find(s => (maxX - minX) / s <= areaWidth && (maxY - minY) / s <= areaHeight)
-        ?? Math.ceil(Math.max((maxX - minX) / areaWidth, (maxY - minY) / areaHeight));
+    const { scale } = placement;
+    const { minX, maxX, minY, maxY } = placement.extent;
+    const { width: areaWidth, height: areaHeight } = drawingArea(settings);
 
     // sheet in model units, drawing centered in the drawing area
     const width = paper.width * scale, height = paper.height * scale;
@@ -58,11 +71,12 @@ export function writeSheet(title: string, result: HlrResult, settings: DrawingSe
         });
     parts.push(`<g id="hidden-lines" fill="none" stroke="#000000" stroke-linecap="round">${strokes(groupByClass(result.hidden), true).join('')}</g>`);
     parts.push(`<g id="lines" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round">${strokes(groupByClass(result.visible), false).join('')}</g>`);
+    if (placement.overlay) parts.push(`<g id="annotations">${placement.overlay}</g>`);
 
     const textY = originY + height - paper.margin * scale - settings.text.titleHeight * scale * 0.5;
     parts.push(`<text x="${format(originX + paper.margin * scale)}" y="${format(textY)}" font-family="${escapeXml(settings.text.fontFamily)}" font-size="${format(settings.text.titleHeight * scale)}">${escapeXml(title)} — 1:${scale}</text>`);
     parts.push('</svg>');
-    return { svg: parts.join('\n'), scale };
+    return parts.join('\n');
 }
 
 function groupByClass(segments: ClassedSegment[]): Map<string | undefined, ClassedSegment[]> {

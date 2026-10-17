@@ -2,10 +2,13 @@
 // library's global functions). Used by the regression suite and the preview script. The package itself knows
 // none of these names.
 import type { DrawingContent, SettingsOverrides } from '../src/index.ts';
+import { tab_AnnotationLayerSettings, tab_Annotations } from './annotationstable.ts';
 
 type Entry = Record<string, unknown> | undefined;
 
 export const exampleContent: DrawingContent = {
+    annotations: tab_Annotations,
+    annotationLayerSettings: tab_AnnotationLayerSettings,
     includeNode: ({ node }) => !(node.kind === 'part' && /drill|hanger|hinge/i.test(node.id)),
     classifyPart: ({ node }) => {
         const id = node.id;

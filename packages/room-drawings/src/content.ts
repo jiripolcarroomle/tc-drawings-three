@@ -1,4 +1,5 @@
 import type { SceneNode } from './scene/scene.ts';
+import type { I_tab_Annotation, I_tab_AnnotationLayerSettings } from './annotations/types.ts';
 
 /**
  * WHAT is drawn is decided by the content side (the order output script, which may call the library's
@@ -23,6 +24,13 @@ export interface NodeContext {
 }
 
 export interface DrawingContent {
+    /**
+     * The drawing content data as content developers write it (tab_Annotations): per module id, functions that
+     * return annotations, SVG path overlays and annotable points in module coordinates. The API lays them out.
+     */
+    annotations?: I_tab_Annotation[];
+    /** Settings of the annotation layers (tab_AnnotationLayerSettings): line order, gaps, wall corner distances. */
+    annotationLayerSettings?: I_tab_AnnotationLayerSettings[];
     /** Whether a part or module is drawn in a view (e.g. skip drillings or fittings). Default: everything. */
     includeNode?(context: NodeContext): boolean;
     /** Style class of a part (a key of `settings.styles`, e.g. 'front', 'carcass', 'worktop'). Default: none. */
