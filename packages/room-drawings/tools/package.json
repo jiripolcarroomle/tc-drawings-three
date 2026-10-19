@@ -1,0 +1,9 @@
+{
+  "name": "room-drawings-tools",
+  "private": true,
+  "description": "Viewing and review helpers (headless Chrome): product driver, SVG to PNG, review PDFs. Not part of the package.",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.48.2"
+  }
+}

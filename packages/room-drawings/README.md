@@ -123,7 +123,13 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
 
 **Snapshots.** `sceneToSnapshot` / `sceneFromSnapshot` store a scene as compact JSON, useful for reproducing an issue outside the host.
 
+**Tools.** `tools/` holds the viewing and review helpers: a driver for the cabinetlibrary_drawings product, the review renderer, SVG to PNG and review PDFs (see `tools/README.md`).
+
 ## Status
+
+**Development stopped on 2026-10-19: the solution was cancelled. The code is kept for reference.** The last review
+(all test orders, dimensions on both edges, colours, run grouping prototype) is at
+https://claude.ai/artifact/XXME1QZeUWtePDJjd7L1hW; `tools/` reproduces its drawings and PDFs.
 
 - **Done:**
   - package, scene from order data (same result as tc-drawings-three's scene builder, checked node by node);
