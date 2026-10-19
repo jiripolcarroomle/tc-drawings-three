@@ -4,9 +4,9 @@ import './style.css';
 
 //import serializedOrderJsonRaw from '../assets/cornerkitchen2.serializedscene.json?raw'
 //import serializedOrderJsonRaw from '../assets/jpdevdrwtest1.serializedscene.json?raw'
+//import serializedOrderJsonRaw from '../assets/jpdevdrwtest2.serializedscene.json?raw'
 //
-import serializedOrderJsonRaw from '../assets/jpdevdrwtest2.serializedscene.json?raw'
-//import serializedOrderJsonRaw from '../assets/jpdevdrwtest3.serializedscene.json?raw'
+import serializedOrderJsonRaw from '../assets/jpdevdrwtest3.serializedscene.json?raw'
 //import serializedOrderJsonRaw from '../assets/simpleorder.serializedscene.json?raw'
 // 
 //
