@@ -32,6 +32,8 @@ export interface LayoutSettings {
     finalMargin: number;
     /** Distance of annotation lines [design px]. */
     lineSpacing: number;
+    /** How annotations are divided between opposite sides (see drawAnnotationsWithAnnotationLines). */
+    sideSplit?: 'lineAverage' | 'content';
 }
 
 export interface AnnotationLayout {
@@ -132,6 +134,7 @@ export function layoutAnnotations(content: ViewAnnotations, layerSettings: Map<s
             lineSpacing: annotationSpacing,
             drawingSizeY: imageHeight,
             disqualifyAnnotations: ANNOTATION_LINE_DISQUALIFY_TYPE,
+            sideSplit: settings.sideSplit,
         });
         directPositionAnnotations.push(...horizontalAnnotationsResult.annotationsAtPosition);
 
@@ -145,6 +148,7 @@ export function layoutAnnotations(content: ViewAnnotations, layerSettings: Map<s
             lineSpacing: annotationSpacing,
             drawingSizeY: imageWidth,
             disqualifyAnnotations: ANNOTATION_LINE_DISQUALIFY_TYPE,
+            sideSplit: settings.sideSplit,
         });
         directPositionAnnotations.push(...verticalAnnotationsResult.annotationsAtPosition);
 

@@ -43,6 +43,16 @@ export interface DrawingContent {
     /** Style class of a part (a key of `settings.styles`, e.g. 'front', 'carcass', 'worktop'). Default: none. */
     classifyPart?(context: NodeContext): string | undefined;
     /**
+     * Colour of a part's faces (any CSS colour), e.g. from its material; used when `settings.colors.enabled`.
+     * Default / undefined: the fill of the part's style class.
+     */
+    colorOf?(context: NodeContext): string | undefined;
+    /**
+     * Front direction of a top level module in its own coordinates, for grouping modules into runs
+     * (`settings.views.grouping: 'runs'`). Default: +z (modules of the order data face their local +z).
+     */
+    moduleFront?(context: { node: SceneNode; data: unknown }): { x: number; y: number; z: number } | undefined;
+    /**
      * Ids (order `_id`) of the modules whose contours a generated module was created from. A generated module
      * is drawn in an elevation only when one of its owners is in it. Without owner ids it falls back to the
      * distance from the wall.

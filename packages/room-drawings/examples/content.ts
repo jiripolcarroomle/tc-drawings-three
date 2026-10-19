@@ -6,6 +6,30 @@ import { tab_AnnotationLayerSettings, tab_Annotations } from './annotationstable
 
 type Entry = Record<string, unknown> | undefined;
 
+/**
+ * Colours of the materials used by the test orders. APPROXIMATIONS of the decors (Egger codes, closest RAL/NCS
+ * where published) for the example only; content developers take the real values from the material catalog.
+ */
+export const materialColors: Record<string, string> = {
+    'egger:u708_st9': '#c9cac6', // Light Grey (RAL 7047)
+    'egger:h3190_st19': '#4b4c4e', // Anthracite Fineline Metallic
+    'egger:f800_st9': '#e4e1db', // Crystal Marble
+    'egger:f186_st9': '#b9b6af', // Light Grey Chicago Concrete
+    'egger:f235_st76': '#4e4f4d', // Scivaro Slate
+    'egger:f765_st20': '#a9acad', // brushed silver grey
+    'egger:u999_st7': '#2b2b2b', // Black
+    'egger:w980_st7': '#efeeea', // Platinum White
+    'cabinetlibrary:stainless_steel': '#b5b8ba',
+};
+
+/** Colour of a part: the material of its front face (else the default / first face material), see materialColors. */
+function partColor(data: unknown): string | undefined {
+    const faces = (data as Entry)?.['_faceMaterial'];
+    if (!Array.isArray(faces) || !faces.length) return undefined;
+    const face = faces.find(f => f?.faceKey === 'front') ?? faces.find(f => !f?.faceKey || f.faceKey === 'default') ?? faces[0];
+    return materialColors[String(face?.materialId)];
+}
+
 export const exampleContent: DrawingContent = {
     annotations: tab_Annotations,
     annotationLayerSettings: tab_AnnotationLayerSettings,
@@ -18,6 +42,7 @@ export const exampleContent: DrawingContent = {
         if (/Door|Front|Drawer|Fliplift/i.test(id)) return 'front';
         return 'carcass';
     },
+    colorOf: ({ data }) => partColor(data),
     ownerIds: ({ data }) => {
         const ids = (data as Entry)?.['mod_ContourOwnerIds'];
         return Array.isArray(ids) ? ids.map(String) : undefined;

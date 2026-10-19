@@ -110,6 +110,8 @@ interface PreparedView {
     view: ViewDefinition;
     basis: ViewBasis;
     drawing: HlrResult;
+    /** Face colours per solid index of `drawing` (content colorOf), undefined = class fill. */
+    fills: (string | undefined)[];
     annotations: ViewAnnotations;
     bbox: { minX: number; minY: number; width: number; height: number };
     solids: number;
@@ -153,7 +155,15 @@ function prepareView(view: ViewDefinition, solids: Map<SceneNode, Solid>, module
         visible: lines.filter(s => !isHidden(s.cls)),
         hidden: lines.filter(s => isHidden(s.cls)).map(s => ({ ...s, cls: s.cls!.slice(HIDDEN.length) || undefined })),
     };
-    return { view, basis, drawing, annotations: viewAnnotations(view, modules, content, settings, basis, logger), bbox: linesBox(drawing), solids: shown.length };
+    // elevations without a wall behind stand on a floor line
+    if (view.ground && drawing.visible.length) {
+        const xs = drawing.visible.flatMap(s => [s.x1, s.x2]);
+        drawing.visible.push({ cls: 'floor', x1: Math.min(...xs) - 200, y1: 0, x2: Math.max(...xs) + 200, y2: 0 });
+    }
+    const fills = settings.colors.enabled && content.colorOf
+        ? shown.map(([node]) => node.kind === NodeKind.Wall ? undefined : lighten(content.colorOf!(nodeContext(node, view)), settings.colors.lighten))
+        : [];
+    return { view, basis, drawing, fills, annotations: viewAnnotations(view, modules, content, settings, basis, logger), bbox: linesBox(drawing), solids: shown.length };
 }
 
 /** Lays out the annotations at the scale and writes the view content (lines, markers, annotations). */
@@ -166,6 +176,7 @@ function placeAt(prepared: PreparedView, scale: number, settings: DrawingSetting
         baseMargin: settings.annotations.baseMargin,
         finalMargin: settings.annotations.finalMargin,
         lineSpacing: settings.annotations.lineSpacing,
+        sideSplit: settings.annotations.sideSplit,
     });
     const mmPerPx = 1 / pxPerMm;
     const extent: Extent = {
@@ -182,7 +193,7 @@ function placeAt(prepared: PreparedView, scale: number, settings: DrawingSetting
         extent,
         width: (extent.maxX - extent.minX) / scale,
         height: (extent.maxY - extent.minY) / scale,
-        content: viewContent(prepared.drawing, settings, scale, extra),
+        content: viewContent(prepared.drawing, settings, scale, extra, prepared.fills),
     };
 }
 
@@ -295,6 +306,16 @@ function markerSvg(marker: Marker, basis: ViewBasis, scale: number, settings: Dr
     return `<g class="elevation-marker"><path d="${pointer}" fill="#000000"/>`
         + `<circle cx="${round(cx)}" cy="${round(cy)}" r="${round(r)}" fill="#ffffff" stroke="#000000" stroke-width="${round(0.35 * scale)}"/>`
         + `<text x="${round(cx)}" y="${round(cy + fontSize * 0.36)}" font-size="${round(fontSize)}" font-weight="bold" text-anchor="middle">${marker.label}</text></g>`;
+}
+
+/** Mixes a #rgb / #rrggbb colour with white; other colour notations are returned as they are. */
+function lighten(color: string | undefined, amount: number): string | undefined {
+    if (!color || amount <= 0) return color;
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())?.[1];
+    if (!hex) return color;
+    const full = hex.length === 3 ? [...hex].map(c => c + c).join('') : hex;
+    const channels = [0, 2, 4].map(i => parseInt(full.slice(i, i + 2), 16)).map(c => Math.round(c + (255 - c) * Math.min(1, amount)));
+    return '#' + channels.map(c => c.toString(16).padStart(2, '0')).join('');
 }
 
 function viewAnnotations(view: ViewDefinition, modules: SceneNode[], content: DrawingContent, settings: DrawingSettings, basis: ViewBasis, logger: Logger): ViewAnnotations {

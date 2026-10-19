@@ -1,5 +1,7 @@
-// Converts scene exports of the product into gzipped snapshots for the regression suite.
-// usage: node scripts/make-fixture.ts <dev_serialized_scene.json> <test/fixtures/name.scene.json.gz> [...pairs]
+// Converts scene exports of the product into gzipped snapshots for the regression suite: the
+// dev_room_drawings_scene.json of output_RoomDrawings (with order data and face materials), or the older
+// dev_serialized_scene.json of output_DrawingsPlanDEV.
+// usage: node scripts/make-fixture.ts <scene export.json> <test/fixtures/name.scene.json.gz> [...pairs]
 import fs from 'node:fs';
 import { readSnapshot, writeJsonGz } from './files.ts';
 

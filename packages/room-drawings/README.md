@@ -25,6 +25,7 @@ const drawings = RoomDrawings.createRoomDrawings({ order: o, groups: ol }, {
         annotationLayerSettings: tab_AnnotationLayerSettings,         // (or annotations: tab_Annotations)
         includeNode: ctx => GlobalFunc.drawing_IncludeNode(ctx),      // e.g. skip drillings
         classifyPart: ctx => GlobalFunc.drawing_PartClass(ctx),       // 'front' | 'carcass' | 'worktop' | ...
+        colorOf: ctx => GlobalFunc.drawing_PartColor(ctx),            // e.g. from the part's _faceMaterial
         ownerIds: ctx => ctx.data?.mod_ContourOwnerIds,               // generated parts follow their owners
         titleBlock: [{ label: 'Order', value: String(o.orderNo) }, { label: 'Date', value: today }],
     },
@@ -77,10 +78,11 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
 - **`scales`** — allowed scale denominators; the first that fits is used.
 - **`styles[class]`** — line width on paper [mm], fill, line pattern, hidden lines (none or dashed). Walls use `wall` in the top view (cut walls) and `wall-elevation` behind an elevation.
 - **`fills`** — shade faces underneath the lines.
-- **`views`** — top view, elevations, rear elevations, and the maximum distance of a module from a wall for that wall to get an elevation.
+- **`colors`** — fill faces in the colours of the parts (content `colorOf`, e.g. from the materials) instead of the class fills; `lighten` mixes them with white so lines and dimensions stay readable on dark decors.
+- **`views`** — top view, elevations, rear elevations, the maximum distance of a module from a wall for that wall to get an elevation, and how modules are grouped into elevations (`grouping`: `walls` or `runs`, with `runGap` and `runBackTolerance`).
 - **`text`** — font and title height.
 - **`sheet`** — frame, padding, title block height, the overview sheet (on/off, gap between views, caption height), elevation markers in the top view (on/off, radius).
-- **`annotations`** — text height on paper [mm] (sets the size of the whole annotation layout), spacing of the dimension lines, margins, which single-interval lines are dropped (`disqualify`), and annotation tags that are skipped (`excludeTags`, default `inside`).
+- **`annotations`** — text height on paper [mm] (sets the size of the whole annotation layout), spacing of the dimension lines, margins, which single-interval lines are dropped (`disqualify`), annotation tags that are skipped (`excludeTags`, default `inside`), and which side a dimension goes to (`sideSplit`: `content` divides the dimensions at a gap between the dimensioned objects, so the left part goes to the left edge and the right part to the right edge; `lineAverage` is the original rule).
 - **`smoothAngle`**, **`tolerance`** — geometric tuning.
 
 ## How it works
@@ -89,9 +91,11 @@ Everything about the look is in `DrawingSettings` (`src/settings.ts`); pass only
 2. **Solids** (`src/geometry`) — boxes, extruded SVG profiles (arcs, holes) and walls. 3D models are drawn by their bounding box.
 3. **Views** (`src/views.ts`):
    - the top view shows everything;
-   - an elevation is made for each wall side that has a regular module close to it. It shows those modules and the generated modules owned by them; generated modules without owner ids fall back to the wall distance.
+   - `grouping: 'walls'` (default): an elevation for each wall side that has a regular module close to it, showing those modules;
+   - `grouping: 'runs'`: modules are grouped into runs — same facing (content `moduleFront`, default local +z), the back of one within the depth of the other, neighbours along the run, never across a wall. A run standing at a wall face joins that wall's elevation; other runs (peninsulas, islands) get their own elevation looking at their fronts, on a floor line;
+   - generated modules are shown with their owners; without owner ids they fall back to the distance from the wall (or the run's back).
 4. **Hidden-line removal** (`src/render/hlr.ts`) — every edge is split where it crosses the outline of a face in front of it, and each piece is visible unless a face covers it closer to the viewer. The lines are exact, not painted over; collinear duplicates are merged (`render/lines.ts`).
-5. **Annotations** (`src/annotations`) — the content tables are evaluated for each module in the view; points are projected into the view; the wall corners are added as snap points. The dimension lines are laid out per scale until everything fits; the result is a string-built SVG group (no DOM).
+5. **Annotations** (`src/annotations`) — the content tables are evaluated for each module in the view; points are projected into the view; the wall corners are added as snap points. Per layer and direction the dimensions are divided between the two opposite edges at a gap between the dimensioned objects (a shared extent of a continuous row stays on one side; one that would end up alone goes back to the other side), then each side builds its dimension lines. The lines are laid out per scale until everything fits; the result is a string-built SVG group (no DOM).
 6. **Sheets** (`src/render/svg.ts`) — SVG in paper millimeters; each view is a group in room millimeters scaled by 1/scale, i.e. true scale, with the annotation group on top.
    - one sheet per view, at the largest scale in `settings.scales` where the view and its dimension lines fit;
    - an overview sheet with all views packed in rows, at the largest common scale where they fit;
@@ -113,7 +117,7 @@ node scripts/make-fixture.ts <dev_serialized_scene.json> test/fixtures/<name>.sc
 ```
 
 **Regression suite.**
-- `test/fixtures` holds gzipped scene snapshots of real orders, converted from the `dev_serialized_scene.json` the product writes with `output_DrawingsPlanDEV`.
+- `test/fixtures` holds gzipped scene snapshots of real orders: the `dev_room_drawings_scene.json` the product writes with `output_RoomDrawings` (order data including face materials).
 - `test/golden` holds the approved drawings of those orders.
 - `test/fixtures/product-dimensions.json` holds the dimension texts of each view of the product export; `test/annotations.test.ts` checks the package prints the same.
 

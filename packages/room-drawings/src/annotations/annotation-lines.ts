@@ -84,6 +84,14 @@ export function drawAnnotationsWithAnnotationLines(args: {
     minIntervalsForSummedAnnotationLine?: number,
     disqualifyAnnotations?: AnnotationLineDisqualifyType,
     drawingSizeY?: number,
+    /**
+     * How annotations are divided between the base side (lineStart) and the opposite side:
+     * - 'lineAverage' (original): lines are built from all annotations, then each line goes to the side its
+     *   annotations are closer to on average - one line can mix annotations from both halves;
+     * - 'content': the annotations are divided first, at a gap between the annotated objects chosen so that both
+     *   sides get a fair share (see chooseSideDivider), and each side builds its own lines.
+     */
+    sideSplit?: 'lineAverage' | 'content',
 }) {
     const {
         annotationsParent,
@@ -96,6 +104,7 @@ export function drawAnnotationsWithAnnotationLines(args: {
         minIntervalsForSummedAnnotationLine = -1,
         disqualifyAnnotations = 'onlyNonperpendicular',
         drawingSizeY = 2000,
+        sideSplit = 'lineAverage',
     } = args;
     void annotationsParent;
     void lineNormalDirection;
@@ -115,6 +124,86 @@ export function drawAnnotationsWithAnnotationLines(args: {
         });
 
 
+    if (sideSplit === 'content') {
+        // distance from the drawing edge on the base side (the base line lies outside the drawing)
+        const offset = lineStart.dot(lineNormalDirection) - drawingSizeY;
+        const positionOf = (annotation: AnnotationTransformedToDirection) => annotation.distanceY - offset;
+        const divider = chooseSideDivider(sortedAnnotations.map(positionOf), drawingSizeY);
+        // the same extent along the line (e.g. the common height of a row of units) is dimensioned on one side only
+        // when its objects form one continuous row across the divider - on the side where most of them are, the
+        // base side on a tie; two separate groups with the same extent (e.g. both legs of a U) keep a dimension each
+        const extentOf = (a: AnnotationTransformedToDirection) => `${a.distanceStartX}:${a.distanceEndX}:${Math.round(a.realLength)}`;
+        const byExtent = new Map<string, number[]>();
+        for (const a of sortedAnnotations) (byExtent.get(extentOf(a)) ?? byExtent.set(extentOf(a), []).get(extentOf(a))!).push(positionOf(a));
+        const oneSide = new Map<string, boolean>(); // extent -> on the base side
+        const splitExtents = new Map<string, boolean>(); // extents kept on both sides -> the side they would join
+        for (const [extent, positions] of byExtent) {
+            positions.sort((a, b) => a - b);
+            const near = positions.filter(p => p <= divider).length;
+            if (near === 0 || near === positions.length) continue;
+            const crossing = positions[near] - positions[near - 1];
+            const steps = positions.slice(1).map((p, i) => p - positions[i]).filter((_, i) => i !== near - 1);
+            const separateGroups = crossing >= 0.1 * drawingSizeY && crossing >= 2 * Math.max(0, ...steps);
+            if (separateGroups) splitExtents.set(extent, near >= positions.length - near);
+            else oneSide.set(extent, near >= positions.length - near);
+        }
+        const onNearSide = (a: AnnotationTransformedToDirection) => oneSide.get(extentOf(a)) ?? positionOf(a) <= divider;
+        const build = () => [
+            buildAnnotationLines(sortedAnnotations.filter(onNearSide), disqualifyAnnotations, minIntervalsForSummedAnnotationLine),
+            buildAnnotationLines(sortedAnnotations.filter(a => !onNearSide(a)), disqualifyAnnotations, minIntervalsForSummedAnnotationLine),
+        ];
+        let [near, far] = build();
+        // an extent kept on both sides that ends up alone (drawn at its position) goes back to one side: where most
+        // of it is, or the other side when it would be alone there as well
+        const stranded = () => [...new Set([...near.annotationsAtPosition, ...far.annotationsAtPosition].map(extentOf))].filter(extent => splitExtents.has(extent));
+        const first = stranded();
+        if (first.length) {
+            for (const extent of first) oneSide.set(extent, splitExtents.get(extent)!);
+            [near, far] = build();
+            const again = stranded();
+            if (again.length) {
+                for (const extent of again) oneSide.set(extent, !oneSide.get(extent));
+                [near, far] = build();
+            }
+        }
+        return {
+            layerName: layerName,
+            annotationLines: near.lines,
+            secondaryAnnotationLines: far.lines,
+            countOfLines: near.lines.length,
+            secondaryCountOfLines: far.lines.length,
+            annotationsAtPosition: [...near.annotationsAtPosition, ...far.annotationsAtPosition],
+        };
+    }
+
+    const { lines: linesWithAnnotations, annotationsAtPosition } = buildAnnotationLines(sortedAnnotations, disqualifyAnnotations, minIntervalsForSummedAnnotationLine);
+
+    const primaryAnnotationLines: LineWithAnnotations[] = []
+    const secondaryAnnotationLines: LineWithAnnotations[] = [];
+    splitArrayIntoTwo(
+        linesWithAnnotations,
+        (line: LineWithAnnotations) => {
+            const lineDistance = line.getMergeCriteria();
+            return lineDistance <= drawingSizeY / 2;
+        },
+        primaryAnnotationLines,
+        secondaryAnnotationLines
+    );
+
+    return {
+        layerName: layerName,
+        annotationLines: primaryAnnotationLines,
+        secondaryAnnotationLines: secondaryAnnotationLines,
+        countOfLines: primaryAnnotationLines.length,
+        secondaryCountOfLines: secondaryAnnotationLines.length,
+        annotationsAtPosition: annotationsAtPosition,
+    };
+
+}
+
+
+/** Steps 2-5 of drawAnnotationsWithAnnotationLines: group, merge, disqualify, sort and optionally sum the lines. */
+function buildAnnotationLines(sortedAnnotations: AnnotationTransformedToDirection[], disqualifyAnnotations: AnnotationLineDisqualifyType, minIntervalsForSummedAnnotationLine: number): { lines: LineWithAnnotations[], annotationsAtPosition: AnnotationTransformedToDirection[] } {
     // 2. group and merge annotations into annotation lines
 
     // group annotations first to lines based on their distance from the line and depth in view
@@ -167,29 +256,31 @@ export function drawAnnotationsWithAnnotationLines(args: {
     }
 
 
-    const primaryAnnotationLines: LineWithAnnotations[] = []
-    const secondaryAnnotationLines: LineWithAnnotations[] = [];
-    splitArrayIntoTwo(
-        linesWithAnnotations,
-        (line: LineWithAnnotations) => {
-            const lineDistance = line.getMergeCriteria();
-            return lineDistance <= drawingSizeY / 2;
-        },
-        primaryAnnotationLines,
-        secondaryAnnotationLines
-    );
-
-    return {
-        layerName: layerName,
-        annotationLines: primaryAnnotationLines,
-        secondaryAnnotationLines: secondaryAnnotationLines,
-        countOfLines: primaryAnnotationLines.length,
-        secondaryCountOfLines: secondaryAnnotationLines.length,
-        annotationsAtPosition: annotationsAtPosition,
-    };
-
+    return { lines: linesWithAnnotations, annotationsAtPosition };
 }
 
+/**
+ * Where to divide the annotations between the base side (positions up to the returned divider, measured from the
+ * base edge of the drawing) and the opposite side. Candidates are the empty bands between neighbouring annotated
+ * positions that are real gaps (at least 10 % of the drawing size) and leave at least two annotations on each
+ * side; the best one is wide and balanced. Without such a band all annotations go to the side their objects are
+ * closer to on average.
+ */
+function chooseSideDivider(positions: number[], size: number): number {
+    const sorted = [...positions].sort((a, b) => a - b);
+    const n = sorted.length;
+    let best: { score: number, at: number } | undefined;
+    for (let i = 1; i < n; i++) {
+        const gap = sorted[i] - sorted[i - 1];
+        const smaller = Math.min(i, n - i);
+        if (gap < 0.1 * size || smaller < 2) continue;
+        const score = gap / size + smaller / n;
+        if (!best || score > best.score) best = { score, at: (sorted[i] + sorted[i - 1]) / 2 };
+    }
+    if (best) return best.at;
+    const mean = n ? sorted.reduce((sum, p) => sum + p, 0) / n : 0;
+    return mean <= size / 2 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+}
 
 // -------
 // HELPERS

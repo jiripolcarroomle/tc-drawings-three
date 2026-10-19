@@ -57,12 +57,15 @@ const format = (n: number, digits = 1) => {
 };
 const escapeXml = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
-/** Fills and lines of one view in view coordinates; line widths and dashes are on paper at `scale`. */
-export function viewContent(result: HlrResult, settings: DrawingSettings, scale: number, extra: string[] = []): string {
+/**
+ * Fills and lines of one view in view coordinates; line widths and dashes are on paper at `scale`. `solidFills`
+ * (per solid index) override the class fills, e.g. with the colours of the parts.
+ */
+export function viewContent(result: HlrResult, settings: DrawingSettings, scale: number, extra: string[] = [], solidFills: (string | undefined)[] = []): string {
     const parts: string[] = [];
     if (settings.fills) {
         const fills = result.faces
-            .map(face => ({ face, fill: styleOf(settings, face.cls).fill }))
+            .map(face => ({ face, fill: solidFills[face.solid] ?? styleOf(settings, face.cls).fill }))
             .filter(({ fill }) => fill !== 'none')
             .map(({ face, fill }) => `<path d="${face.rings.map(ring => 'M' + ring.map(p => format(p.x) + ' ' + format(-p.y)).join('L') + 'Z').join('')}" fill="${fill}"/>`);
         parts.push(`<g class="fills" fill-rule="evenodd">${fills.join('')}</g>`);

@@ -25,12 +25,26 @@ export interface DrawingSettings {
     defaultStyle: ClassStyle;
     /** Paint faces underneath the lines (light shading). */
     fills: boolean;
+    /**
+     * Faces in the colours of the parts (content `colorOf`) instead of the class fills; `lighten` mixes the colours
+     * with white (0..1) so that lines and dimensions stay readable on dark materials.
+     */
+    colors: { enabled: boolean; lighten: number };
     views: {
         top: boolean;
         elevations: boolean;
         rearElevations: boolean;
         /** A wall side gets an elevation when a (non-generated) module is closer than this to its face [mm]. */
         maxDistanceFromWall: number;
+        /**
+         * How modules are grouped into elevations: 'walls' = per wall side (modules close to it); 'runs' = runs of
+         * modules (same facing, backs in one plane), at a wall or free-standing (peninsulas, islands) - see views.ts.
+         */
+        grouping: 'walls' | 'runs';
+        /** Runs: largest gap between neighbouring modules of one run [mm]. */
+        runGap: number;
+        /** Runs: how far the backs of one run may be apart [mm]. */
+        runBackTolerance: number;
     };
     text: { fontFamily: string; titleHeight: number };
     /** Sheet layout [paper mm]. */
@@ -68,6 +82,12 @@ export interface DrawingSettings {
         disqualify: 'onlyNonperpendicular' | 'looseIntervals' | 'withSingleInterval';
         /** Annotations and overlays with one of these tags are not drawn. */
         excludeTags: string[];
+        /**
+         * Which side an annotation goes to: 'content' = the annotations are divided at a gap between the annotated
+         * objects (left part to the left edge, right part to the right edge, likewise bottom/top), so lines do not
+         * pile up on one side; 'lineAverage' = the original rule (whole lines by their average distance).
+         */
+        sideSplit: 'content' | 'lineAverage';
     };
     /** Edges between faces meeting under a smaller angle are not drawn (smooth arcs) [degrees]. */
     smoothAngle: number;
@@ -83,13 +103,16 @@ export const defaultSettings: DrawingSettings = {
         wall: { lineWidth: 0.5, fill: '#bfbfbf', pattern: 'solid', hiddenLines: 'none' },
         // the wall behind an elevation
         'wall-elevation': { lineWidth: 0.35, fill: '#ececec', pattern: 'solid', hiddenLines: 'none' },
+        // floor line under free-standing elevations
+        floor: { lineWidth: 0.5, fill: 'none', pattern: 'solid', hiddenLines: 'none' },
     },
     defaultStyle: { lineWidth: 0.25, fill: '#ffffff', pattern: 'solid', hiddenLines: 'none' },
     fills: true,
-    views: { top: true, elevations: true, rearElevations: true, maxDistanceFromWall: 300 },
+    colors: { enabled: true, lighten: 0.15 },
+    views: { top: true, elevations: true, rearElevations: true, maxDistanceFromWall: 300, grouping: 'walls', runGap: 600, runBackTolerance: 150 },
     text: { fontFamily: 'Arial, Helvetica, sans-serif', titleHeight: 3.5 },
     sheet: { frame: true, padding: 5, titleBlockHeight: 14, overview: true, viewGap: 12, captionHeight: 3.5, elevationMarkers: true, markerRadius: 4 },
-    annotations: { textHeight: 2.5, lineSpacing: 40, baseMargin: 20, finalMargin: 20, disqualify: 'withSingleInterval', excludeTags: ['inside'] },
+    annotations: { textHeight: 2.5, lineSpacing: 40, baseMargin: 20, finalMargin: 20, disqualify: 'withSingleInterval', excludeTags: ['inside'], sideSplit: 'content' },
     smoothAngle: 10,
     tolerance: { depth: 0.5, boundary: 0.05 },
 };
